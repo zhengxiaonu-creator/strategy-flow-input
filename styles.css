@@ -180,9 +180,11 @@ button { cursor:pointer; }
 .edge-label {
   position:absolute; z-index:3; max-width:220px; padding:6px 8px; border:1px solid rgba(210,208,206,.76);
   border-radius:var(--radius); background:rgba(255,255,255,.84); color:var(--muted); font-size:10.5px; line-height:1.45;
-  box-shadow:var(--shadow-sm); cursor:pointer; transform:translate(-50%,-50%); backdrop-filter:blur(12px) saturate(140%);
+  box-shadow:var(--shadow-sm); cursor:grab; transform:translate(-50%,-50%); backdrop-filter:blur(12px) saturate(140%);
   transition:border-color var(--speed) var(--motion),color var(--speed) var(--motion),box-shadow var(--speed) var(--motion);
+  touch-action:none;
 }
+#edgeLabelLayer.dragging .edge-label { cursor:grabbing; }
 .edge-label:hover,.edge-label.selected { border-color:rgba(0,120,212,.42); color:var(--accent); box-shadow:var(--shadow-md); }
 .edge-label b { display:block; margin-bottom:2px; color:var(--ink); font-size:10px; }
 .edge-label span {

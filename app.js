@@ -88,6 +88,7 @@
 
   function normalizeEdge(value) {
     const source = value && typeof value === "object" ? value : {};
+    const layout = source.layout && typeof source.layout === "object" ? source.layout : {};
     return {
       localId: string(source.localId),
       from: string(source.from),
@@ -99,6 +100,9 @@
       mutexGroup: string(source.mutexGroup),
       overwriteSource: source.overwriteSource === true,
       label: string(source.label),
+      layout: {
+        normalOffset: Math.max(-240, Math.min(240, numberOr(layout.normalOffset, 0))),
+      },
     };
   }
 
@@ -413,6 +417,7 @@
     let nodeDrag = null;
     let canvasPan = null;
     let connecting = null;
+    let edgeLabelDrag = null;
     let toastTimer = null;
     let saveStatusTimer = null;
     let clickOrigin = null;
@@ -803,55 +808,63 @@
       };
     }
 
-    function edgeGeometry(fromBox, toBox) {
-      const slot = arguments[2] || {};
-      const sourceFraction = slot.sourceFraction ?? .5;
-      const targetFraction = slot.targetFraction ?? .5;
-      const fanSize = Math.max(slot.sourceCount ?? 1, slot.targetCount ?? 1);
-      const fanSpread = Math.min(90, 34 + (fanSize - 1) * 26);
+    function edgeGeometry(fromBox, toBox, slot = {}) {
+      const routeOffset = Math.max(
+        -240,
+        Math.min(240, (slot.autoOffset ?? 0) + (slot.normalOffset ?? 0)),
+      );
+      const shiftedControl = (x, y, x1, y1, x2, y2) => {
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const vector = Math.hypot(dx, dy) || 1;
+        return {
+          x: x + (-dy / vector) * routeOffset,
+          y: y + (dx / vector) * routeOffset,
+        };
+      };
+
+      // Parallel edges intentionally share physical card anchors. Their visual
+      // separation comes from control-point offsets, not from split anchors.
       if (toBox.cx > fromBox.cx + 25) {
-        const y1 = fromBox.y + fromBox.h * sourceFraction;
-        const y2 = toBox.y + toBox.h * targetFraction;
-        const control1Y = y1 + (sourceFraction - .5) * fanSpread;
-        const control2Y = y2 + (targetFraction - .5) * fanSpread;
-        const spread = Math.max(78, Math.min(180, Math.abs(toBox.x - fromBox.x - fromBox.w) * .45));
+        const x1 = fromBox.x + fromBox.w;
+        const y1 = fromBox.cy;
+        const x2 = toBox.x;
+        const y2 = toBox.cy;
+        const spread = Math.max(78, Math.min(180, Math.abs(x2 - x1) * .45));
+        const c1 = shiftedControl(x1 + spread, y1, x1, y1, x2, y2);
+        const c2 = shiftedControl(x2 - spread, y2, x1, y1, x2, y2);
         return {
-          x1: fromBox.x + fromBox.w,
-          y1,
-          x2: toBox.x,
-          y2,
-          d: `M${fromBox.x + fromBox.w} ${y1} C ${fromBox.x + fromBox.w + spread} ${control1Y}, ${toBox.x - spread} ${control2Y}, ${toBox.x} ${y2}`,
+          x1, y1, x2, y2,
+          routeOffset,
+          d: `M${x1} ${y1} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${x2} ${y2}`,
         };
       }
+
       if (toBox.cx < fromBox.cx - 25) {
-        const sourceIndex = slot.sourceIndex ?? 0;
-        const lane = Math.max(
-          20,
-          Math.min(fromBox.y, toBox.y) - 88 + sourceIndex * 54,
-        );
-        const y1 = fromBox.y + fromBox.h * sourceFraction;
-        const y2 = toBox.y + toBox.h * targetFraction;
+        const x1 = fromBox.x;
+        const y1 = fromBox.cy;
+        const x2 = toBox.x + toBox.w;
+        const y2 = toBox.cy;
+        const c1 = shiftedControl(x1 - 100, y1, x1, y1, x2, y2);
+        const c2 = shiftedControl(x2 + 100, y2, x1, y1, x2, y2);
         return {
-          x1: fromBox.x,
-          y1,
-          x2: toBox.x + toBox.w,
-          y2,
-          d: `M${fromBox.x} ${y1} C ${fromBox.x - 90} ${lane}, ${toBox.x + toBox.w + 90} ${lane}, ${toBox.x + toBox.w} ${y2}`,
+          x1, y1, x2, y2,
+          routeOffset,
+          d: `M${x1} ${y1} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${x2} ${y2}`,
         };
       }
+
       const down = toBox.cy >= fromBox.cy;
+      const x1 = fromBox.cx;
       const y1 = down ? fromBox.y + fromBox.h : fromBox.y;
+      const x2 = toBox.cx;
       const y2 = down ? toBox.y : toBox.y + toBox.h;
-      const x1 = fromBox.x + fromBox.w * sourceFraction;
-      const x2 = toBox.x + toBox.w * targetFraction;
-      const control1X = x1 + (sourceFraction - .5) * fanSpread;
-      const control2X = x2 + (targetFraction - .5) * fanSpread;
+      const c1 = shiftedControl(x1, y1 + (down ? 88 : -88), x1, y1, x2, y2);
+      const c2 = shiftedControl(x2, y2 + (down ? -88 : 88), x1, y1, x2, y2);
       return {
-        x1,
-        y1,
-        x2,
-        y2,
-        d: `M${x1} ${y1} C ${control1X} ${y1 + (down ? 80 : -80)}, ${control2X} ${y2 + (down ? -80 : 80)}, ${x2} ${y2}`,
+        x1, y1, x2, y2,
+        routeOffset,
+        d: `M${x1} ${y1} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${x2} ${y2}`,
       };
     }
 
@@ -871,16 +884,26 @@
         const targetEdges = incoming.get(edge.to) || [edge];
         const sourceIndex = Math.max(0, sourceEdges.findIndex(item => item.localId === edge.localId));
         const targetIndex = Math.max(0, targetEdges.findIndex(item => item.localId === edge.localId));
-        const anchorAt = (index, count) => count <= 1
-          ? .5
-          : .27 + .46 * (index / (count - 1));
+        const sourcePosition = sourceEdges.length <= 1
+          ? 0
+          : sourceIndex - (sourceEdges.length - 1) / 2;
+        const targetPosition = targetEdges.length <= 1
+          ? 0
+          : targetIndex - (targetEdges.length - 1) / 2;
+        const fanSize = Math.max(sourceEdges.length, targetEdges.length);
+        const spacing = Math.min(56, 34 + (fanSize - 1) * 8);
+        const autoOffset = Math.max(
+          -120,
+          Math.min(120, (sourcePosition + targetPosition) * spacing),
+        );
         slots.set(edge.localId, {
           sourceIndex,
           sourceCount: sourceEdges.length,
-          sourceFraction: anchorAt(sourceIndex, sourceEdges.length),
+          sourcePosition,
           targetIndex,
           targetCount: targetEdges.length,
-          targetFraction: anchorAt(targetIndex, targetEdges.length),
+          targetPosition,
+          autoOffset,
         });
       });
       return slots;
@@ -892,21 +915,27 @@
       const marker = `<defs><marker id="arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#605e5c"></path></marker></defs>`;
       const paths = [];
       const slots = buildEdgeSlots();
+      const labelEntries = [];
+
       documentState.edges.forEach(edge => {
         const from = nodeBox(edge.from);
         const to = nodeBox(edge.to);
         if (!from || !to) return;
-        const geometry = edgeGeometry(from, to, slots.get(edge.localId));
-        const selectedClass = selected?.kind === "edge" && selected.id === edge.localId ? " selected" : "";
+        const slot = {
+          ...(slots.get(edge.localId) || {}),
+          normalOffset: edge.layout.normalOffset,
+        };
+        const geometry = edgeGeometry(from, to, slot);
         const edgeSelected = selected?.kind === "edge" && selected.id === edge.localId;
         paths.push(`<path class="hit" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" stroke="transparent" stroke-width="14" fill="none"><title>${escapeHtml(edge.label || edge.localId)}</title></path><path class="visible edge ${escapeHtml(edge.edgeType)}${edgeSelected ? " selected" : ""}" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" marker-end="url(#arrowhead)"></path>`);
       });
       edgeSvg.innerHTML = marker + paths.join("");
+
       documentState.edges.forEach(edge => {
-        const div = document.createElement("div");
         const path = [...edgeSvg.querySelectorAll("path.visible")]
           .find(item => item.dataset.edgeId === edge.localId);
         if (!path) return;
+
         const length = path.getTotalLength();
         const point = path.getPointAtLength(length * .5);
         const before = path.getPointAtLength(Math.max(0, length * .47));
@@ -914,18 +943,20 @@
         const dx = after.x - before.x;
         const dy = after.y - before.y;
         const vector = Math.hypot(dx, dy) || 1;
-        const slot = slots.get(edge.localId);
-        const side = slot
-          ? slot.sourceIndex - (slot.sourceCount - 1) / 2
-          : 0;
-        const offset = 25 + Math.abs(side) * 16;
-        const direction = side === 0 ? 1 : side > 0 ? 1 : -1;
-        const labelX = point.x + (-dy / vector) * offset * direction;
-        const labelY = point.y + (dx / vector) * offset * direction;
+        const slot = slots.get(edge.localId) || {};
+        const routeOffset = slot.autoOffset + edge.layout.normalOffset;
+        const fallbackSide = slot.sourcePosition || slot.targetPosition || 0;
+        const direction = routeOffset !== 0
+          ? Math.sign(routeOffset)
+          : fallbackSide === 0 ? 1 : Math.sign(fallbackSide);
+        const preferredDistance = 29 + Math.abs(routeOffset) * .08;
+        const normalX = -dy / vector;
+        const normalY = dx / vector;
+
+        const div = document.createElement("div");
         div.className = `edge-label${selected?.kind === "edge" && selected.id === edge.localId ? " selected" : ""}`;
         div.dataset.edgeId = edge.localId;
-        div.style.left = `${labelX}px`;
-        div.style.top = `${labelY}px`;
+        div.title = "拖拽标签可沿法线方向调整曲线间距";
         const actorStatus = labelOf(edge.actorBehavior.status, ACTOR_STATUSES);
         const objectStatus = labelOf(edge.subjectBehavior.status, SUBJECT_STATUSES);
         div.innerHTML = `
@@ -933,6 +964,53 @@
           <span>执行人：${escapeHtml(edge.actorBehavior.time || "时间待确认")} ${escapeHtml(actorStatus)} ${escapeHtml(edge.actorBehavior.action || "动作待确认")}</span>
           <span>对象：${escapeHtml(edge.subjectBehavior.time || "时间待确认")} ${escapeHtml(objectStatus)} ${escapeHtml(edge.subjectBehavior.action || "行为待确认")}</span>`;
         edgeLabelLayer.appendChild(div);
+        labelEntries.push({
+          div,
+          point,
+          normalX,
+          normalY,
+          direction,
+          preferredDistance,
+        });
+      });
+
+      // Labels follow their own curve normal. If deterministic fan positions
+      // still collide, push the later label further along that normal.
+      const placedBoxes = [];
+      const overlaps = (box) => placedBoxes.some(placed =>
+        box.left < placed.right + 4
+        && box.right > placed.left - 4
+        && box.top < placed.bottom + 4
+        && box.bottom > placed.top - 4
+      );
+      labelEntries.forEach(entry => {
+        const width = entry.div.offsetWidth || 220;
+        const height = entry.div.offsetHeight || 58;
+        const candidates = [];
+        for (const sign of [entry.direction, -entry.direction]) {
+          for (let distance = entry.preferredDistance; distance <= 300; distance += 22) {
+            const x = entry.point.x + entry.normalX * distance * sign;
+            const y = entry.point.y + entry.normalY * distance * sign;
+            const box = { left: x - width / 2, right: x + width / 2, top: y - height / 2, bottom: y + height / 2 };
+            if (box.left < 0 || box.top < 0 || box.right > CANVAS_BASE.width || box.bottom > CANVAS_BASE.height) continue;
+            candidates.push({ x, y, box });
+            if (!overlaps(box)) break;
+          }
+        }
+        const selectedPosition = candidates.find(candidate => !overlaps(candidate.box))
+          || candidates[0]
+          || {
+            x: entry.point.x + entry.normalX * entry.preferredDistance * entry.direction,
+            y: entry.point.y + entry.normalY * entry.preferredDistance * entry.direction,
+          };
+        entry.div.style.left = `${selectedPosition.x}px`;
+        entry.div.style.top = `${selectedPosition.y}px`;
+        placedBoxes.push({
+          left: selectedPosition.x - width / 2,
+          right: selectedPosition.x + width / 2,
+          top: selectedPosition.y - height / 2,
+          bottom: selectedPosition.y + height / 2,
+        });
       });
     }
 
@@ -1314,7 +1392,31 @@
     edgeLabelLayer.addEventListener("pointerdown", event => {
       const label = event.target.closest(".edge-label");
       if (!label) return;
+      const edgeId = label.dataset.edgeId;
+      const edge = documentState.edges.find(item => item.localId === edgeId);
+      if (!edge) return;
       selected = { kind: "edge", id: label.dataset.edgeId };
+      const path = [...edgeSvg.querySelectorAll("path.visible")]
+        .find(item => item.dataset.edgeId === edgeId);
+      if (path) {
+        const length = path.getTotalLength();
+        const before = path.getPointAtLength(Math.max(0, length * .47));
+        const after = path.getPointAtLength(Math.min(length, length * .53));
+        const dx = after.x - before.x;
+        const dy = after.y - before.y;
+        const vector = Math.hypot(dx, dy) || 1;
+        edgeLabelDrag = {
+          id: edgeId,
+          startX: event.clientX,
+          startY: event.clientY,
+          startOffset: edge.layout.normalOffset,
+          normalX: -dy / vector,
+          normalY: dx / vector,
+        };
+        edgeLabelLayer.classList.add("dragging");
+        try { edgeLabelLayer.setPointerCapture?.(event.pointerId); } catch (_) { /* pointer capture is best-effort */ }
+        event.preventDefault();
+      }
       renderAll();
     });
 
@@ -1332,7 +1434,22 @@
       ) {
         clickOrigin.moved = true;
       }
-      if (nodeDrag) {
+      if (edgeLabelDrag) {
+        const edge = documentState.edges.find(item => item.localId === edgeLabelDrag.id);
+        if (edge) {
+          const screenDeltaX = event.clientX - edgeLabelDrag.startX;
+          const screenDeltaY = event.clientY - edgeLabelDrag.startY;
+          const logicalNormalDelta = (
+            screenDeltaX * edgeLabelDrag.normalX
+            + screenDeltaY * edgeLabelDrag.normalY
+          ) / layoutState.zoom;
+          edge.layout.normalOffset = Math.max(
+            -240,
+            Math.min(240, Math.round(edgeLabelDrag.startOffset + logicalNormalDelta)),
+          );
+          renderEdges();
+        }
+      } else if (nodeDrag) {
         const point = canvasPoint(event);
         const node = documentState.nodes.find(item => item.localId === nodeDrag.id);
         if (node) {
@@ -1362,6 +1479,12 @@
     });
 
     document.addEventListener("pointerup", event => {
+      if (edgeLabelDrag) {
+        edgeLabelDrag = null;
+        edgeLabelLayer.classList.remove("dragging");
+        renderValidation();
+        saveDraft();
+      }
       if (nodeDrag) {
         const card = document.getElementById(`node-${nodeDrag.id}`);
         card?.classList.remove("dragging");

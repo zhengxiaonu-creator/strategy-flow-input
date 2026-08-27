@@ -203,39 +203,83 @@ let browser;
   );
   await page.mouse.up();
   await page.waitForSelector("#node-n4");
+  const secondSourcePort = await page.locator("#node-n2 .node-port.output").boundingBox();
+  const secondTarget = await page.locator("#node-n4").boundingBox();
+  assert.ok(secondSourcePort && secondTarget);
+  await page.mouse.move(
+    secondSourcePort.x + secondSourcePort.width / 2,
+    secondSourcePort.y + secondSourcePort.height / 2
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    secondTarget.x + secondTarget.width / 2,
+    secondTarget.y + secondTarget.height / 2,
+    { steps: 8 }
+  );
+  await page.mouse.up();
+  await page.waitForFunction(() => document.querySelectorAll(".edge-label").length === 4);
   await page.click("#node-n4");
   await page.click("#addStrategyActionBtn");
   await page.click("#addProcessActionBtn");
   await page.waitForFunction(() => {
     const json = JSON.parse(document.getElementById("jsonOutput").value);
     return json.nodes.length === 4
-      && json.edges.length === 3
+      && json.edges.length === 4
       && json.strategyActions.length === 2
       && json.processActions.length === 2;
   });
   const parallelEdgeLayout = await page.evaluate(() => {
-    const starts = [...document.querySelectorAll("#edgeSvg path.visible")]
-      .map(path => path.getAttribute("d").match(/^M([0-9.]+) ([0-9.]+)/))
-      .filter(Boolean)
-      .map(match => Number(match[2]));
+    const edges = JSON.parse(document.getElementById("jsonOutput").value).edges;
+    const paths = [...document.querySelectorAll("#edgeSvg path.visible")];
+    const pathByEdge = new Map(paths.map(path => [path.dataset.edgeId, path.getAttribute("d")]));
+    const startOf = id => Number(pathByEdge.get(id).match(/^M([0-9.]+) ([0-9.]+)/)[2]);
+    const endOf = id => {
+      const match = pathByEdge.get(id).match(/\s(-?[0-9.]+) (-?[0-9.]+)\s*$/);
+      return match && Number(match[2]);
+    };
     const labelPositions = [...document.querySelectorAll(".edge-label")].map(label => ({
       left: label.style.left,
       top: label.style.top,
     }));
-    return { starts, labelPositions };
+    return {
+      edgeCount: edges.length,
+      sameSourceStart: startOf("e1") === startOf("e3"),
+      sameTargetEnd: endOf("e3") === endOf("e4"),
+      labelPositions,
+    };
   });
-  assert.equal(parallelEdgeLayout.starts.length, 3);
-  assert.equal(new Set(parallelEdgeLayout.starts).size, parallelEdgeLayout.starts.length);
-  assert.equal(parallelEdgeLayout.labelPositions.length, 3);
+  assert.equal(parallelEdgeLayout.edgeCount, 4);
+  assert.equal(parallelEdgeLayout.sameSourceStart, true);
+  assert.equal(parallelEdgeLayout.sameTargetEnd, true);
+  assert.equal(parallelEdgeLayout.labelPositions.length, 4);
   assert.equal(
     new Set(parallelEdgeLayout.labelPositions.map(position => `${position.left}|${position.top}`)).size,
     parallelEdgeLayout.labelPositions.length
   );
+  const adjustableLabel = page.locator('.edge-label[data-edge-id="e3"]');
+  const adjustableBox = await adjustableLabel.boundingBox();
+  assert.ok(adjustableBox);
+  await page.mouse.move(
+    adjustableBox.x + adjustableBox.width / 2,
+    adjustableBox.y + adjustableBox.height / 2
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    adjustableBox.x + adjustableBox.width / 2,
+    adjustableBox.y - 75,
+    { steps: 8 }
+  );
+  await page.mouse.up();
+  await page.waitForFunction(() => {
+    const edge = JSON.parse(document.getElementById("jsonOutput").value)
+      .edges.find(item => item.localId === "e3");
+    return edge.layout.normalOffset < -10;
+  });
 
   const exported = await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value));
   assert.equal(exported.schemaVersion, "strategy-flow-input/0.1");
   assert.equal(exported.nodes.length, 4);
-  assert.equal(exported.edges.length, 3);
+  assert.equal(exported.edges.length, 4);
   assert.equal(exported.strategyActions.length, 2);
   assert.equal(exported.processActions.length, 2);
 

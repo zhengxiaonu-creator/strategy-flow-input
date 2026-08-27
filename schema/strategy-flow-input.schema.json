@@ -143,7 +143,20 @@
         "confirmed": { "type": "boolean" },
         "mutexGroup": { "type": "string" },
         "overwriteSource": { "type": "boolean" },
-        "label": { "type": "string" }
+        "label": { "type": "string" },
+        "layout": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["normalOffset"],
+          "description": "画布布局信息，不属于业务语义。normalOffset 是曲线沿中点法线方向的人工调整量。",
+          "properties": {
+            "normalOffset": {
+              "type": "number",
+              "minimum": -240,
+              "maximum": 240
+            }
+          }
+        }
       }
     },
     "actorBehavior": {
