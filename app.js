@@ -745,7 +745,7 @@
     function renderEdges() {
       edgeSvg.innerHTML = "";
       edgeLabelLayer.innerHTML = "";
-      const marker = `<defs><marker id="arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#667085"></path></marker></defs>`;
+      const marker = `<defs><marker id="arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#605e5c"></path></marker></defs>`;
       const paths = [];
       const labels = [];
       documentState.edges.forEach(edge => {
@@ -754,7 +754,8 @@
         if (!from || !to) return;
         const geometry = edgeGeometry(from, to);
         const selectedClass = selected?.kind === "edge" && selected.id === edge.localId ? " selected" : "";
-        paths.push(`<path class="hit" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" stroke="transparent" stroke-width="14" fill="none"><title>${escapeHtml(edge.label || edge.localId)}</title></path><path class="visible edge ${escapeHtml(edge.edgeType)}" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" marker-end="url(#arrowhead)"></path>`);
+        const edgeSelected = selected?.kind === "edge" && selected.id === edge.localId;
+        paths.push(`<path class="hit" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" stroke="transparent" stroke-width="14" fill="none"><title>${escapeHtml(edge.label || edge.localId)}</title></path><path class="visible edge ${escapeHtml(edge.edgeType)}${edgeSelected ? " selected" : ""}" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" marker-end="url(#arrowhead)"></path>`);
         labels.push({ edge, geometry });
       });
       edgeSvg.innerHTML = marker + paths.join("");
