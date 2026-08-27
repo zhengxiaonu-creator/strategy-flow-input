@@ -1,0 +1,129 @@
+# EBSCN Strategy Flow Designer
+
+策略编排设计器 MVP，用于把“责任人 + 策略主体状态 + 双行为条件”画成可校验的 `strategy-flow-input/0.1` JSON，并导出 Mermaid 沟通图。
+
+## 当前边界
+
+- 本地静态页面，无后端、无登录、不上传数据。
+- 只写浏览器 localStorage 草稿，不写 `strategy-workbench` case、不写 registry、不生成 xlsx。
+- JSON 是事实源；Mermaid 是投影，不承诺无损 round-trip。
+- 拖拽坐标只存于 `layout`，不参与业务语义。
+
+## 打开方式
+
+```bash
+open ebscn-strategy-flow-designer/index.html
+```
+
+或在 IDE / 浏览器中直接打开：
+
+```text
+ebscn-strategy-flow-designer/index.html
+```
+
+## 基本操作
+
+1. 左侧选择策略范式。
+2. 添加入口、过程、结果、回收、重入、终态节点。
+3. 从节点右侧红色锚点拖到目标节点，创建流转边。
+4. 点击节点 / 边，在右侧编辑结构化属性。
+5. 为节点挂接策略动作和过程动作。
+6. 底部“校验”实时显示阻断错误和警告。
+7. “导出 JSON”得到正式输入；“导出 Mermaid”得到业务沟通图。
+
+## 契约
+
+- Schema：`schema/strategy-flow-input.schema.json`
+- 示例：`examples/customer-strategy.json`
+- 版本：`strategy-flow-input/0.1`
+
+核心结构：
+
+```text
+strategy           策略基础信息
+nodes              编排节点：责任执行人 + 策略主体状态 + 时间/阶段
+edges              流转边：执行人行为 + 策略主体行为
+strategyActions    策略动作气泡，挂接节点 / 流出边
+processActions     过程管理动作气泡，挂接节点 / 流出边
+validation         导出时计算；导入时忽略并重算
+```
+
+## 时间与状态枚举
+
+时间：
+
+```text
+T日
+T+1日
+T+7日前
+T+7日后
+```
+
+执行人动作状态：
+
+```text
+executed         已执行
+not_executed     未执行
+no_requirement   无行为要求
+```
+
+策略主体行为状态：
+
+```text
+happened         已发生
+not_happened     未发生
+no_requirement   无行为要求
+```
+
+## 校验错误码
+
+### 阻断错误
+
+| Code | 含义 |
+|---|---|
+| `SCHEMA_VERSION_UNSUPPORTED` | 契约版本不支持 |
+| `STRATEGY_FIELD_REQUIRED` | 策略基础字段缺失 |
+| `NODE_ID_INVALID` / `NODE_ID_DUPLICATE` | 节点 ID非法或重复 |
+| `EDGE_ID_INVALID` / `EDGE_ID_DUPLICATE` | 边 ID 非法或重复 |
+| `ACTION_ID_INVALID` / `ACTION_ID_DUPLICATE` | 动作 ID 非法或重复 |
+| `TIME_REQUIRED` | 节点时间缺失 |
+| `EXECUTOR_REQUIRED` | 责任执行人缺失 |
+| `SUBJECT_STATE_REQUIRED` | 策略主体状态缺失 |
+| `LAYOUT_INVALID` | 画布坐标无效 |
+| `EDGE_ENDPOINT_MISSING` | 边端点不存在 |
+| `EDGE_SELF_LOOP` | 不允许自环 |
+| `OUTCOME_EDGE_TYPE_INVALID` | 进入结果 / 终态的边类型不合法 |
+| `TERMINAL_OUTGOING_EDGE` | 结果 / 终态存在出边 |
+| `EXECUTOR_HANDOFF_MISSING` | 执行人变化但未标记 handoff |
+| `NODE_ORPHAN` | 正式编排存在孤立节点 |
+| `ACTOR_TIME_REQUIRED` / `ACTOR_ACTION_REQUIRED` / `ACTOR_STATUS_REQUIRED` | 执行人行为缺失 |
+| `SUBJECT_TIME_REQUIRED` / `SUBJECT_ACTION_REQUIRED` / `SUBJECT_STATUS_REQUIRED` | 主体行为缺失 |
+| `STRATEGY_ACTION_NODE_MISSING` / `STRATEGY_ACTION_EDGE_MISSING` / `STRATEGY_ACTION_EDGE_SOURCE_MISMATCH` | 策略动作挂接无效 |
+| `PROCESS_ACTION_NODE_MISSING` / `PROCESS_ACTION_EDGE_MISSING` / `PROCESS_ACTION_EDGE_SOURCE_MISMATCH` | 过程动作挂接无效 |
+| `ACTION_FIELD_REQUIRED` | 动作必填字段缺失 |
+
+### 警告
+
+| Code | 含义 |
+|---|---|
+| `EDGE_NOT_CONFIRMED` | 流转边尚未业务确认 |
+| `STRATEGY_ACTION_MISSING` | 编排没有策略动作 |
+| `PROCESS_ACTION_MISSING` | 编排没有过程动作 |
+| `PROCESS_ACTION_UNMOUNTED` | 过程节点未挂接过程动作 |
+
+`errors` 清零时导出状态为 `ready_to_submit`；否则为 `draft`。
+
+## 导入规则
+
+1. 仅接受 `strategy-flow-input/0.1`。
+2. `validation` 会被忽略并重新计算。
+3. 未知字段会被丢弃。
+4. `layout` 缺失时自动补默认坐标。
+5. 导入后必须处理校验错误，再作为正式输入使用。
+
+## 下一步
+
+1. 增加 JSON Schema 独立 validator。
+2. 增加 Mermaid 草稿导入（仅生成待确认草稿）。
+3. 增加 `JSON -> 策略提交表 v1.2` 转换器。
+4. 通过 `manage_case.py import-flow` 接入 Agent 工作台。

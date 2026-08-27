@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EBSCN 策略编排设计器 · strategy-flow-input</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<div class="app" id="strategyFlowDesigner">
+  <header class="topbar">
+    <div class="brand">
+      <b><i>EBSCN</i> 策略编排设计器</b>
+      <span>strategy-flow-input/0.1 · JSON 是事实源，Mermaid 是投影</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn ghost" id="loadExampleBtn" type="button">加载示例</button>
+      <button class="btn ghost" id="resetBtn" type="button">清空草稿</button>
+      <button class="btn ghost" id="autoLayoutBtn" type="button">自动布局</button>
+      <button class="btn" id="importBtn" type="button">导入 JSON</button>
+      <button class="btn" id="copyJsonBtn" type="button">复制 JSON</button>
+      <button class="btn primary" id="downloadJsonBtn" type="button">导出 JSON</button>
+      <button class="btn" id="downloadMermaidBtn" type="button">导出 Mermaid</button>
+      <input id="importFile" type="file" accept=".json,application/json">
+    </div>
+  </header>
+
+  <main class="workbench">
+    <aside class="side-panel">
+      <div class="side-block">
+        <h2 class="side-title">策略范式</h2>
+        <div class="mode-switch" id="paradigmSwitch">
+          <button type="button" data-paradigm="customer">客群策略</button>
+          <button type="button" data-paradigm="scene">场景触发</button>
+        </div>
+        <p class="hint">切换只影响默认主体类型和文案提示，不会改写已有节点状态。</p>
+      </div>
+      <div class="side-block">
+        <h2 class="side-title">添加节点</h2>
+        <div class="node-buttons" id="nodeButtons">
+          <button class="btn" type="button" data-node-type="entry">入口</button>
+          <button class="btn" type="button" data-node-type="process">过程</button>
+          <button class="btn" type="button" data-node-type="wait">等待</button>
+          <button class="btn" type="button" data-node-type="outcome">结果</button>
+          <button class="btn" type="button" data-node-type="recycle">回收</button>
+          <button class="btn" type="button" data-node-type="reentry">重入</button>
+          <button class="btn" type="button" data-node-type="terminal">终态</button>
+        </div>
+        <p class="hint">从节点右侧圆点拖到目标节点创建流转边。</p>
+      </div>
+      <div class="side-block">
+        <h2 class="side-title">挂接动作</h2>
+        <div class="node-buttons">
+          <button class="btn wide" id="addStrategyActionBtn" type="button">新增策略动作</button>
+          <button class="btn wide" id="addProcessActionBtn" type="button">新增过程动作</button>
+        </div>
+        <p class="hint">动作会下挂到当前选中节点；没有选中时挂到第一个节点。</p>
+      </div>
+      <div class="side-block">
+        <h2 class="side-title">画布操作</h2>
+        <p class="hint">拖拽节点调整布局；拖拽空白处平移画布；点击节点 / 边 / 动作标签编辑属性。坐标只保存在 layout，不进入业务语义。</p>
+      </div>
+    </aside>
+
+    <section class="canvas-shell" id="canvasShell">
+      <div class="canvas" id="canvas">
+        <svg class="edge-svg" id="edgeSvg" aria-hidden="true"></svg>
+        <div id="nodeLayer"></div>
+        <div id="edgeLabelLayer"></div>
+      </div>
+    </section>
+
+    <aside class="side-panel inspector" id="inspector"></aside>
+  </main>
+
+  <section class="bottom-panel">
+    <div class="panel-tabs">
+      <button class="on" data-panel="validationView" type="button">校验</button>
+      <button data-panel="codeView" type="button">代码</button>
+      <button data-panel="importView" type="button">导入</button>
+      <span class="status draft" id="validationStatus">draft</span>
+    </div>
+    <div class="panel-body">
+      <div class="panel-view on" id="validationView">
+        <div class="issue-list" id="issueList"></div>
+        <div class="validation-help">
+          <b>提交规则</b><br>
+          1. JSON 是正式输入；Mermaid 仅用于业务沟通。<br>
+          2. errors 清零后才允许 ready_to_submit。<br>
+          3. 缺失业务字段必须保留“待确认”，不得填 0 或编造。<br>
+          4. “无行为要求”和“未发生行为”必须区分。<br>
+          5. 源 / 目标执行人不同且未标记 handoff 会阻断。<br>
+          6. 本 MVP 不写工单、不写 registry、不直接生成提交表。
+        </div>
+      </div>
+      <div class="panel-view" id="codeView">
+        <div class="code-pane">
+          <div class="code-title"><span>strategy-flow-input JSON</span><button class="btn small" id="copyJsonBottomBtn" type="button">复制</button></div>
+          <textarea id="jsonOutput" readonly spellcheck="false"></textarea>
+        </div>
+        <div class="code-pane">
+          <div class="code-title"><span>Mermaid 沟通图</span><button class="btn small" id="copyMermaidBtn" type="button">复制</button></div>
+          <textarea id="mermaidOutput" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+      <div class="panel-view" id="importView">
+        <div class="import-main">
+          <textarea id="importText" placeholder='粘贴 strategy-flow-input JSON...' spellcheck="false"></textarea>
+        </div>
+        <aside class="import-help">
+          <b>导入规则</b>
+          <p class="hint">1. 仅支持 strategy-flow-input/0.1。<br>2. validation 字段会被忽略并重新计算。<br>3. 未知字段会被丢弃，避免把临时 UI 状态带入正式输入。<br>4. layout 缺失时自动补默认坐标。<br>5. 导入后必须先处理校验错误，再导出正式 JSON。</p>
+          <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">
+            <button class="btn primary" id="applyImportBtn" type="button">应用导入</button>
+            <button class="btn" id="formatImportBtn" type="button">格式化校验</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+<script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "strategy-flow-input/0.1",
+  "strategy": {
+    "strategyName": "两融潜客激活策略",
+    "strategyId": "",
+    "paradigm": "customer",
+    "owner": "郑天宇",
+    "submitter": "郑天宇",
+    "businessScene": "用户激活",
+    "strategyType": "用户激活",
+    "strategySubtype": "两融潜客激活策略",
+    "version": "0.1",
+    "versionStatus": "draft"
+  },
+  "nodes": [
+    {
+      "localId": "n1",
+      "nodeType": "entry",
+      "time": "T日",
+      "executor": "系统",
+      "subject": { "type": "customer", "state": "两融潜客" },
+      "displayName": "系统·两融潜客",
+      "layout": { "x": 80, "y": 160 }
+    },
+    {
+      "localId": "n2",
+      "nodeType": "process",
+      "time": "T+1日",
+      "executor": "系统",
+      "subject": { "type": "customer", "state": "两融潜客·待推送" },
+      "displayName": "系统·待推送",
+      "layout": { "x": 430, "y": 160 }
+    },
+    {
+      "localId": "n3",
+      "nodeType": "outcome",
+      "time": "T+7日前",
+      "executor": "营销经理",
+      "subject": { "type": "customer", "state": "两融潜客·已开通两融" },
+      "displayName": "营销经理·已开通两融",
+      "layout": { "x": 790, "y": 160 }
+    }
+  ],
+  "edges": [
+    {
+      "localId": "e1",
+      "from": "n1",
+      "to": "n2",
+      "edgeType": "state_transition",
+      "actorBehavior": {
+        "time": "T日",
+        "action": "APP触达（站内信、弹窗）",
+        "status": "executed"
+      },
+      "subjectBehavior": {
+        "time": "T日",
+        "action": "点击链接",
+        "status": "happened"
+      },
+      "confirmed": true,
+      "mutexGroup": "g1",
+      "overwriteSource": false,
+      "label": "点击链接后进入待推送"
+    },
+    {
+      "localId": "e2",
+      "from": "n2",
+      "to": "n3",
+      "edgeType": "handoff",
+      "actorBehavior": {
+        "time": "T+7日前",
+        "action": "服务",
+        "status": "executed"
+      },
+      "subjectBehavior": {
+        "time": "T+7日前",
+        "action": "开通两融",
+        "status": "happened"
+      },
+      "confirmed": true,
+      "mutexGroup": "g2",
+      "overwriteSource": false,
+      "label": "服务并开通两融"
+    }
+  ],
+  "strategyActions": [
+    {
+      "localId": "sa1",
+      "nodeId": "n1",
+      "outgoingEdgeId": "e1",
+      "time": "T日",
+      "subjectState": "两融潜客",
+      "judge": "无前置判断（流程入口）",
+      "touchScene": "APP触达、短信触发",
+      "touchMethod": "APP弹窗、APP站内信、短信",
+      "theme": "预约两融并联系营销经理",
+      "goal": "预约两融并联系营销经理",
+      "hook": "Level-2-6M",
+      "copy": "尊敬的VIP客户……",
+      "hasLink": true,
+      "metrics": ["推送数", "点击数", "点击率"]
+    }
+  ],
+  "processActions": [
+    {
+      "localId": "pa1",
+      "nodeId": "n2",
+      "outgoingEdgeId": "",
+      "executor": "系统",
+      "scene": "企业微信",
+      "condition": "预约潜客T日未联系营销经理，且客户有挂接关系",
+      "result": "T+1日线索推送至挂接营销经理",
+      "action": "T+1日推送企微线索至挂接营销经理",
+      "hook": "无",
+      "recipient": "营销经理",
+      "metrics": ["任务数"]
+    }
+  ]
+}

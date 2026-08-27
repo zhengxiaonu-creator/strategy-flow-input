@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ebsecn.local/strategy-flow-input/0.1/schema.json",
+  "title": "EBSCN Strategy Flow Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "strategy", "nodes", "edges", "strategyActions", "processActions"],
+  "properties": {
+    "schemaVersion": {
+      "const": "strategy-flow-input/0.1"
+    },
+    "strategy": {
+      "$ref": "#/$defs/strategy"
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    },
+    "strategyActions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/strategyAction" }
+    },
+    "processActions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/processAction" }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "导出时由设计器计算；再次导入时会被重新计算，不作为人工输入。",
+      "properties": {
+        "status": { "enum": ["draft", "ready_to_submit"] },
+        "errors": { "$ref": "#/$defs/issue" },
+        "warnings": { "$ref": "#/$defs/issue" }
+      },
+      "required": ["status", "errors", "warnings"]
+    }
+  },
+  "$defs": {
+    "localId": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+    },
+    "optionalLocalId": {
+      "anyOf": [
+        { "type": "string", "const": "" },
+        { "$ref": "#/$defs/localId" }
+      ]
+    },
+    "strategyTime": {
+      "enum": ["T日", "T+1日", "T+7日前", "T+7日后"]
+    },
+    "issue": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "path"],
+        "properties": {
+          "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+          "message": { "type": "string", "minLength": 1 },
+          "path": { "type": "string" }
+        }
+      }
+    },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategyName", "paradigm", "owner", "submitter"],
+      "properties": {
+        "strategyName": { "type": "string", "minLength": 1 },
+        "strategyId": { "type": "string" },
+        "paradigm": { "enum": ["customer", "scene"] },
+        "owner": { "type": "string", "minLength": 1 },
+        "submitter": { "type": "string", "minLength": 1 },
+        "businessScene": { "type": "string" },
+        "strategyType": { "type": "string" },
+        "strategySubtype": { "type": "string" },
+        "version": { "type": "string" },
+        "versionStatus": { "enum": ["draft", "candidate", "registered", "deprecated"] }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localId", "nodeType", "time", "executor", "subject", "layout"],
+      "properties": {
+        "localId": { "$ref": "#/$defs/localId" },
+        "nodeType": {
+          "enum": ["entry", "process", "wait", "outcome", "recycle", "reentry", "terminal"]
+        },
+        "time": { "$ref": "#/$defs/strategyTime" },
+        "executor": { "type": "string", "minLength": 1 },
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "state"],
+          "properties": {
+            "type": { "enum": ["customer", "scene", "event", "activity"] },
+            "state": { "type": "string", "minLength": 1 }
+          }
+        },
+        "displayName": { "type": "string" },
+        "layout": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localId", "from", "to", "edgeType", "actorBehavior", "subjectBehavior"],
+      "properties": {
+        "localId": { "$ref": "#/$defs/localId" },
+        "from": { "$ref": "#/$defs/localId" },
+        "to": { "$ref": "#/$defs/localId" },
+        "edgeType": {
+          "enum": ["state_transition", "handoff", "outcome", "recycle", "reentry", "exception"]
+        },
+        "actorBehavior": { "$ref": "#/$defs/actorBehavior" },
+        "subjectBehavior": { "$ref": "#/$defs/subjectBehavior" },
+        "confirmed": { "type": "boolean" },
+        "mutexGroup": { "type": "string" },
+        "overwriteSource": { "type": "boolean" },
+        "label": { "type": "string" }
+      }
+    },
+    "actorBehavior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["time", "action", "status"],
+      "properties": {
+        "time": { "$ref": "#/$defs/strategyTime" },
+        "action": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["executed", "not_executed", "no_requirement"] }
+      }
+    },
+    "subjectBehavior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["time", "action", "status"],
+      "properties": {
+        "time": { "$ref": "#/$defs/strategyTime" },
+        "action": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["happened", "not_happened", "no_requirement"] }
+      }
+    },
+    "strategyAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localId", "nodeId", "outgoingEdgeId"],
+      "properties": {
+        "localId": { "$ref": "#/$defs/localId" },
+        "nodeId": { "$ref": "#/$defs/localId" },
+        "outgoingEdgeId": { "$ref": "#/$defs/optionalLocalId" },
+        "time": { "$ref": "#/$defs/strategyTime" },
+        "subjectState": { "type": "string" },
+        "judge": { "type": "string" },
+        "touchScene": { "type": "string" },
+        "touchMethod": { "type": "string" },
+        "theme": { "type": "string" },
+        "goal": { "type": "string" },
+        "hook": { "type": "string" },
+        "copy": { "type": "string" },
+        "hasLink": { "type": "boolean" },
+        "metrics": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "processAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localId", "nodeId", "outgoingEdgeId"],
+      "properties": {
+        "localId": { "$ref": "#/$defs/localId" },
+        "nodeId": { "$ref": "#/$defs/localId" },
+        "outgoingEdgeId": { "$ref": "#/$defs/optionalLocalId" },
+        "executor": { "type": "string" },
+        "scene": { "type": "string" },
+        "condition": { "type": "string" },
+        "result": { "type": "string" },
+        "action": { "type": "string" },
+        "hook": { "type": "string" },
+        "recipient": { "type": "string" },
+        "metrics": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
