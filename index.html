@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>EBSCN 策略编排设计器 · strategy-flow-input</title>
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=0.7.0">
 </head>
 <body>
 <div class="app" id="strategyFlowDesigner">
@@ -25,6 +25,8 @@
         <button id="zoomInBtn" type="button" title="放大画布（Ctrl/⌘ + 滚轮向上）">+</button>
         <button id="zoomResetBtn" type="button" title="恢复 100% 缩放">1:1</button>
       </div>
+      <span class="save-status" id="saveStatus" role="status">自动保存已开启</span>
+      <button class="btn" id="saveDraftBtn" type="button" title="把当前草稿保存到本机浏览器">保存草稿</button>
       <button class="btn ghost" id="loadExampleBtn" type="button">加载示例</button>
       <button class="btn ghost" id="resetBtn" type="button">清空草稿</button>
       <button class="btn ghost" id="autoLayoutBtn" type="button">自动布局</button>
@@ -133,6 +135,6 @@
   </section>
 </div>
 <div class="toast" id="toast"></div>
-<script src="./app.js"></script>
+<script src="./app.js?v=0.7.0"></script>
 </body>
 </html>

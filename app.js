@@ -412,6 +412,7 @@
     let canvasPan = null;
     let connecting = null;
     let toastTimer = null;
+    let saveStatusTimer = null;
     const layoutState = { left: true, right: true, bottom: true, zoom: 1 };
     const CANVAS_BASE = { width: 2400, height: 1600 };
     const CANVAS_ZOOM_LIMITS = { min: 0.5, max: 1.5 };
@@ -435,11 +436,29 @@
       toastTimer = setTimeout(() => { toastEl.className = "toast"; }, 2600);
     }
 
-    function saveDraft() {
+    function setSaveStatus(text, tone = "saved") {
+      const status = el("saveStatus");
+      if (!status) return;
+      status.textContent = text;
+      status.className = `save-status${tone === "saved" ? "" : ` ${tone}`}`;
+      clearTimeout(saveStatusTimer);
+      if (tone === "saved") {
+        saveStatusTimer = setTimeout(() => {
+          status.textContent = "自动保存已开启";
+          status.className = "save-status";
+        }, 1800);
+      }
+    }
+
+    function saveDraft(manual = false) {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(documentState));
+        setSaveStatus(manual ? "草稿已保存" : "已自动保存");
+        return true;
       } catch (_) {
         // file:// privacy settings may disable localStorage; in-memory editing still works.
+        setSaveStatus("本机存储不可用，请导出 JSON", "error");
+        return false;
       }
     }
 
@@ -602,9 +621,9 @@
       const keys = path.split(".");
       const last = keys.pop();
       const collectionName = keys.shift();
-      let target;
+      let remainingKeys;
       if (collectionName === "strategy") {
-        target = documentState.strategy;
+        remainingKeys = keys;
       } else {
         const collection = {
           nodes: documentState.nodes,
@@ -612,10 +631,18 @@
           strategyActions: documentState.strategyActions,
           processActions: documentState.processActions,
         }[collectionName];
-        target = collection?.find(item => item.localId === keys[0]);
+        const localId = keys.shift();
+        remainingKeys = keys;
+        const target = collection?.find(item => item.localId === localId);
+        if (!target) return;
+        const parent = remainingKeys.reduce((object, key) => object?.[key], target);
+        if (!parent) return;
+        parent[last] = value;
+        return;
       }
-      if (!target) return;
-      target[last] = value;
+      const parent = remainingKeys.reduce((object, key) => object?.[key], documentState.strategy);
+      if (!parent) return;
+      parent[last] = value;
     }
 
     function canvasPoint(event) {
@@ -1288,6 +1315,10 @@
     el("addStrategyActionBtn").addEventListener("click", addStrategyAction);
     el("addProcessActionBtn").addEventListener("click", addProcessAction);
     el("autoLayoutBtn").addEventListener("click", autoLayout);
+    el("saveDraftBtn").addEventListener("click", () => {
+      if (saveDraft(true)) toast("草稿已保存到本机浏览器");
+      else toast("本机存储不可用，请导出 JSON 保存", true);
+    });
     el("zoomInBtn").addEventListener("click", () => setCanvasZoom(layoutState.zoom + .1));
     el("zoomOutBtn").addEventListener("click", () => setCanvasZoom(layoutState.zoom - .1));
     el("zoomResetBtn").addEventListener("click", () => setCanvasZoom(1));

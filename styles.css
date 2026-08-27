@@ -63,6 +63,14 @@ button { cursor:pointer; }
 .topbar-actions { display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin-left:auto; }
 .topbar input[type=file] { display:none; }
 
+.save-status {
+  display:inline-flex; align-items:center; min-height:26px; padding:3px 9px;
+  border-radius:999px; background:rgba(0,204,106,.09); color:var(--success-ink);
+  font-size:11px; font-weight:750; white-space:nowrap;
+}
+.save-status.saving { background:rgba(255,185,0,.1); color:var(--warning-ink); }
+.save-status.error { background:rgba(232,17,35,.07); color:var(--danger-ink); }
+
 .layout-switch {
   display:flex; gap:3px; padding:3px; border:1px solid rgba(210,208,206,.76); border-radius:var(--radius);
   background:rgba(243,242,241,.78);

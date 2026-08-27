@@ -26,6 +26,43 @@ let browser;
 
   assert.equal(await page.locator(".node-card").count(), 3);
   assert.equal(await page.locator('[data-bind$=".localId"]').count(), 0);
+  await page.locator(".edge-label").first().click();
+  await page.fill(
+    '[data-bind="edges.e1.actorBehavior.action"]',
+    "测试执行动作"
+  );
+  await page.locator("#node-n1").click();
+  await page.fill(
+    '[data-bind="nodes.n1.subject.state"]',
+    "测试对象状态"
+  );
+  await page.click("#saveDraftBtn");
+  const explicitlySaved = await page.evaluate(() => ({
+    status: document.getElementById("saveStatus").textContent,
+    json: JSON.parse(document.getElementById("jsonOutput").value),
+    draft: JSON.parse(localStorage.getItem("ebscn.strategy-flow-designer.draft.v0")),
+  }));
+  assert.equal("草稿已保存", explicitlySaved.status);
+  assert.equal(
+    "测试执行动作",
+    explicitlySaved.json.edges.find(edge => edge.localId === "e1").actorBehavior.action
+  );
+  assert.equal(
+    "测试对象状态",
+    explicitlySaved.json.nodes.find(node => node.localId === "n1").subject.state
+  );
+  assert.equal(
+    "测试执行动作",
+    explicitlySaved.draft.edges.find(edge => edge.localId === "e1").actorBehavior.action
+  );
+  await page.reload();
+  await page.waitForSelector(".node-card");
+  assert.equal(
+    "测试执行动作",
+    await page.evaluate(() => JSON.parse(
+      document.getElementById("jsonOutput").value
+    ).edges.find(edge => edge.localId === "e1").actorBehavior.action)
+  );
   await page.click("#toggleLeftPanelBtn");
   await page.click("#toggleRightPanelBtn");
   await page.click("#toggleBottomPanelBtn");

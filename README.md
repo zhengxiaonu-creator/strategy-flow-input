@@ -8,6 +8,7 @@
 
 - 本地静态页面，无后端、无登录、不上传数据。
 - 只写浏览器 localStorage 草稿，不写 `strategy-workbench` case、不写 registry、不生成 xlsx。
+- 修改会自动保存到本机浏览器，也提供「保存草稿」按钮做显式确认；正式交付仍以导出 JSON 为准。
 - JSON 是事实源；Mermaid 是投影，不承诺无损 round-trip。
 - 拖拽坐标只存于 `layout`，不参与业务语义。
 
