@@ -18,8 +18,8 @@
       "nodeType": "entry",
       "time": "启动日",
       "executor": "系统",
-      "subject": { "type": "customer", "state": "目标客群" },
-      "displayName": "系统·目标客群",
+      "subject": { "type": "customer", "state": "未触达" },
+      "displayName": "系统·客群未触达",
       "layout": { "x": 80, "y": 160 }
     },
     {
@@ -27,8 +27,8 @@
       "nodeType": "process",
       "time": "启动后1日",
       "executor": "系统",
-      "subject": { "type": "customer", "state": "目标客群·已触达" },
-      "displayName": "系统·已触达",
+      "subject": { "type": "customer", "state": "已触达" },
+      "displayName": "系统·客群已触达",
       "layout": { "x": 430, "y": 160 }
     },
     {
@@ -36,8 +36,8 @@
       "nodeType": "outcome",
       "time": "观察期结束前",
       "executor": "责任执行人",
-      "subject": { "type": "customer", "state": "目标客群·已转化" },
-      "displayName": "责任人·已转化",
+      "subject": { "type": "customer", "state": "已转化" },
+      "displayName": "责任人·客群已转化",
       "layout": { "x": 790, "y": 160 }
     }
   ],
@@ -89,7 +89,7 @@
       "nodeId": "n1",
       "outgoingEdgeId": "e1",
       "time": "启动日",
-      "subjectState": "目标客群",
+      "subjectState": "未触达",
       "judge": "无前置判断（流程入口）",
       "touchScene": "多渠道触达",
       "touchMethod": "按实际渠道填写",

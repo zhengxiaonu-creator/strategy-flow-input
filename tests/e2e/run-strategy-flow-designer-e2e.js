@@ -32,9 +32,19 @@ let browser;
     "测试执行动作"
   );
   await page.locator("#node-n1").click();
+  const nodeFieldHelp = await page.evaluate(() => ({
+    objectHelp: [...document.querySelectorAll(".field-help")].some(node => node.textContent.includes("对象表示这张流程卡片作用于谁或什么")),
+    stateHelp: [...document.querySelectorAll(".field-help")].some(node => node.textContent.includes("对象进入这张卡片时的业务状态")),
+    cardObject: document.querySelector("#node-n1 .node-subject")?.textContent,
+    cardStateLabel: document.querySelector("#node-n1 .node-state-label")?.textContent,
+  }));
+  assert.equal(nodeFieldHelp.objectHelp, true);
+  assert.equal(nodeFieldHelp.stateHelp, true);
+  assert.equal(nodeFieldHelp.cardObject, "对象：客群");
+  assert.equal(nodeFieldHelp.cardStateLabel, "当前状态");
   await page.fill(
     '[data-bind="nodes.n1.subject.state"]',
-    "测试对象状态"
+    "测试当前状态"
   );
   await page.click("#saveDraftBtn");
   const explicitlySaved = await page.evaluate(() => ({
@@ -48,7 +58,7 @@ let browser;
     explicitlySaved.json.edges.find(edge => edge.localId === "e1").actorBehavior.action
   );
   assert.equal(
-    "测试对象状态",
+    "测试当前状态",
     explicitlySaved.json.nodes.find(node => node.localId === "n1").subject.state
   );
   assert.equal(
@@ -146,7 +156,7 @@ let browser;
   assert.ok(afterDrag.x > beforeDrag.x + 80);
   assert.ok(afterDrag.y > beforeDrag.y + 45);
   await page.fill('[data-bind="nodes.n4.executor"]', "系统");
-  await page.fill('[data-bind="nodes.n4.subject.state"]', "目标客群·持续跟进");
+  await page.fill('[data-bind="nodes.n4.subject.state"]', "持续跟进");
   const sourcePort = await page.locator("#node-n1 .node-port.output").boundingBox();
   const target = await page.locator("#node-n4").boundingBox();
   assert.ok(sourcePort && target);

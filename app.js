@@ -231,7 +231,7 @@
       const base = `nodes[${index}]`;
       if (!node.time) errors.push(issue("TIME_REQUIRED", "流程卡片缺少时间 / 阶段", `${base}.time`));
       if (!node.executor) errors.push(issue("EXECUTOR_REQUIRED", "流程卡片缺少负责执行的角色 / 人", `${base}.executor`));
-      if (!node.subject.state) errors.push(issue("SUBJECT_STATE_REQUIRED", "流程卡片缺少对象当前状态", `${base}.subject.state`));
+      if (!node.subject.state) errors.push(issue("SUBJECT_STATE_REQUIRED", "流程卡片缺少当前状态", `${base}.subject.state`));
       if (!Number.isFinite(node.layout.x) || !Number.isFinite(node.layout.y)) {
         errors.push(issue("LAYOUT_INVALID", "画布坐标无效", `${base}.layout`));
       }
@@ -289,7 +289,7 @@
       const base = `strategyActions[${index}]`;
       actionNode("STRATEGY_ACTION", action, index, "strategyActions");
       [
-        ["time", "时间"], ["subjectState", "对象当前状态"], ["judge", "进入条件"],
+        ["time", "时间"], ["subjectState", "当前状态"], ["judge", "进入条件"],
         ["touchScene", "触达场景"], ["touchMethod", "触达方式"], ["theme", "话术主题"],
         ["goal", "核心目标"], ["hook", "核心抓手"], ["copy", "文案"],
       ].forEach(([key, name]) => {
@@ -773,8 +773,10 @@
         return `<article class="node-card${selected?.kind === "node" && selected.id === node.localId ? " selected" : ""}" data-id="${escapeHtml(node.localId)}" data-type="${escapeHtml(node.nodeType)}" style="transform:translate(${node.layout.x}px,${node.layout.y}px)" id="node-${escapeHtml(node.localId)}">
           <div><span class="node-type">${NODE_TYPE_LABELS.get(node.nodeType) || node.nodeType}</span><span class="node-time">${escapeHtml(node.time || "时间待确认")}</span></div>
           <div class="node-executor">${escapeHtml(node.executor || "执行人待确认")}</div>
-          <div class="node-state">${escapeHtml(node.subject.state || "状态待确认")}</div>
-          <div class="node-id">自动编号 ${escapeHtml(node.localId)} · ${escapeHtml(SUBJECT_TYPE_LABELS.get(node.subject.type) || node.subject.type)}</div>
+          <div class="node-subject">对象：${escapeHtml(SUBJECT_TYPE_LABELS.get(node.subject.type) || node.subject.type)}</div>
+          <div class="node-state-label">当前状态</div>
+          <div class="node-state">${escapeHtml(node.subject.state || "待确认")}</div>
+          <div class="node-id">自动编号 ${escapeHtml(node.localId)}</div>
           <div class="node-actions">${chips || "<span class='action-chip'>尚未添加业务内容</span>"}</div>
           <span class="node-port input" data-port="input" title="目标锚点"></span>
           <span class="node-port output" data-port="output" title="拖拽到目标卡片创建流转规则"></span>
@@ -920,8 +922,16 @@
           ${selectField("卡片类型", `nodes.${node.localId}.nodeType`, node.nodeType, NODE_TYPES.map(value => [value, NODE_TYPE_LABELS.get(value) || value]))}
           ${inputField("时间 / 阶段", `nodes.${node.localId}.time`, node.time, "text", "填写业务时间表达式")}
           ${inputField("负责执行的角色 / 人", `nodes.${node.localId}.executor`, node.executor)}
-          ${selectField("对象类型", `nodes.${node.localId}.subject.type`, node.subject.type, SUBJECT_TYPES.map(value => [value, SUBJECT_TYPE_LABELS.get(value) || value]))}
-          ${inputField("对象当前状态", `nodes.${node.localId}.subject.state`, node.subject.state)}
+          <div class="wide field-section">
+            <h3>对象</h3>
+            ${selectField("对象类型", `nodes.${node.localId}.subject.type`, node.subject.type, SUBJECT_TYPES.map(value => [value, SUBJECT_TYPE_LABELS.get(value) || value]))}
+            <p class="field-help">对象表示这张流程卡片作用于谁或什么：客群、场景、事件或活动。它只说明对象类别，不描述对象处于什么阶段。</p>
+          </div>
+          <div class="wide field-section">
+            <h3>当前状态</h3>
+            ${inputField("当前状态", `nodes.${node.localId}.subject.state`, node.subject.state, "text", "例如：未触达、已触达、已转化")}
+            <p class="field-help">当前状态是对象进入这张卡片时的业务状态。它描述“现在处于什么阶段”，不是对象类别，也不是执行人的处理进度。</p>
+          </div>
           ${inputField("卡片展示名", `nodes.${node.localId}.displayName`, node.displayName, "text", "不填时按执行人和状态展示")}
         </div>
       </div>
@@ -976,7 +986,7 @@
             ${selectField("所属流程卡片", `strategyActions.${action.localId}.nodeId`, action.nodeId, nodeOptions)}
             ${selectField("绑定的流转规则", `strategyActions.${action.localId}.outgoingEdgeId`, action.outgoingEdgeId, edgeOptions)}
             ${inputField("时间", `strategyActions.${action.localId}.time`, action.time, "text", "填写业务时间表达式")}
-            ${inputField("对象当前状态", `strategyActions.${action.localId}.subjectState`, action.subjectState)}
+            ${inputField("当前状态", `strategyActions.${action.localId}.subjectState`, action.subjectState, "text", "该触达内容适用的对象状态")}
             ${inputField("进入条件", `strategyActions.${action.localId}.judge`, action.judge)}
             ${inputField("触达场景", `strategyActions.${action.localId}.touchScene`, action.touchScene)}
             ${inputField("触达方式", `strategyActions.${action.localId}.touchMethod`, action.touchMethod)}
@@ -1382,16 +1392,16 @@
           version: "0.1",
         },
         nodes: [
-          { localId: "n1", nodeType: "entry", time: "启动日", executor: "系统", subject: { type: "customer", state: "目标客群" }, layout: { x: 80, y: 150 } },
-          { localId: "n2", nodeType: "process", time: "启动后1日", executor: "系统", subject: { type: "customer", state: "目标客群·已触达" }, layout: { x: 440, y: 150 } },
-          { localId: "n3", nodeType: "outcome", time: "观察期结束前", executor: "责任执行人", subject: { type: "customer", state: "目标客群·已转化" }, layout: { x: 800, y: 150 } },
+          { localId: "n1", nodeType: "entry", time: "启动日", executor: "系统", subject: { type: "customer", state: "未触达" }, layout: { x: 80, y: 150 } },
+          { localId: "n2", nodeType: "process", time: "启动后1日", executor: "系统", subject: { type: "customer", state: "已触达" }, layout: { x: 440, y: 150 } },
+          { localId: "n3", nodeType: "outcome", time: "观察期结束前", executor: "责任执行人", subject: { type: "customer", state: "已转化" }, layout: { x: 800, y: 150 } },
         ],
         edges: [
           { localId: "e1", from: "n1", to: "n2", edgeType: "state_transition", actorBehavior: { time: "启动日", action: "多渠道触达", status: "executed" }, subjectBehavior: { time: "启动日", action: "点击链接", status: "happened" }, confirmed: true, mutexGroup: "g1", label: "点击后进入已触达" },
           { localId: "e2", from: "n2", to: "n3", edgeType: "handoff", actorBehavior: { time: "观察期结束前", action: "人工跟进", status: "executed" }, subjectBehavior: { time: "观察期结束前", action: "完成转化", status: "happened" }, confirmed: true, mutexGroup: "g2", label: "跟进并完成转化" },
         ],
         strategyActions: [
-          { localId: "sa1", nodeId: "n1", outgoingEdgeId: "e1", time: "启动日", subjectState: "目标客群", judge: "无前置判断（流程入口）", touchScene: "多渠道触达", touchMethod: "按实际渠道填写", theme: "引导完成关键行为", goal: "引导完成关键行为", hook: "通用权益", copy: "【通用示例文案】请按实际策略替换。", hasLink: true, metrics: ["触达数", "点击数", "点击率"] },
+          { localId: "sa1", nodeId: "n1", outgoingEdgeId: "e1", time: "启动日", subjectState: "未触达", judge: "无前置判断（流程入口）", touchScene: "多渠道触达", touchMethod: "按实际渠道填写", theme: "引导完成关键行为", goal: "引导完成关键行为", hook: "通用权益", copy: "【通用示例文案】请按实际策略替换。", hasLink: true, metrics: ["触达数", "点击数", "点击率"] },
         ],
         processActions: [
           { localId: "pa1", nodeId: "n2", outgoingEdgeId: "", executor: "系统", scene: "按实际场景填写", condition: "客户已触达且需要人工跟进", result: "线索转交责任执行人", action: "转交线索给责任执行人", hook: "待确认", recipient: "责任执行人", metrics: ["任务数"] },

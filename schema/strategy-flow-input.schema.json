@@ -103,7 +103,11 @@
           "required": ["type", "state"],
           "properties": {
             "type": { "enum": ["customer", "scene", "event", "activity"] },
-            "state": { "type": "string", "minLength": 1 }
+            "state": {
+              "type": "string",
+              "minLength": 1,
+              "description": "对象进入该流程卡片时的业务状态，例如未触达、已触达、已转化；不是对象类别，也不是执行人的处理进度。"
+            }
           }
         },
         "displayName": { "type": "string" },
