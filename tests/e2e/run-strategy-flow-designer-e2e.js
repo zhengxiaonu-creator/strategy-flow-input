@@ -31,6 +31,15 @@ let browser;
     '[data-bind="edges.e1.actorBehavior.action"]',
     "测试执行动作"
   );
+  const edgeLabelText = await page.locator(".edge-label").first().innerText();
+  assert.equal(
+    true,
+    edgeLabelText.includes("执行人：启动日 已执行 测试执行动作")
+  );
+  assert.equal(
+    true,
+    edgeLabelText.includes("对象：启动日 已发生 点击链接")
+  );
   await page.locator("#node-n1").click();
   const nodeFieldHelp = await page.evaluate(() => ({
     objectHelp: [...document.querySelectorAll(".field-help")].some(node => node.textContent.includes("先选择对象类型，再填写该类型下的具体对象名称")),
@@ -43,11 +52,11 @@ let browser;
   assert.equal(nodeFieldHelp.stateHelp, true);
   assert.equal(nodeFieldHelp.hasNameField, true);
   assert.equal(nodeFieldHelp.cardObject, "对象：客群｜通用目标客群");
-  assert.equal(nodeFieldHelp.cardStateLabel, "当前状态");
+  assert.equal(nodeFieldHelp.cardStateLabel, "对象状态");
   await page.fill('[data-bind="nodes.n1.subject.name"]', "测试对象名称");
   await page.fill(
     '[data-bind="nodes.n1.subject.state"]',
-    "测试当前状态"
+    "测试对象状态"
   );
   await page.click("#saveDraftBtn");
   const explicitlySaved = await page.evaluate(() => ({
@@ -65,7 +74,7 @@ let browser;
     explicitlySaved.json.nodes.find(node => node.localId === "n1").subject.name
   );
   assert.equal(
-    "测试当前状态",
+    "测试对象状态",
     explicitlySaved.json.nodes.find(node => node.localId === "n1").subject.state
   );
   assert.equal(
@@ -204,6 +213,24 @@ let browser;
       && json.strategyActions.length === 2
       && json.processActions.length === 2;
   });
+  const parallelEdgeLayout = await page.evaluate(() => {
+    const starts = [...document.querySelectorAll("#edgeSvg path.visible")]
+      .map(path => path.getAttribute("d").match(/^M([0-9.]+) ([0-9.]+)/))
+      .filter(Boolean)
+      .map(match => Number(match[2]));
+    const labelPositions = [...document.querySelectorAll(".edge-label")].map(label => ({
+      left: label.style.left,
+      top: label.style.top,
+    }));
+    return { starts, labelPositions };
+  });
+  assert.equal(parallelEdgeLayout.starts.length, 3);
+  assert.equal(new Set(parallelEdgeLayout.starts).size, parallelEdgeLayout.starts.length);
+  assert.equal(parallelEdgeLayout.labelPositions.length, 3);
+  assert.equal(
+    new Set(parallelEdgeLayout.labelPositions.map(position => `${position.left}|${position.top}`)).size,
+    parallelEdgeLayout.labelPositions.length
+  );
 
   const exported = await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value));
   assert.equal(exported.schemaVersion, "strategy-flow-input/0.1");

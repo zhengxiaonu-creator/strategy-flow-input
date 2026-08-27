@@ -185,6 +185,9 @@ button { cursor:pointer; }
 }
 .edge-label:hover,.edge-label.selected { border-color:rgba(0,120,212,.42); color:var(--accent); box-shadow:var(--shadow-md); }
 .edge-label b { display:block; margin-bottom:2px; color:var(--ink); font-size:10px; }
+.edge-label span {
+  display:block; margin-top:1px; color:var(--muted); font-size:10px; line-height:1.45;
+}
 
 .node-card {
   position:absolute; z-index:4; width:260px; min-height:130px; padding:13px 14px 12px 17px;

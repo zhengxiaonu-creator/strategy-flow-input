@@ -1,6 +1,6 @@
 # EBSCN Strategy Flow Designer
 
-全项目通用的策略编排设计器 MVP，用于把“责任人 + 策略主体状态 + 双行为条件”画成可校验的 `strategy-flow-input/0.1` JSON，并导出 Mermaid 沟通图。页面内置示例只演示结构，不承载任何具体业务口径。
+全项目通用的策略编排设计器 MVP，用于把“责任人 + 对象状态 + 双行为条件”画成可校验的 `strategy-flow-input/0.1` JSON，并导出 Mermaid 沟通图。页面内置示例只演示结构，不承载任何具体业务口径。
 
 视觉层采用 Fluent Light：Acrylic 命令栏和流程卡片、Mica 侧栏、轻量光照画布、统一焦点环与动效曲线。业务交互色使用 Fluent Blue，EBSCN 红色仅保留品牌标识。
 
@@ -40,8 +40,8 @@ ebscn-strategy-flow-designer/index.html
 
 | 页面名称 | 含义 | 导出字段 |
 |---|---|---|
-| 流程卡片 | 谁负责 + 对象类型 + 对象名称 + 当前状态 | `nodes` |
-| 流转规则 | 执行人做了什么，客户 / 对象发生什么，然后进入哪张卡片 | `edges` |
+| 流程卡片 | 谁负责 + 对象类型 + 对象名称 + 对象状态 | `nodes` |
+| 流转规则 | 执行人做了什么，对象发生了什么，然后进入哪张卡片 | `edges` |
 | 客户触达内容 | 对客户说什么、用什么权益、看什么业务指标 | `strategyActions` |
 | 执行跟进动作 | 谁执行、执行什么、看什么过程指标 | `processActions` |
 
@@ -56,11 +56,11 @@ ebscn-strategy-flow-designer/index.html
 
 业务人员不需要填写或修改内部编号。导入 JSON 缺少编号时会自动补齐；显式非法编号不会被静默改写，而会进入校验错误。门户策略编号是注册系统回填的外部编号，首次提交可以留空，设计器不随机生成。
 
-### 对象与当前状态
+### 对象与对象状态
 
 - 对象类型：流程卡片作用于哪一类对象，可选客群、场景、事件、活动。
 - 对象名称：该类型下的具体业务对象，例如目标客群名称、触发场景名称、事件名称、活动名称。
-- 当前状态：对象进入这张卡片时的业务状态，例如未触达、已触达、已转化；它不是对象类别，也不是执行人的处理进度。
+- 对象状态：对象进入这张卡片时的业务状态，例如未触达、已触达、已转化；它不是对象类别，也不是执行人的处理进度。
 
 ## 契约
 
@@ -72,8 +72,8 @@ ebscn-strategy-flow-designer/index.html
 
 ```text
 strategy           策略基础信息
-nodes              编排节点：责任执行人 + 对象类型 / 名称 / 当前状态 + 时间阶段
-edges              流转边：执行人行为 + 策略主体行为
+nodes              编排节点：责任执行人 + 对象类型 / 名称 / 对象状态 + 时间阶段
+edges              流转边：执行人行为 + 对象行为
 strategyActions    策略动作气泡，挂接节点 / 流出边
 processActions     过程管理动作气泡，挂接节点 / 流出边
 validation         导出时计算；导入时忽略并重算
@@ -97,7 +97,7 @@ not_executed     未执行
 no_requirement   无行为要求
 ```
 
-策略主体行为状态：
+对象行为状态：
 
 ```text
 happened         已发生
@@ -118,7 +118,7 @@ no_requirement   无行为要求
 | `ACTION_ID_INVALID` / `ACTION_ID_DUPLICATE` | 动作 ID 非法或重复 |
 | `TIME_REQUIRED` | 节点时间缺失 |
 | `EXECUTOR_REQUIRED` | 责任执行人缺失 |
-| `SUBJECT_STATE_REQUIRED` | 策略主体状态缺失 |
+| `SUBJECT_STATE_REQUIRED` | 对象状态缺失 |
 | `SUBJECT_NAME_REQUIRED` | 对象名称缺失 |
 | `LAYOUT_INVALID` | 画布坐标无效 |
 | `EDGE_ENDPOINT_MISSING` | 边端点不存在 |
@@ -128,7 +128,7 @@ no_requirement   无行为要求
 | `EXECUTOR_HANDOFF_MISSING` | 执行人变化但未标记 handoff |
 | `NODE_ORPHAN` | 正式编排存在孤立节点 |
 | `ACTOR_TIME_REQUIRED` / `ACTOR_ACTION_REQUIRED` / `ACTOR_STATUS_REQUIRED` | 执行人行为缺失 |
-| `SUBJECT_TIME_REQUIRED` / `SUBJECT_ACTION_REQUIRED` / `SUBJECT_STATUS_REQUIRED` | 主体行为缺失 |
+| `SUBJECT_TIME_REQUIRED` / `SUBJECT_ACTION_REQUIRED` / `SUBJECT_STATUS_REQUIRED` | 对象行为缺失 |
 | `STRATEGY_ACTION_NODE_MISSING` / `STRATEGY_ACTION_EDGE_MISSING` / `STRATEGY_ACTION_EDGE_SOURCE_MISMATCH` | 策略动作挂接无效 |
 | `PROCESS_ACTION_NODE_MISSING` / `PROCESS_ACTION_EDGE_MISSING` / `PROCESS_ACTION_EDGE_SOURCE_MISMATCH` | 过程动作挂接无效 |
 | `ACTION_FIELD_REQUIRED` | 动作必填字段缺失 |

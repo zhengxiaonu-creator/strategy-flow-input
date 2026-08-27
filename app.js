@@ -232,7 +232,7 @@
       const base = `nodes[${index}]`;
       if (!node.time) errors.push(issue("TIME_REQUIRED", "流程卡片缺少时间 / 阶段", `${base}.time`));
       if (!node.executor) errors.push(issue("EXECUTOR_REQUIRED", "流程卡片缺少负责执行的角色 / 人", `${base}.executor`));
-      if (!node.subject.state) errors.push(issue("SUBJECT_STATE_REQUIRED", "流程卡片缺少当前状态", `${base}.subject.state`));
+      if (!node.subject.state) errors.push(issue("SUBJECT_STATE_REQUIRED", "流程卡片缺少对象状态", `${base}.subject.state`));
       if (!node.subject.name) errors.push(issue("SUBJECT_NAME_REQUIRED", "流程卡片缺少对象名称", `${base}.subject.name`));
       if (!Number.isFinite(node.layout.x) || !Number.isFinite(node.layout.y)) {
         errors.push(issue("LAYOUT_INVALID", "画布坐标无效", `${base}.layout`));
@@ -263,9 +263,9 @@
       if (!edge.actorBehavior.time) errors.push(issue("ACTOR_TIME_REQUIRED", "执行人做了什么：缺少时间", `${base}.actorBehavior.time`));
       if (!edge.actorBehavior.action) errors.push(issue("ACTOR_ACTION_REQUIRED", "执行人做了什么：缺少动作", `${base}.actorBehavior.action`));
       if (!edge.actorBehavior.status) errors.push(issue("ACTOR_STATUS_REQUIRED", "执行人做了什么：缺少执行状态", `${base}.actorBehavior.status`));
-      if (!edge.subjectBehavior.time) errors.push(issue("SUBJECT_TIME_REQUIRED", "客户 / 对象行为缺少时间", `${base}.subjectBehavior.time`));
-      if (!edge.subjectBehavior.action) errors.push(issue("SUBJECT_ACTION_REQUIRED", "客户 / 对象行为缺少具体行为", `${base}.subjectBehavior.action`));
-      if (!edge.subjectBehavior.status) errors.push(issue("SUBJECT_STATUS_REQUIRED", "客户 / 对象行为缺少发生状态", `${base}.subjectBehavior.status`));
+      if (!edge.subjectBehavior.time) errors.push(issue("SUBJECT_TIME_REQUIRED", "对象行为缺少时间", `${base}.subjectBehavior.time`));
+      if (!edge.subjectBehavior.action) errors.push(issue("SUBJECT_ACTION_REQUIRED", "对象行为缺少发生行为", `${base}.subjectBehavior.action`));
+      if (!edge.subjectBehavior.status) errors.push(issue("SUBJECT_STATUS_REQUIRED", "对象行为缺少发生状态", `${base}.subjectBehavior.status`));
       if (edge.confirmed !== true) warnings.push(issue("EDGE_NOT_CONFIRMED", "流转规则尚未业务确认", `${base}.confirmed`));
     });
 
@@ -291,7 +291,7 @@
       const base = `strategyActions[${index}]`;
       actionNode("STRATEGY_ACTION", action, index, "strategyActions");
       [
-        ["time", "时间"], ["subjectState", "当前状态"], ["judge", "进入条件"],
+        ["time", "时间"], ["subjectState", "对象状态"], ["judge", "进入条件"],
         ["touchScene", "触达场景"], ["touchMethod", "触达方式"], ["theme", "话术主题"],
         ["goal", "核心目标"], ["hook", "核心抓手"], ["copy", "文案"],
       ].forEach(([key, name]) => {
@@ -360,7 +360,7 @@
       const label = [
         `${edge.edgeType || "state_transition"}`,
         `执行人：${edge.actorBehavior.time || "时间待确认"}·${edge.actorBehavior.action || "动作待确认"}·${actorStatus}`,
-        `主体：${edge.subjectBehavior.time || "时间待确认"}·${edge.subjectBehavior.action || "行为待确认"}·${subjectStatus}`,
+        `对象：${edge.subjectBehavior.time || "时间待确认"}·${subjectStatus}·${edge.subjectBehavior.action || "行为待确认"}`,
       ].join("<br/>");
       const arrow = ["recycle", "reentry"].includes(edge.edgeType) ? "-.->" : edge.edgeType === "outcome" ? "==>" : "-->";
       lines.push(`    ${edge.from} ${arrow}|"${escapeMermaid(label)}"| ${edge.to}`);
@@ -777,7 +777,7 @@
           <div><span class="node-type">${NODE_TYPE_LABELS.get(node.nodeType) || node.nodeType}</span><span class="node-time">${escapeHtml(node.time || "时间待确认")}</span></div>
           <div class="node-executor">${escapeHtml(node.executor || "执行人待确认")}</div>
           <div class="node-subject">对象：${escapeHtml(SUBJECT_TYPE_LABELS.get(node.subject.type) || node.subject.type)}｜${escapeHtml(node.subject.name || "名称待确认")}</div>
-          <div class="node-state-label">当前状态</div>
+          <div class="node-state-label">对象状态</div>
           <div class="node-state">${escapeHtml(node.subject.state || "待确认")}</div>
           <div class="node-id">自动编号 ${escapeHtml(node.localId)}</div>
           <div class="node-actions">${chips || "<span class='action-chip'>尚未添加业务内容</span>"}</div>
@@ -804,35 +804,86 @@
     }
 
     function edgeGeometry(fromBox, toBox) {
+      const slot = arguments[2] || {};
+      const sourceFraction = slot.sourceFraction ?? .5;
+      const targetFraction = slot.targetFraction ?? .5;
+      const fanSize = Math.max(slot.sourceCount ?? 1, slot.targetCount ?? 1);
+      const fanSpread = Math.min(90, 34 + (fanSize - 1) * 26);
       if (toBox.cx > fromBox.cx + 25) {
+        const y1 = fromBox.y + fromBox.h * sourceFraction;
+        const y2 = toBox.y + toBox.h * targetFraction;
+        const control1Y = y1 + (sourceFraction - .5) * fanSpread;
+        const control2Y = y2 + (targetFraction - .5) * fanSpread;
+        const spread = Math.max(78, Math.min(180, Math.abs(toBox.x - fromBox.x - fromBox.w) * .45));
         return {
           x1: fromBox.x + fromBox.w,
-          y1: fromBox.cy,
+          y1,
           x2: toBox.x,
-          y2: toBox.cy,
-          d: `M${fromBox.x + fromBox.w} ${fromBox.cy} C ${fromBox.x + fromBox.w + 80} ${fromBox.cy}, ${toBox.x - 80} ${toBox.cy}, ${toBox.x} ${toBox.cy}`,
+          y2,
+          d: `M${fromBox.x + fromBox.w} ${y1} C ${fromBox.x + fromBox.w + spread} ${control1Y}, ${toBox.x - spread} ${control2Y}, ${toBox.x} ${y2}`,
         };
       }
       if (toBox.cx < fromBox.cx - 25) {
-        const lane = Math.max(35, Math.min(fromBox.y, toBox.y) - 72);
+        const sourceIndex = slot.sourceIndex ?? 0;
+        const lane = Math.max(
+          20,
+          Math.min(fromBox.y, toBox.y) - 88 + sourceIndex * 54,
+        );
+        const y1 = fromBox.y + fromBox.h * sourceFraction;
+        const y2 = toBox.y + toBox.h * targetFraction;
         return {
           x1: fromBox.x,
-          y1: fromBox.cy,
+          y1,
           x2: toBox.x + toBox.w,
-          y2: toBox.cy,
-          d: `M${fromBox.x} ${fromBox.cy} C ${fromBox.x - 80} ${lane}, ${toBox.x + toBox.w + 80} ${lane}, ${toBox.x + toBox.w} ${toBox.cy}`,
+          y2,
+          d: `M${fromBox.x} ${y1} C ${fromBox.x - 90} ${lane}, ${toBox.x + toBox.w + 90} ${lane}, ${toBox.x + toBox.w} ${y2}`,
         };
       }
       const down = toBox.cy >= fromBox.cy;
       const y1 = down ? fromBox.y + fromBox.h : fromBox.y;
       const y2 = down ? toBox.y : toBox.y + toBox.h;
+      const x1 = fromBox.x + fromBox.w * sourceFraction;
+      const x2 = toBox.x + toBox.w * targetFraction;
+      const control1X = x1 + (sourceFraction - .5) * fanSpread;
+      const control2X = x2 + (targetFraction - .5) * fanSpread;
       return {
-        x1: fromBox.cx,
+        x1,
         y1,
-        x2: toBox.cx,
+        x2,
         y2,
-        d: `M${fromBox.cx} ${y1} C ${fromBox.cx} ${y1 + (down ? 80 : -80)}, ${toBox.cx} ${y2 + (down ? -80 : 80)}, ${toBox.cx} ${y2}`,
+        d: `M${x1} ${y1} C ${control1X} ${y1 + (down ? 80 : -80)}, ${control2X} ${y2 + (down ? -80 : 80)}, ${x2} ${y2}`,
       };
+    }
+
+    function buildEdgeSlots() {
+      const outgoing = new Map();
+      const incoming = new Map();
+      documentState.edges.forEach(edge => {
+        if (!outgoing.has(edge.from)) outgoing.set(edge.from, []);
+        outgoing.get(edge.from).push(edge);
+        if (!incoming.has(edge.to)) incoming.set(edge.to, []);
+        incoming.get(edge.to).push(edge);
+      });
+
+      const slots = new Map();
+      documentState.edges.forEach(edge => {
+        const sourceEdges = outgoing.get(edge.from) || [edge];
+        const targetEdges = incoming.get(edge.to) || [edge];
+        const sourceIndex = Math.max(0, sourceEdges.findIndex(item => item.localId === edge.localId));
+        const targetIndex = Math.max(0, targetEdges.findIndex(item => item.localId === edge.localId));
+        const anchorAt = (index, count) => count <= 1
+          ? .5
+          : .27 + .46 * (index / (count - 1));
+        slots.set(edge.localId, {
+          sourceIndex,
+          sourceCount: sourceEdges.length,
+          sourceFraction: anchorAt(sourceIndex, sourceEdges.length),
+          targetIndex,
+          targetCount: targetEdges.length,
+          targetFraction: anchorAt(targetIndex, targetEdges.length),
+        });
+      });
+      return slots;
     }
 
     function renderEdges() {
@@ -840,25 +891,47 @@
       edgeLabelLayer.innerHTML = "";
       const marker = `<defs><marker id="arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#605e5c"></path></marker></defs>`;
       const paths = [];
-      const labels = [];
+      const slots = buildEdgeSlots();
       documentState.edges.forEach(edge => {
         const from = nodeBox(edge.from);
         const to = nodeBox(edge.to);
         if (!from || !to) return;
-        const geometry = edgeGeometry(from, to);
+        const geometry = edgeGeometry(from, to, slots.get(edge.localId));
         const selectedClass = selected?.kind === "edge" && selected.id === edge.localId ? " selected" : "";
         const edgeSelected = selected?.kind === "edge" && selected.id === edge.localId;
         paths.push(`<path class="hit" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" stroke="transparent" stroke-width="14" fill="none"><title>${escapeHtml(edge.label || edge.localId)}</title></path><path class="visible edge ${escapeHtml(edge.edgeType)}${edgeSelected ? " selected" : ""}" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" marker-end="url(#arrowhead)"></path>`);
-        labels.push({ edge, geometry });
       });
       edgeSvg.innerHTML = marker + paths.join("");
-      labels.forEach(({ edge, geometry }) => {
+      documentState.edges.forEach(edge => {
         const div = document.createElement("div");
+        const path = [...edgeSvg.querySelectorAll("path.visible")]
+          .find(item => item.dataset.edgeId === edge.localId);
+        if (!path) return;
+        const length = path.getTotalLength();
+        const point = path.getPointAtLength(length * .5);
+        const before = path.getPointAtLength(Math.max(0, length * .47));
+        const after = path.getPointAtLength(Math.min(length, length * .53));
+        const dx = after.x - before.x;
+        const dy = after.y - before.y;
+        const vector = Math.hypot(dx, dy) || 1;
+        const slot = slots.get(edge.localId);
+        const side = slot
+          ? slot.sourceIndex - (slot.sourceCount - 1) / 2
+          : 0;
+        const offset = 25 + Math.abs(side) * 16;
+        const direction = side === 0 ? 1 : side > 0 ? 1 : -1;
+        const labelX = point.x + (-dy / vector) * offset * direction;
+        const labelY = point.y + (dx / vector) * offset * direction;
         div.className = `edge-label${selected?.kind === "edge" && selected.id === edge.localId ? " selected" : ""}`;
         div.dataset.edgeId = edge.localId;
-        div.style.left = `${(geometry.x1 + geometry.x2) / 2}px`;
-        div.style.top = `${(geometry.y1 + geometry.y2) / 2}px`;
-        div.innerHTML = `<b>${escapeHtml(edge.edgeType)}${edge.confirmed ? " · 已确认" : " · 待确认"}</b>执行人：${escapeHtml(edge.actorBehavior.action || "待确认")}<br>主体：${escapeHtml(edge.subjectBehavior.action || "待确认")}`;
+        div.style.left = `${labelX}px`;
+        div.style.top = `${labelY}px`;
+        const actorStatus = labelOf(edge.actorBehavior.status, ACTOR_STATUSES);
+        const objectStatus = labelOf(edge.subjectBehavior.status, SUBJECT_STATUSES);
+        div.innerHTML = `
+          <b>${escapeHtml(edge.label || EDGE_TYPE_LABELS.get(edge.edgeType) || edge.edgeType)}${edge.confirmed ? " · 已确认" : " · 待确认"}</b>
+          <span>执行人：${escapeHtml(edge.actorBehavior.time || "时间待确认")} ${escapeHtml(actorStatus)} ${escapeHtml(edge.actorBehavior.action || "动作待确认")}</span>
+          <span>对象：${escapeHtml(edge.subjectBehavior.time || "时间待确认")} ${escapeHtml(objectStatus)} ${escapeHtml(edge.subjectBehavior.action || "行为待确认")}</span>`;
         edgeLabelLayer.appendChild(div);
       });
     }
@@ -932,9 +1005,9 @@
             <p class="field-help">先选择对象类型，再填写该类型下的具体对象名称。对象类型回答“这是哪一类对象”，对象名称回答“具体是哪一个”。</p>
           </div>
           <div class="wide field-section">
-            <h3>当前状态</h3>
-            ${inputField("当前状态", `nodes.${node.localId}.subject.state`, node.subject.state, "text", "例如：未触达、已触达、已转化")}
-            <p class="field-help">当前状态是对象进入这张卡片时的业务状态。它描述“现在处于什么阶段”，不是对象类别，也不是执行人的处理进度。</p>
+            <h3>对象状态</h3>
+            ${inputField("对象状态", `nodes.${node.localId}.subject.state`, node.subject.state, "text", "例如：未触达、已触达、已转化")}
+            <p class="field-help">对象状态是对象进入这张卡片时的业务状态。它描述“现在处于什么阶段”，不是对象类别，也不是执行人的处理进度。</p>
           </div>
           ${inputField("卡片展示名", `nodes.${node.localId}.displayName`, node.displayName, "text", "不填时按执行人和状态展示")}
         </div>
@@ -970,7 +1043,7 @@
           ${selectField("执行状态", `edges.${edge.localId}.actorBehavior.status`, edge.actorBehavior.status, ACTOR_STATUSES)}
           <div class="field-grid wide">${inputField("执行动作", `edges.${edge.localId}.actorBehavior.action`, edge.actorBehavior.action)}</div>
         </div>
-        <h2 class="side-title" style="margin-top:14px">客户 / 对象发生了什么</h2>
+        <h2 class="side-title" style="margin-top:14px">对象发生了什么</h2>
         <div class="inspector-form field-grid">
           ${inputField("时间", `edges.${edge.localId}.subjectBehavior.time`, edge.subjectBehavior.time, "text", "填写业务时间表达式")}
           ${selectField("发生状态", `edges.${edge.localId}.subjectBehavior.status`, edge.subjectBehavior.status, SUBJECT_STATUSES)}
@@ -990,7 +1063,7 @@
             ${selectField("所属流程卡片", `strategyActions.${action.localId}.nodeId`, action.nodeId, nodeOptions)}
             ${selectField("绑定的流转规则", `strategyActions.${action.localId}.outgoingEdgeId`, action.outgoingEdgeId, edgeOptions)}
             ${inputField("时间", `strategyActions.${action.localId}.time`, action.time, "text", "填写业务时间表达式")}
-            ${inputField("当前状态", `strategyActions.${action.localId}.subjectState`, action.subjectState, "text", "该触达内容适用的对象状态")}
+            ${inputField("对象状态", `strategyActions.${action.localId}.subjectState`, action.subjectState, "text", "该触达内容适用的对象状态")}
             ${inputField("进入条件", `strategyActions.${action.localId}.judge`, action.judge)}
             ${inputField("触达场景", `strategyActions.${action.localId}.touchScene`, action.touchScene)}
             ${inputField("触达方式", `strategyActions.${action.localId}.touchMethod`, action.touchMethod)}
