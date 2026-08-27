@@ -19,6 +19,12 @@
         <button id="toggleRightPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起右侧属性栏">右栏</button>
         <button id="toggleBottomPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起底部校验与代码栏">下栏</button>
       </div>
+      <div class="zoom-switch" role="group" aria-label="画布缩放控制">
+        <button id="zoomOutBtn" type="button" title="缩小画布（Ctrl/⌘ + 滚轮向下）">−</button>
+        <output id="zoomLevel" for="zoomInBtn zoomOutBtn">100%</output>
+        <button id="zoomInBtn" type="button" title="放大画布（Ctrl/⌘ + 滚轮向上）">+</button>
+        <button id="zoomResetBtn" type="button" title="恢复 100% 缩放">1:1</button>
+      </div>
       <button class="btn ghost" id="loadExampleBtn" type="button">加载示例</button>
       <button class="btn ghost" id="resetBtn" type="button">清空草稿</button>
       <button class="btn ghost" id="autoLayoutBtn" type="button">自动布局</button>
@@ -63,15 +69,17 @@
       </div>
       <div class="side-block">
         <h2 class="side-title">画布操作</h2>
-        <p class="hint">拖拽卡片调整布局；拖拽空白处平移画布；点击卡片、连线或动作标签编辑内容。内部系统编号自动生成，不需要手工填写。</p>
+        <p class="hint">拖拽卡片调整布局；拖拽空白处平移画布；Ctrl/⌘ + 滚轮缩放画布；点击卡片、连线或动作标签编辑内容。内部系统编号自动生成，不需要手工填写。</p>
       </div>
     </aside>
 
     <section class="canvas-shell" id="canvasShell">
-      <div class="canvas" id="canvas">
-        <svg class="edge-svg" id="edgeSvg" aria-hidden="true"></svg>
-        <div id="nodeLayer"></div>
-        <div id="edgeLabelLayer"></div>
+      <div class="canvas-size" id="canvasSize">
+        <div class="canvas" id="canvas">
+          <svg class="edge-svg" id="edgeSvg" aria-hidden="true"></svg>
+          <div id="nodeLayer"></div>
+          <div id="edgeLabelLayer"></div>
+        </div>
       </div>
     </section>
 

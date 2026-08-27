@@ -399,6 +399,7 @@
 
     const el = id => document.getElementById(id);
     const canvasShell = el("canvasShell");
+    const canvasSize = el("canvasSize");
     const canvas = el("canvas");
     const nodeLayer = el("nodeLayer");
     const edgeLabelLayer = el("edgeLabelLayer");
@@ -411,7 +412,9 @@
     let canvasPan = null;
     let connecting = null;
     let toastTimer = null;
-    const layoutState = { left: true, right: true, bottom: true };
+    const layoutState = { left: true, right: true, bottom: true, zoom: 1 };
+    const CANVAS_BASE = { width: 2400, height: 1600 };
+    const CANVAS_ZOOM_LIMITS = { min: 0.5, max: 1.5 };
 
     const NODE_TYPE_LABELS = new Map([
       ["entry", "开始进入"], ["process", "中间跟进"], ["wait", "等待观察"], ["outcome", "目标达成"],
@@ -459,6 +462,12 @@
         ["left", "right", "bottom"].forEach(name => {
           if (typeof saved[name] === "boolean") layoutState[name] = saved[name];
         });
+        if (Number.isFinite(Number(saved?.zoom))) {
+          layoutState.zoom = Math.min(
+            CANVAS_ZOOM_LIMITS.max,
+            Math.max(CANVAS_ZOOM_LIMITS.min, Number(saved.zoom)),
+          );
+        }
       } catch (_) {
         // UI preference is non-critical; fall back to showing all panels.
       }
@@ -499,6 +508,52 @@
       if (!["left", "right", "bottom"].includes(name)) return;
       layoutState[name] = visible;
       renderLayout();
+      saveLayout();
+    }
+
+    function applyCanvasZoom() {
+      const zoom = layoutState.zoom;
+      canvasSize.style.width = `${Math.round(CANVAS_BASE.width * zoom)}px`;
+      canvasSize.style.height = `${Math.round(CANVAS_BASE.height * zoom)}px`;
+      canvas.style.transform = `scale(${zoom})`;
+      canvas.dataset.zoom = String(zoom);
+      el("zoomLevel").textContent = `${Math.round(zoom * 100)}%`;
+      el("zoomOutBtn").disabled = zoom <= CANVAS_ZOOM_LIMITS.min + Number.EPSILON;
+      el("zoomInBtn").disabled = zoom >= CANVAS_ZOOM_LIMITS.max - Number.EPSILON;
+      el("zoomResetBtn").disabled = Math.abs(zoom - 1) < .01;
+    }
+
+    function setCanvasZoom(nextZoom, anchorEvent) {
+      const oldZoom = layoutState.zoom;
+      const zoom = Math.min(
+        CANVAS_ZOOM_LIMITS.max,
+        Math.max(CANVAS_ZOOM_LIMITS.min, Number(nextZoom.toFixed(3))),
+      );
+      if (zoom === oldZoom) return;
+
+      const shellRect = canvasShell.getBoundingClientRect();
+      // Buttons zoom around the visible center; wheel zoom keeps the pointer's
+      // logical canvas point stationary.
+      const pointerX = anchorEvent
+        ? anchorEvent.clientX - shellRect.left
+        : shellRect.width / 2;
+      const pointerY = anchorEvent
+        ? anchorEvent.clientY - shellRect.top
+        : shellRect.height / 2;
+      const logicalX = (canvasShell.scrollLeft + pointerX) / oldZoom;
+      const logicalY = (canvasShell.scrollTop + pointerY) / oldZoom;
+
+      layoutState.zoom = zoom;
+      applyCanvasZoom();
+      canvasShell.scrollLeft = Math.max(
+        0,
+        Math.round(logicalX * zoom - pointerX),
+      );
+      canvasShell.scrollTop = Math.max(
+        0,
+        Math.round(logicalY * zoom - pointerY),
+      );
+      renderEdges();
       saveLayout();
     }
 
@@ -565,13 +620,18 @@
 
     function canvasPoint(event) {
       const rect = canvas.getBoundingClientRect();
-      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      return {
+        x: (event.clientX - rect.left) / layoutState.zoom,
+        y: (event.clientY - rect.top) / layoutState.zoom,
+      };
     }
 
     function addNode(type) {
       const shellRect = canvasShell.getBoundingClientRect();
-      const x = Math.max(20, canvasShell.scrollLeft + shellRect.width / 2 - 125 + documentState.nodes.length * 18);
-      const y = Math.max(20, canvasShell.scrollTop + shellRect.height / 2 - 60 + documentState.nodes.length * 18);
+      const centerX = (canvasShell.scrollLeft + shellRect.width / 2) / layoutState.zoom;
+      const centerY = (canvasShell.scrollTop + shellRect.height / 2) / layoutState.zoom;
+      const x = Math.max(20, centerX - 125 + documentState.nodes.length * 18);
+      const y = Math.max(20, centerY - 60 + documentState.nodes.length * 18);
       const node = normalizeNode({
         localId: nextId("n", documentState.nodes),
         nodeType: type,
@@ -700,13 +760,14 @@
       if (!element) return null;
       const rect = element.getBoundingClientRect();
       const base = canvas.getBoundingClientRect();
+      const zoom = layoutState.zoom;
       return {
-        x: rect.left - base.left,
-        y: rect.top - base.top,
-        w: rect.width,
-        h: rect.height,
-        cx: rect.left - base.left + rect.width / 2,
-        cy: rect.top - base.top + rect.height / 2,
+        x: (rect.left - base.left) / zoom,
+        y: (rect.top - base.top) / zoom,
+        w: rect.width / zoom,
+        h: rect.height / zoom,
+        cx: (rect.left - base.left + rect.width / 2) / zoom,
+        cy: (rect.top - base.top + rect.height / 2) / zoom,
       };
     }
 
@@ -771,6 +832,7 @@
     }
 
     function renderCanvas() {
+      applyCanvasZoom();
       renderNodes();
       renderEdges();
     }
@@ -1226,6 +1288,16 @@
     el("addStrategyActionBtn").addEventListener("click", addStrategyAction);
     el("addProcessActionBtn").addEventListener("click", addProcessAction);
     el("autoLayoutBtn").addEventListener("click", autoLayout);
+    el("zoomInBtn").addEventListener("click", () => setCanvasZoom(layoutState.zoom + .1));
+    el("zoomOutBtn").addEventListener("click", () => setCanvasZoom(layoutState.zoom - .1));
+    el("zoomResetBtn").addEventListener("click", () => setCanvasZoom(1));
+    canvasShell.addEventListener("wheel", event => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      const unit = event.deltaMode === 1 ? 16 : 1;
+      const factor = Math.exp(-event.deltaY * unit * .0015);
+      setCanvasZoom(layoutState.zoom * factor, event);
+    }, { passive: false });
     el("loadExampleBtn").addEventListener("click", () => applyImport(JSON.stringify(sampleDocument())));
     el("resetBtn").addEventListener("click", () => {
       if (!window.confirm("确定清空当前草稿？此操作不可撤销。")) return;

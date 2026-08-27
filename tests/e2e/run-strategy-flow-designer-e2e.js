@@ -67,6 +67,35 @@ let browser;
   assert.ok(codeLayout.outputHeight >= codeLayout.titleHeight * 4, `code output is squeezed: ${JSON.stringify(codeLayout)}`);
   await page.click('[data-panel="validationView"]');
 
+  const layoutsBeforeZoom = await page.evaluate(() => JSON.parse(
+    document.getElementById("jsonOutput").value
+  ).nodes.map(node => node.layout));
+  await page.click("#zoomInBtn");
+  await page.click("#zoomInBtn");
+  await page.waitForFunction(() => document.getElementById("canvas").dataset.zoom === "1.2");
+  assert.equal(await page.locator("#zoomLevel").textContent(), "120%");
+  assert.equal(
+    2880,
+    await page.evaluate(() => document.getElementById("canvasSize").getBoundingClientRect().width)
+  );
+  await page.locator("#canvasShell").dispatchEvent("wheel", {
+    bubbles: true,
+    cancelable: true,
+    ctrlKey: true,
+    deltaY: -240,
+    clientX: 700,
+    clientY: 400,
+  });
+  await page.waitForFunction(() => Number(document.getElementById("canvas").dataset.zoom) > 1.2);
+  await page.click("#zoomResetBtn");
+  await page.waitForFunction(() => document.getElementById("canvas").dataset.zoom === "1");
+  await page.click("#zoomInBtn");
+  await page.waitForFunction(() => document.getElementById("canvas").dataset.zoom === "1.1");
+  const layoutsAfterZoom = await page.evaluate(() => JSON.parse(
+    document.getElementById("jsonOutput").value
+  ).nodes.map(node => node.layout));
+  assert.deepEqual(layoutsAfterZoom, layoutsBeforeZoom);
+
   await page.click('[data-node-type="process"]');
   await page.waitForFunction(() => document.querySelectorAll(".node-card").length === 4);
   const beforeDrag = await page.locator("#node-n4").boundingBox();
@@ -122,6 +151,10 @@ let browser;
   await page.reload();
   await page.waitForSelector(".node-card");
   await page.waitForFunction(() => document.querySelectorAll(".node-card").length === 4);
+  assert.equal(
+    "1.1",
+    await page.evaluate(() => document.getElementById("canvas").dataset.zoom)
+  );
   const restored = await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value));
   assert.deepEqual(
     restored.nodes.map(node => node.localId),

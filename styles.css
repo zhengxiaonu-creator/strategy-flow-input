@@ -75,6 +75,21 @@ button { cursor:pointer; }
 .layout-switch button:hover { background:rgba(255,255,255,.9); color:var(--ink); box-shadow:var(--shadow-sm); }
 .layout-switch button.on { background:#fff; color:var(--accent); box-shadow:var(--shadow-sm); }
 
+.zoom-switch {
+  display:flex; align-items:center; gap:2px; padding:3px; border:1px solid rgba(210,208,206,.76);
+  border-radius:var(--radius); background:rgba(243,242,241,.78);
+}
+.zoom-switch button {
+  min-width:28px; min-height:28px; padding:3px 7px; border:1px solid transparent; border-radius:var(--radius-sm);
+  background:transparent; color:var(--muted); font-size:12px; font-weight:750;
+  transition:background-color var(--speed) var(--motion),color var(--speed) var(--motion),box-shadow var(--speed) var(--motion);
+}
+.zoom-switch button:hover { background:rgba(255,255,255,.9); color:var(--ink); box-shadow:var(--shadow-sm); }
+.zoom-switch button:disabled { opacity:.42; cursor:not-allowed; box-shadow:none; }
+.zoom-switch output {
+  min-width:44px; color:var(--accent); font-size:11.3px; font-weight:750; text-align:center; font-variant-numeric:tabular-nums;
+}
+
 .btn {
   min-height:34px; padding:6px 11px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface);
   color:var(--ink); font-size:12.5px; font-weight:550;
@@ -132,7 +147,12 @@ button { cursor:pointer; }
   background-attachment:local,local,local,local,local;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.8),inset 0 -1px 0 rgba(210,208,206,.25);
 }
-.canvas { position:relative; width:2400px; height:1600px; }
+.canvas-size { position:relative; width:2400px; height:1600px; }
+.canvas {
+  position:absolute; top:0; left:0; width:2400px; height:1600px;
+  transform-origin:0 0; will-change:transform;
+}
+.canvas-shell.dragging { cursor:grabbing; }
 
 .edge-svg { position:absolute; inset:0; z-index:1; width:100%; height:100%; pointer-events:none; }
 .edge-svg path.hit { pointer-events:stroke; cursor:pointer; }
