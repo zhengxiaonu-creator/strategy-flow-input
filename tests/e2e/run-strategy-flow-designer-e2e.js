@@ -33,15 +33,18 @@ let browser;
   );
   await page.locator("#node-n1").click();
   const nodeFieldHelp = await page.evaluate(() => ({
-    objectHelp: [...document.querySelectorAll(".field-help")].some(node => node.textContent.includes("对象表示这张流程卡片作用于谁或什么")),
+    objectHelp: [...document.querySelectorAll(".field-help")].some(node => node.textContent.includes("先选择对象类型，再填写该类型下的具体对象名称")),
     stateHelp: [...document.querySelectorAll(".field-help")].some(node => node.textContent.includes("对象进入这张卡片时的业务状态")),
     cardObject: document.querySelector("#node-n1 .node-subject")?.textContent,
     cardStateLabel: document.querySelector("#node-n1 .node-state-label")?.textContent,
+    hasNameField: Boolean(document.querySelector('[data-bind="nodes.n1.subject.name"]')),
   }));
   assert.equal(nodeFieldHelp.objectHelp, true);
   assert.equal(nodeFieldHelp.stateHelp, true);
-  assert.equal(nodeFieldHelp.cardObject, "对象：客群");
+  assert.equal(nodeFieldHelp.hasNameField, true);
+  assert.equal(nodeFieldHelp.cardObject, "对象：客群｜通用目标客群");
   assert.equal(nodeFieldHelp.cardStateLabel, "当前状态");
+  await page.fill('[data-bind="nodes.n1.subject.name"]', "测试对象名称");
   await page.fill(
     '[data-bind="nodes.n1.subject.state"]',
     "测试当前状态"
@@ -56,6 +59,10 @@ let browser;
   assert.equal(
     "测试执行动作",
     explicitlySaved.json.edges.find(edge => edge.localId === "e1").actorBehavior.action
+  );
+  assert.equal(
+    "测试对象名称",
+    explicitlySaved.json.nodes.find(node => node.localId === "n1").subject.name
   );
   assert.equal(
     "测试当前状态",

@@ -18,7 +18,7 @@
       "nodeType": "entry",
       "time": "启动日",
       "executor": "系统",
-      "subject": { "type": "customer", "state": "未触达" },
+      "subject": { "type": "customer", "name": "通用目标客群", "state": "未触达" },
       "displayName": "系统·客群未触达",
       "layout": { "x": 80, "y": 160 }
     },
@@ -27,7 +27,7 @@
       "nodeType": "process",
       "time": "启动后1日",
       "executor": "系统",
-      "subject": { "type": "customer", "state": "已触达" },
+      "subject": { "type": "customer", "name": "通用目标客群", "state": "已触达" },
       "displayName": "系统·客群已触达",
       "layout": { "x": 430, "y": 160 }
     },
@@ -36,7 +36,7 @@
       "nodeType": "outcome",
       "time": "观察期结束前",
       "executor": "责任执行人",
-      "subject": { "type": "customer", "state": "已转化" },
+      "subject": { "type": "customer", "name": "通用目标客群", "state": "已转化" },
       "displayName": "责任人·客群已转化",
       "layout": { "x": 790, "y": 160 }
     }

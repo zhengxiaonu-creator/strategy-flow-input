@@ -64,6 +64,7 @@
       executor: string(source.executor),
       subject: {
         type: SUBJECT_TYPES.includes(subject.type) ? subject.type : "customer",
+        name: string(subject.name),
         state: string(subject.state),
       },
       displayName: string(source.displayName),
@@ -232,6 +233,7 @@
       if (!node.time) errors.push(issue("TIME_REQUIRED", "流程卡片缺少时间 / 阶段", `${base}.time`));
       if (!node.executor) errors.push(issue("EXECUTOR_REQUIRED", "流程卡片缺少负责执行的角色 / 人", `${base}.executor`));
       if (!node.subject.state) errors.push(issue("SUBJECT_STATE_REQUIRED", "流程卡片缺少当前状态", `${base}.subject.state`));
+      if (!node.subject.name) errors.push(issue("SUBJECT_NAME_REQUIRED", "流程卡片缺少对象名称", `${base}.subject.name`));
       if (!Number.isFinite(node.layout.x) || !Number.isFinite(node.layout.y)) {
         errors.push(issue("LAYOUT_INVALID", "画布坐标无效", `${base}.layout`));
       }
@@ -348,7 +350,7 @@
     const nodes = new Map(doc.nodes.map(node => [node.localId, node]));
     const lines = ["flowchart TD"];
     doc.nodes.forEach(node => {
-      const label = `${node.time || "时间待确认"}｜${node.executor || "执行人待确认"}｜${node.subject.state || "状态待确认"}`;
+      const label = `${node.time || "时间待确认"}｜${node.executor || "执行人待确认"}｜${node.subject.name || "对象待确认"}｜${node.subject.state || "状态待确认"}`;
       lines.push(`    ${node.localId}["${escapeMermaid(label)}"]`);
     });
     doc.edges.forEach(edge => {
@@ -664,7 +666,7 @@
         nodeType: type,
         time: "待确认",
         executor: "系统",
-        subject: { type: defaultSubjectType(), state: "待确认" },
+        subject: { type: defaultSubjectType(), name: "待确认", state: "待确认" },
         displayName: "",
         layout: { x, y },
       }, documentState.nodes.length);
@@ -773,7 +775,7 @@
         return `<article class="node-card${selected?.kind === "node" && selected.id === node.localId ? " selected" : ""}" data-id="${escapeHtml(node.localId)}" data-type="${escapeHtml(node.nodeType)}" style="transform:translate(${node.layout.x}px,${node.layout.y}px)" id="node-${escapeHtml(node.localId)}">
           <div><span class="node-type">${NODE_TYPE_LABELS.get(node.nodeType) || node.nodeType}</span><span class="node-time">${escapeHtml(node.time || "时间待确认")}</span></div>
           <div class="node-executor">${escapeHtml(node.executor || "执行人待确认")}</div>
-          <div class="node-subject">对象：${escapeHtml(SUBJECT_TYPE_LABELS.get(node.subject.type) || node.subject.type)}</div>
+          <div class="node-subject">对象：${escapeHtml(SUBJECT_TYPE_LABELS.get(node.subject.type) || node.subject.type)}｜${escapeHtml(node.subject.name || "名称待确认")}</div>
           <div class="node-state-label">当前状态</div>
           <div class="node-state">${escapeHtml(node.subject.state || "待确认")}</div>
           <div class="node-id">自动编号 ${escapeHtml(node.localId)}</div>
@@ -925,7 +927,8 @@
           <div class="wide field-section">
             <h3>对象</h3>
             ${selectField("对象类型", `nodes.${node.localId}.subject.type`, node.subject.type, SUBJECT_TYPES.map(value => [value, SUBJECT_TYPE_LABELS.get(value) || value]))}
-            <p class="field-help">对象表示这张流程卡片作用于谁或什么：客群、场景、事件或活动。它只说明对象类别，不描述对象处于什么阶段。</p>
+            ${inputField("对象名称", `nodes.${node.localId}.subject.name`, node.subject.name, "text", "例如：目标客群名称、场景名称、事件名称")}
+            <p class="field-help">先选择对象类型，再填写该类型下的具体对象名称。对象类型回答“这是哪一类对象”，对象名称回答“具体是哪一个”。</p>
           </div>
           <div class="wide field-section">
             <h3>当前状态</h3>
@@ -976,7 +979,7 @@
     }
 
     function renderActionInspector(kind, action) {
-      const nodeOptions = documentState.nodes.map(node => [node.localId, `${node.executor || "执行人待确认"}｜${node.subject.state || "状态待确认"}`]);
+      const nodeOptions = documentState.nodes.map(node => [node.localId, `${node.executor || "执行人待确认"}｜${node.subject.name || "对象待确认"}｜${node.subject.state || "状态待确认"}`]);
       const edgeOptions = [["", "暂不绑定流转规则"], ...documentState.edges.filter(edge => edge.from === action.nodeId).map(edge => [edge.localId, `规则｜${edge.actorBehavior.action || "待确认"}`])];
       if (kind === "strategyAction") {
         inspector.innerHTML = `<div class="side-block">
@@ -1392,9 +1395,9 @@
           version: "0.1",
         },
         nodes: [
-          { localId: "n1", nodeType: "entry", time: "启动日", executor: "系统", subject: { type: "customer", state: "未触达" }, layout: { x: 80, y: 150 } },
-          { localId: "n2", nodeType: "process", time: "启动后1日", executor: "系统", subject: { type: "customer", state: "已触达" }, layout: { x: 440, y: 150 } },
-          { localId: "n3", nodeType: "outcome", time: "观察期结束前", executor: "责任执行人", subject: { type: "customer", state: "已转化" }, layout: { x: 800, y: 150 } },
+          { localId: "n1", nodeType: "entry", time: "启动日", executor: "系统", subject: { type: "customer", name: "通用目标客群", state: "未触达" }, layout: { x: 80, y: 150 } },
+          { localId: "n2", nodeType: "process", time: "启动后1日", executor: "系统", subject: { type: "customer", name: "通用目标客群", state: "已触达" }, layout: { x: 440, y: 150 } },
+          { localId: "n3", nodeType: "outcome", time: "观察期结束前", executor: "责任执行人", subject: { type: "customer", name: "通用目标客群", state: "已转化" }, layout: { x: 800, y: 150 } },
         ],
         edges: [
           { localId: "e1", from: "n1", to: "n2", edgeType: "state_transition", actorBehavior: { time: "启动日", action: "多渠道触达", status: "executed" }, subjectBehavior: { time: "启动日", action: "点击链接", status: "happened" }, confirmed: true, mutexGroup: "g1", label: "点击后进入已触达" },

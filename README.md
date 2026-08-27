@@ -40,7 +40,7 @@ ebscn-strategy-flow-designer/index.html
 
 | 页面名称 | 含义 | 导出字段 |
 |---|---|---|
-| 流程卡片 | 谁负责 + 作用对象 + 当前状态 | `nodes` |
+| 流程卡片 | 谁负责 + 对象类型 + 对象名称 + 当前状态 | `nodes` |
 | 流转规则 | 执行人做了什么，客户 / 对象发生什么，然后进入哪张卡片 | `edges` |
 | 客户触达内容 | 对客户说什么、用什么权益、看什么业务指标 | `strategyActions` |
 | 执行跟进动作 | 谁执行、执行什么、看什么过程指标 | `processActions` |
@@ -58,7 +58,8 @@ ebscn-strategy-flow-designer/index.html
 
 ### 对象与当前状态
 
-- 对象：流程卡片作用于谁或什么，可选客群、场景、事件、活动；它只说明对象类别。
+- 对象类型：流程卡片作用于哪一类对象，可选客群、场景、事件、活动。
+- 对象名称：该类型下的具体业务对象，例如目标客群名称、触发场景名称、事件名称、活动名称。
 - 当前状态：对象进入这张卡片时的业务状态，例如未触达、已触达、已转化；它不是对象类别，也不是执行人的处理进度。
 
 ## 契约
@@ -71,7 +72,7 @@ ebscn-strategy-flow-designer/index.html
 
 ```text
 strategy           策略基础信息
-nodes              编排节点：责任执行人 + 策略主体状态 + 时间/阶段
+nodes              编排节点：责任执行人 + 对象类型 / 名称 / 当前状态 + 时间阶段
 edges              流转边：执行人行为 + 策略主体行为
 strategyActions    策略动作气泡，挂接节点 / 流出边
 processActions     过程管理动作气泡，挂接节点 / 流出边
@@ -118,6 +119,7 @@ no_requirement   无行为要求
 | `TIME_REQUIRED` | 节点时间缺失 |
 | `EXECUTOR_REQUIRED` | 责任执行人缺失 |
 | `SUBJECT_STATE_REQUIRED` | 策略主体状态缺失 |
+| `SUBJECT_NAME_REQUIRED` | 对象名称缺失 |
 | `LAYOUT_INVALID` | 画布坐标无效 |
 | `EDGE_ENDPOINT_MISSING` | 边端点不存在 |
 | `EDGE_SELF_LOOP` | 不允许自环 |

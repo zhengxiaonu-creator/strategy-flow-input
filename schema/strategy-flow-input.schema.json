@@ -100,9 +100,14 @@
         "subject": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["type", "state"],
+          "required": ["type", "name", "state"],
           "properties": {
             "type": { "enum": ["customer", "scene", "event", "activity"] },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "对象名称，即该类型下的具体业务对象，例如目标客群名称、触发场景名称、事件名称或活动名称。"
+            },
             "state": {
               "type": "string",
               "minLength": 1,
