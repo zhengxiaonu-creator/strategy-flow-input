@@ -1,3 +1,7 @@
+# Version 0.5.1
+
+- 修复底部代码栏标题行错误占用弹性空间的问题，输出区域恢复为主要区域。
+
 # Version 0.5.0
 
 - 采用 Fluent Light 视觉语言重构命令栏、Mica 侧栏、Acrylic 画布卡片和底部 Dock。

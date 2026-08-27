@@ -56,6 +56,16 @@ let browser;
   await page.click("#toggleRightPanelBtn");
   await page.click("#toggleBottomPanelBtn");
   await page.waitForFunction(() => !document.getElementById("strategyFlowDesigner").classList.contains("bottom-collapsed"));
+  await page.click('[data-panel="codeView"]');
+  await page.waitForSelector("#codeView.on");
+  const codeLayout = await page.evaluate(() => {
+    const title = document.querySelector(".code-title").getBoundingClientRect();
+    const output = document.getElementById("jsonOutput").getBoundingClientRect();
+    return { titleHeight: title.height, outputHeight: output.height };
+  });
+  assert.ok(codeLayout.titleHeight <= 48, `code title is too tall: ${codeLayout.titleHeight}`);
+  assert.ok(codeLayout.outputHeight >= codeLayout.titleHeight * 4, `code output is squeezed: ${JSON.stringify(codeLayout)}`);
+  await page.click('[data-panel="validationView"]');
 
   await page.click('[data-node-type="process"]');
   await page.waitForFunction(() => document.querySelectorAll(".node-card").length === 4);

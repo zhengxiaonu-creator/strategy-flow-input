@@ -264,7 +264,7 @@ button { cursor:pointer; }
 .issue span { color:var(--muted-soft); font-family:ui-monospace,Menlo,monospace; font-size:10px; }
 .empty-issues { padding:16px; color:var(--muted); font-size:12px; }
 .validation-help { padding:12px 14px; overflow:auto; color:var(--muted); font-size:12px; line-height:1.75; background:rgba(255,255,255,.42); }
-.code-pane { display:grid; grid-template-rows:minmax(0,1fr); min-width:0; border-right:1px solid rgba(237,235,233,.9); }
+.code-pane { display:grid; grid-template-rows:auto minmax(0,1fr); min-width:0; border-right:1px solid rgba(237,235,233,.9); }
 .code-pane:last-child { border-right:0; }
 .code-title {
   display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:37px; padding:5px 10px;
