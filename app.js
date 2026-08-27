@@ -9,7 +9,6 @@
   const SCHEMA_VERSION = "strategy-flow-input/0.1";
   const STORAGE_KEY = "ebscn.strategy-flow-designer.draft.v0";
   const LAYOUT_STORAGE_KEY = "ebscn.strategy-flow-designer.layout.v0";
-  const TIME_VALUES = ["T日", "T+1日", "T+7日前", "T+7日后"];
   const NODE_TYPES = ["entry", "process", "wait", "outcome", "recycle", "reentry", "terminal"];
   const EDGE_TYPES = ["state_transition", "handoff", "outcome", "recycle", "reentry", "exception"];
   const SUBJECT_TYPES = ["customer", "scene", "event", "activity"];
@@ -61,7 +60,7 @@
     return {
       localId: string(source.localId),
       nodeType: NODE_TYPES.includes(source.nodeType) ? source.nodeType : "process",
-      time: TIME_VALUES.includes(source.time) ? source.time : "",
+      time: string(source.time),
       executor: string(source.executor),
       subject: {
         type: SUBJECT_TYPES.includes(subject.type) ? subject.type : "customer",
@@ -78,7 +77,7 @@
   function normalizeBehavior(value, kind) {
     const source = value && typeof value === "object" ? value : {};
     return {
-      time: TIME_VALUES.includes(source.time) ? source.time : "",
+      time: string(source.time),
       action: string(source.action),
       status: kind === "actor"
         ? (ACTOR_STATUSES.some(item => item[0] === source.status) ? source.status : "")
@@ -108,7 +107,7 @@
       localId: string(source.localId),
       nodeId: string(source.nodeId),
       outgoingEdgeId: string(source.outgoingEdgeId),
-      time: TIME_VALUES.includes(source.time) ? source.time : "",
+      time: string(source.time),
       subjectState: string(source.subjectState),
       judge: string(source.judge),
       touchScene: string(source.touchScene),
@@ -348,7 +347,6 @@
 
   const publicApi = {
     SCHEMA_VERSION,
-    TIME_VALUES,
     NODE_TYPES,
     EDGE_TYPES,
     defaultDocument,
@@ -548,7 +546,7 @@
       const node = normalizeNode({
         localId: nextId("n", documentState.nodes),
         nodeType: type,
-        time: "T日",
+        time: "待确认",
         executor: "系统",
         subject: { type: defaultSubjectType(), state: "待确认" },
         displayName: "",
@@ -771,10 +769,6 @@
       return textareaField(label, path, values.join("\n"), "每行一个指标；缺失填“待确认”");
     }
 
-    function timeOptions() {
-      return TIME_VALUES.map(value => [value, value]);
-    }
-
     function renderStrategyInspector() {
       const strategy = documentState.strategy;
       inspector.innerHTML = `<div class="side-block">
@@ -801,7 +795,7 @@
         <div class="inspector-form">
           ${inputField("节点 ID", `nodes.${node.localId}.localId`, node.localId)}
           ${selectField("节点类型", `nodes.${node.localId}.nodeType`, node.nodeType, NODE_TYPES.map(value => [value, NODE_TYPE_LABELS.get(value) || value]))}
-          ${selectField("时间 / 阶段", `nodes.${node.localId}.time`, node.time, timeOptions())}
+          ${inputField("时间 / 阶段", `nodes.${node.localId}.time`, node.time, "text", "填写业务时间表达式")}
           ${inputField("责任执行人", `nodes.${node.localId}.executor`, node.executor)}
           ${selectField("主体类型", `nodes.${node.localId}.subject.type`, node.subject.type, SUBJECT_TYPES.map(value => [value, value]))}
           ${inputField("主体状态", `nodes.${node.localId}.subject.state`, node.subject.state)}
@@ -835,13 +829,13 @@
       <div class="side-block">
         <h2 class="side-title">执行人行为</h2>
         <div class="inspector-form field-grid">
-          ${selectField("时间", `edges.${edge.localId}.actorBehavior.time`, edge.actorBehavior.time, timeOptions())}
+          ${inputField("时间", `edges.${edge.localId}.actorBehavior.time`, edge.actorBehavior.time, "text", "填写业务时间表达式")}
           ${selectField("状态", `edges.${edge.localId}.actorBehavior.status`, edge.actorBehavior.status, ACTOR_STATUSES)}
           <div class="field-grid wide">${inputField("动作", `edges.${edge.localId}.actorBehavior.action`, edge.actorBehavior.action)}</div>
         </div>
         <h2 class="side-title" style="margin-top:14px">策略主体行为</h2>
         <div class="inspector-form field-grid">
-          ${selectField("时间", `edges.${edge.localId}.subjectBehavior.time`, edge.subjectBehavior.time, timeOptions())}
+          ${inputField("时间", `edges.${edge.localId}.subjectBehavior.time`, edge.subjectBehavior.time, "text", "填写业务时间表达式")}
           ${selectField("状态", `edges.${edge.localId}.subjectBehavior.status`, edge.subjectBehavior.status, SUBJECT_STATUSES)}
           <div class="field-grid wide">${inputField("行为", `edges.${edge.localId}.subjectBehavior.action`, edge.subjectBehavior.action)}</div>
         </div>
@@ -858,7 +852,7 @@
             ${inputField("动作 ID", `strategyActions.${action.localId}.localId`, action.localId)}
             ${selectField("挂接节点", `strategyActions.${action.localId}.nodeId`, action.nodeId, nodeOptions)}
             ${selectField("流出边", `strategyActions.${action.localId}.outgoingEdgeId`, action.outgoingEdgeId, edgeOptions)}
-            ${selectField("时间", `strategyActions.${action.localId}.time`, action.time, timeOptions())}
+            ${inputField("时间", `strategyActions.${action.localId}.time`, action.time, "text", "填写业务时间表达式")}
             ${inputField("主体状态", `strategyActions.${action.localId}.subjectState`, action.subjectState)}
             ${inputField("判断", `strategyActions.${action.localId}.judge`, action.judge)}
             ${inputField("触达场景", `strategyActions.${action.localId}.touchScene`, action.touchScene)}
@@ -1241,29 +1235,29 @@
       return normalizeDocument({
         schemaVersion: SCHEMA_VERSION,
         strategy: {
-          strategyName: "两融潜客激活策略",
+          strategyName: "通用客群激活策略",
           paradigm: "customer",
-          owner: "郑天宇",
-          submitter: "郑天宇",
+          owner: "张三",
+          submitter: "李四",
           businessScene: "用户激活",
           strategyType: "用户激活",
-          strategySubtype: "两融潜客激活策略",
+          strategySubtype: "通用客群激活策略",
           version: "0.1",
         },
         nodes: [
-          { localId: "n1", nodeType: "entry", time: "T日", executor: "系统", subject: { type: "customer", state: "两融潜客" }, layout: { x: 80, y: 150 } },
-          { localId: "n2", nodeType: "process", time: "T+1日", executor: "系统", subject: { type: "customer", state: "两融潜客·待推送" }, layout: { x: 440, y: 150 } },
-          { localId: "n3", nodeType: "outcome", time: "T+7日前", executor: "营销经理", subject: { type: "customer", state: "两融潜客·已开通两融" }, layout: { x: 800, y: 150 } },
+          { localId: "n1", nodeType: "entry", time: "启动日", executor: "系统", subject: { type: "customer", state: "目标客群" }, layout: { x: 80, y: 150 } },
+          { localId: "n2", nodeType: "process", time: "启动后1日", executor: "系统", subject: { type: "customer", state: "目标客群·已触达" }, layout: { x: 440, y: 150 } },
+          { localId: "n3", nodeType: "outcome", time: "观察期结束前", executor: "责任执行人", subject: { type: "customer", state: "目标客群·已转化" }, layout: { x: 800, y: 150 } },
         ],
         edges: [
-          { localId: "e1", from: "n1", to: "n2", edgeType: "state_transition", actorBehavior: { time: "T日", action: "APP触达（站内信、弹窗）", status: "executed" }, subjectBehavior: { time: "T日", action: "点击链接", status: "happened" }, confirmed: true, mutexGroup: "g1", label: "点击链接后进入待推送" },
-          { localId: "e2", from: "n2", to: "n3", edgeType: "handoff", actorBehavior: { time: "T+7日前", action: "服务", status: "executed" }, subjectBehavior: { time: "T+7日前", action: "开通两融", status: "happened" }, confirmed: true, mutexGroup: "g2", label: "服务并开通两融" },
+          { localId: "e1", from: "n1", to: "n2", edgeType: "state_transition", actorBehavior: { time: "启动日", action: "多渠道触达", status: "executed" }, subjectBehavior: { time: "启动日", action: "点击链接", status: "happened" }, confirmed: true, mutexGroup: "g1", label: "点击后进入已触达" },
+          { localId: "e2", from: "n2", to: "n3", edgeType: "handoff", actorBehavior: { time: "观察期结束前", action: "人工跟进", status: "executed" }, subjectBehavior: { time: "观察期结束前", action: "完成转化", status: "happened" }, confirmed: true, mutexGroup: "g2", label: "跟进并完成转化" },
         ],
         strategyActions: [
-          { localId: "sa1", nodeId: "n1", outgoingEdgeId: "e1", time: "T日", subjectState: "两融潜客", judge: "无前置判断（流程入口）", touchScene: "APP触达、短信触发", touchMethod: "APP弹窗、APP站内信、短信", theme: "预约两融并联系营销经理", goal: "预约两融并联系营销经理", hook: "Level-2-6M", copy: "尊敬的VIP客户……", hasLink: true, metrics: ["推送数", "点击数", "点击率"] },
+          { localId: "sa1", nodeId: "n1", outgoingEdgeId: "e1", time: "启动日", subjectState: "目标客群", judge: "无前置判断（流程入口）", touchScene: "多渠道触达", touchMethod: "按实际渠道填写", theme: "引导完成关键行为", goal: "引导完成关键行为", hook: "通用权益", copy: "【通用示例文案】请按实际策略替换。", hasLink: true, metrics: ["触达数", "点击数", "点击率"] },
         ],
         processActions: [
-          { localId: "pa1", nodeId: "n2", outgoingEdgeId: "", executor: "系统", scene: "企业微信", condition: "预约潜客T日未联系营销经理，且客户有挂接关系", result: "T+1日线索推送至挂接营销经理", action: "T+1日推送企微线索至挂接营销经理", hook: "无", recipient: "营销经理", metrics: ["任务数"] },
+          { localId: "pa1", nodeId: "n2", outgoingEdgeId: "", executor: "系统", scene: "按实际场景填写", condition: "客户已触达且需要人工跟进", result: "线索转交责任执行人", action: "转交线索给责任执行人", hook: "待确认", recipient: "责任执行人", metrics: ["任务数"] },
         ],
       });
     }

@@ -52,7 +52,9 @@
       ]
     },
     "strategyTime": {
-      "enum": ["T日", "T+1日", "T+7日前", "T+7日后"]
+      "type": "string",
+      "minLength": 1,
+      "description": "业务时间表达式。支持相对时间、绝对日期或事件偏移；语义由策略范式和业务口径解释。"
     },
     "issue": {
       "type": "array",

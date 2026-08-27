@@ -69,7 +69,7 @@ let browser;
   assert.ok(afterDrag.x > beforeDrag.x + 80);
   assert.ok(afterDrag.y > beforeDrag.y + 45);
   await page.fill('[data-bind="nodes.n4.executor"]', "系统");
-  await page.fill('[data-bind="nodes.n4.subject.state"]', "两融潜客·持续触达");
+  await page.fill('[data-bind="nodes.n4.subject.state"]', "目标客群·持续跟进");
   const sourcePort = await page.locator("#node-n1 .node-port.output").boundingBox();
   const target = await page.locator("#node-n4").boundingBox();
   assert.ok(sourcePort && target);
