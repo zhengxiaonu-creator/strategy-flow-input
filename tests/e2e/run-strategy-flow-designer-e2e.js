@@ -72,6 +72,20 @@ let browser;
     "测试执行动作",
     explicitlySaved.draft.edges.find(edge => edge.localId === "e1").actorBehavior.action
   );
+  const editorInput = page.locator('[data-bind="nodes.n1.subject.name"]');
+  const editorBox = await editorInput.boundingBox();
+  const canvasBox = await page.locator("#canvasShell").boundingBox();
+  assert.ok(editorBox && canvasBox);
+  await page.mouse.move(editorBox.x + editorBox.width / 2, editorBox.y + editorBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(canvasBox.x + 320, canvasBox.y + 320, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator('[data-bind="nodes.n1.subject.name"]').count(), 1);
+  assert.equal(
+    true,
+    (await page.locator("#inspector").innerText()).includes("流程卡片")
+  );
   await page.reload();
   await page.waitForSelector(".node-card");
   assert.equal(

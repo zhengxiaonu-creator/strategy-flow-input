@@ -415,6 +415,7 @@
     let connecting = null;
     let toastTimer = null;
     let saveStatusTimer = null;
+    let clickOrigin = null;
     const layoutState = { left: true, right: true, bottom: true, zoom: 1 };
     const CANVAS_BASE = { width: 2400, height: 1600 };
     const CANVAS_ZOOM_LIMITS = { min: 0.5, max: 1.5 };
@@ -1252,6 +1253,12 @@
     });
 
     document.addEventListener("pointermove", event => {
+      if (
+        clickOrigin
+        && Math.hypot(event.clientX - clickOrigin.x, event.clientY - clickOrigin.y) > 3
+      ) {
+        clickOrigin.moved = true;
+      }
       if (nodeDrag) {
         const point = canvasPoint(event);
         const node = documentState.nodes.find(item => item.localId === nodeDrag.id);
@@ -1304,7 +1311,22 @@
       canvasShell.classList.remove("dragging");
     });
 
+    document.addEventListener("pointerdown", event => {
+      if (event.button !== 0) return;
+      clickOrigin = {
+        x: event.clientX,
+        y: event.clientY,
+        moved: false,
+      };
+    });
+
     document.addEventListener("click", event => {
+      const origin = clickOrigin;
+      clickOrigin = null;
+      // Dragging out of an input/select is still followed by a click on the
+      // element under the pointer in some browsers. That is not an intentional
+      // background click, so keep the current inspector selection.
+      if (origin?.moved) return;
       if (event.target.closest(".topbar") || event.target.closest(".side-panel") || event.target.closest(".bottom-panel")) return;
       if (event.target.closest(".node-card") || event.target.closest(".edge-label") || event.target.closest("path.hit")) return;
       selected = null;
