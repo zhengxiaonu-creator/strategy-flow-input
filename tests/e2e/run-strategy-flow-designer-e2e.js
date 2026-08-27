@@ -25,6 +25,7 @@ let browser;
   await page.waitForSelector(".node-card");
 
   assert.equal(await page.locator(".node-card").count(), 3);
+  assert.equal(await page.locator('[data-bind$=".localId"]').count(), 0);
   await page.click("#toggleLeftPanelBtn");
   await page.click("#toggleRightPanelBtn");
   await page.click("#toggleBottomPanelBtn");

@@ -140,7 +140,7 @@
 
   function normalizeDocument(value) {
     const source = value && typeof value === "object" ? value : {};
-    return {
+    const normalized = {
       schemaVersion: string(source.schemaVersion, SCHEMA_VERSION),
       strategy: normalizeStrategy(source.strategy),
       nodes: array(source.nodes).map(normalizeNode),
@@ -148,6 +148,35 @@
       strategyActions: array(source.strategyActions).map(normalizeStrategyAction),
       processActions: array(source.processActions).map(normalizeProcessAction),
     };
+    ensureAutomaticLocalIds(normalized);
+    return normalized;
+  }
+
+  function nextAutomaticId(prefix, items) {
+    const used = new Set(items.map(item => clean(item.localId)).filter(Boolean));
+    let index = 1;
+    let candidate = `${prefix}${index}`;
+    while (used.has(candidate)) {
+      index += 1;
+      candidate = `${prefix}${index}`;
+    }
+    return candidate;
+  }
+
+  function ensureAutomaticLocalIds(documentValue) {
+    // Internal IDs are UI references, not business input. Imported drafts that
+    // omit them get stable short IDs before validation; explicit bad IDs stay
+    // visible so the reviewer can fix the source rather than hiding an error.
+    [
+      [documentValue.nodes, "n"],
+      [documentValue.edges, "e"],
+      [documentValue.strategyActions, "sa"],
+      [documentValue.processActions, "pa"],
+    ].forEach(([items, prefix]) => {
+      items.forEach(item => {
+        if (!clean(item.localId)) item.localId = nextAutomaticId(prefix, items);
+      });
+    });
   }
 
   function defaultDocument() {
@@ -200,9 +229,9 @@
 
     doc.nodes.forEach((node, index) => {
       const base = `nodes[${index}]`;
-      if (!node.time) errors.push(issue("TIME_REQUIRED", "节点时间缺失", `${base}.time`));
-      if (!node.executor) errors.push(issue("EXECUTOR_REQUIRED", "责任执行人缺失", `${base}.executor`));
-      if (!node.subject.state) errors.push(issue("SUBJECT_STATE_REQUIRED", "策略主体状态缺失", `${base}.subject.state`));
+      if (!node.time) errors.push(issue("TIME_REQUIRED", "流程卡片缺少时间 / 阶段", `${base}.time`));
+      if (!node.executor) errors.push(issue("EXECUTOR_REQUIRED", "流程卡片缺少负责执行的角色 / 人", `${base}.executor`));
+      if (!node.subject.state) errors.push(issue("SUBJECT_STATE_REQUIRED", "流程卡片缺少对象当前状态", `${base}.subject.state`));
       if (!Number.isFinite(node.layout.x) || !Number.isFinite(node.layout.y)) {
         errors.push(issue("LAYOUT_INVALID", "画布坐标无效", `${base}.layout`));
       }
@@ -213,46 +242,46 @@
       const base = `edges[${index}]`;
       const from = nodes.get(edge.from);
       const to = nodes.get(edge.to);
-      if (!from) errors.push(issue("EDGE_ENDPOINT_MISSING", `源节点不存在：${edge.from || "空"}`, `${base}.from`));
-      if (!to) errors.push(issue("EDGE_ENDPOINT_MISSING", `目标节点不存在：${edge.to || "空"}`, `${base}.to`));
-      if (edge.from === edge.to) errors.push(issue("EDGE_SELF_LOOP", "不允许自环；回收应经过明确节点", `${base}`));
+      if (!from) errors.push(issue("EDGE_ENDPOINT_MISSING", `流转规则的来源卡片不存在：${edge.from || "空"}`, `${base}.from`));
+      if (!to) errors.push(issue("EDGE_ENDPOINT_MISSING", `流转规则的目标卡片不存在：${edge.to || "空"}`, `${base}.to`));
+      if (edge.from === edge.to) errors.push(issue("EDGE_SELF_LOOP", "流转规则不能指回同一张卡片；收回重启请经过明确卡片", `${base}`));
       if (from && to) {
         degrees.set(edge.from, degrees.get(edge.from) + 1);
         degrees.set(edge.to, degrees.get(edge.to) + 1);
         if (["outcome", "terminal"].includes(to.nodeType) && edge.edgeType !== "outcome" && edge.edgeType !== "handoff") {
-          errors.push(issue("OUTCOME_EDGE_TYPE_INVALID", "进入 outcome / terminal 的边必须标记 outcome 或 handoff", `${base}.edgeType`));
+          errors.push(issue("OUTCOME_EDGE_TYPE_INVALID", "进入“目标达成 / 流程结束”卡片时，流转类型必须选“达成结果”或“责任人交接”", `${base}.edgeType`));
         }
         if (["outcome", "terminal"].includes(from.nodeType)) {
-          errors.push(issue("TERMINAL_OUTGOING_EDGE", "outcome / terminal 节点不得有出边", `${base}.from`));
+          errors.push(issue("TERMINAL_OUTGOING_EDGE", "“目标达成 / 流程结束”卡片不能再有后续流转", `${base}.from`));
         }
         if (from.executor !== to.executor && edge.edgeType !== "handoff") {
-          errors.push(issue("EXECUTOR_HANDOFF_MISSING", "源 / 目标执行人不同，必须标记 handoff", `${base}.edgeType`));
+          errors.push(issue("EXECUTOR_HANDOFF_MISSING", "前后卡片负责人不同，流转类型必须选“责任人交接”", `${base}.edgeType`));
         }
       }
-      if (!edge.actorBehavior.time) errors.push(issue("ACTOR_TIME_REQUIRED", "执行人行为时间缺失", `${base}.actorBehavior.time`));
-      if (!edge.actorBehavior.action) errors.push(issue("ACTOR_ACTION_REQUIRED", "执行人行为动作缺失", `${base}.actorBehavior.action`));
-      if (!edge.actorBehavior.status) errors.push(issue("ACTOR_STATUS_REQUIRED", "执行人行为状态缺失", `${base}.actorBehavior.status`));
-      if (!edge.subjectBehavior.time) errors.push(issue("SUBJECT_TIME_REQUIRED", "策略主体行为时间缺失", `${base}.subjectBehavior.time`));
-      if (!edge.subjectBehavior.action) errors.push(issue("SUBJECT_ACTION_REQUIRED", "策略主体行为动作缺失", `${base}.subjectBehavior.action`));
-      if (!edge.subjectBehavior.status) errors.push(issue("SUBJECT_STATUS_REQUIRED", "策略主体行为状态缺失", `${base}.subjectBehavior.status`));
-      if (edge.confirmed !== true) warnings.push(issue("EDGE_NOT_CONFIRMED", "流转边尚未业务确认", `${base}.confirmed`));
+      if (!edge.actorBehavior.time) errors.push(issue("ACTOR_TIME_REQUIRED", "执行人做了什么：缺少时间", `${base}.actorBehavior.time`));
+      if (!edge.actorBehavior.action) errors.push(issue("ACTOR_ACTION_REQUIRED", "执行人做了什么：缺少动作", `${base}.actorBehavior.action`));
+      if (!edge.actorBehavior.status) errors.push(issue("ACTOR_STATUS_REQUIRED", "执行人做了什么：缺少执行状态", `${base}.actorBehavior.status`));
+      if (!edge.subjectBehavior.time) errors.push(issue("SUBJECT_TIME_REQUIRED", "客户 / 对象行为缺少时间", `${base}.subjectBehavior.time`));
+      if (!edge.subjectBehavior.action) errors.push(issue("SUBJECT_ACTION_REQUIRED", "客户 / 对象行为缺少具体行为", `${base}.subjectBehavior.action`));
+      if (!edge.subjectBehavior.status) errors.push(issue("SUBJECT_STATUS_REQUIRED", "客户 / 对象行为缺少发生状态", `${base}.subjectBehavior.status`));
+      if (edge.confirmed !== true) warnings.push(issue("EDGE_NOT_CONFIRMED", "流转规则尚未业务确认", `${base}.confirmed`));
     });
 
     if (doc.nodes.length > 1) {
       doc.nodes.forEach((node, index) => {
         if ((degrees.get(node.localId) || 0) === 0) {
-          errors.push(issue("NODE_ORPHAN", "孤立节点必须先连线或删除", `nodes[${index}]`));
+          errors.push(issue("NODE_ORPHAN", "孤立卡片必须先连线或删除", `nodes[${index}]`));
         }
       });
     }
 
     const actionNode = (kind, action, index, path) => {
       const base = `${path}[${index}]`;
-      if (!nodes.has(action.nodeId)) errors.push(issue(`${kind}_NODE_MISSING`, `挂接节点不存在：${action.nodeId || "空"}`, `${base}.nodeId`));
+      if (!nodes.has(action.nodeId)) errors.push(issue(`${kind}_NODE_MISSING`, `所属流程卡片不存在：${action.nodeId || "空"}`, `${base}.nodeId`));
       if (action.outgoingEdgeId) {
         const edge = edges.get(action.outgoingEdgeId);
-        if (!edge) errors.push(issue(`${kind}_EDGE_MISSING`, `流出边不存在：${action.outgoingEdgeId}`, `${base}.outgoingEdgeId`));
-        if (edge && edge.from !== action.nodeId) errors.push(issue(`${kind}_EDGE_SOURCE_MISMATCH`, "流出边源节点必须等于动作挂接节点", `${base}.outgoingEdgeId`));
+        if (!edge) errors.push(issue(`${kind}_EDGE_MISSING`, `绑定的流转规则不存在：${action.outgoingEdgeId}`, `${base}.outgoingEdgeId`));
+        if (edge && edge.from !== action.nodeId) errors.push(issue(`${kind}_EDGE_SOURCE_MISMATCH`, "绑定的流转规则必须从当前流程卡片流出", `${base}.outgoingEdgeId`));
       }
     };
 
@@ -260,34 +289,34 @@
       const base = `strategyActions[${index}]`;
       actionNode("STRATEGY_ACTION", action, index, "strategyActions");
       [
-        ["time", "时间"], ["subjectState", "主体状态"], ["judge", "判断"],
+        ["time", "时间"], ["subjectState", "对象当前状态"], ["judge", "进入条件"],
         ["touchScene", "触达场景"], ["touchMethod", "触达方式"], ["theme", "话术主题"],
         ["goal", "核心目标"], ["hook", "核心抓手"], ["copy", "文案"],
       ].forEach(([key, name]) => {
-        if (!clean(action[key])) errors.push(issue("ACTION_FIELD_REQUIRED", `策略动作字段缺失：${name}`, `${base}.${key}`));
+        if (!clean(action[key])) errors.push(issue("ACTION_FIELD_REQUIRED", `客户触达内容字段缺失：${name}`, `${base}.${key}`));
       });
-      if (!action.metrics.length) errors.push(issue("ACTION_FIELD_REQUIRED", "策略动作至少需要一个考察指标", `${base}.metrics`));
+      if (!action.metrics.length) errors.push(issue("ACTION_FIELD_REQUIRED", "客户触达内容至少需要一个考察指标", `${base}.metrics`));
     });
 
     doc.processActions.forEach((action, index) => {
       const base = `processActions[${index}]`;
       actionNode("PROCESS_ACTION", action, index, "processActions");
       [
-        ["executor", "执行人"], ["scene", "场景"], ["condition", "判断条件"],
-        ["result", "判断结果"], ["action", "执行动作"], ["hook", "执行抓手"],
+        ["executor", "执行人 / 角色"], ["scene", "执行场景"], ["condition", "什么情况下执行"],
+        ["result", "执行后的结果"], ["action", "具体执行动作"], ["hook", "执行抓手"],
         ["recipient", "接受对象"],
       ].forEach(([key, name]) => {
-        if (!clean(action[key])) errors.push(issue("ACTION_FIELD_REQUIRED", `过程动作字段缺失：${name}`, `${base}.${key}`));
+        if (!clean(action[key])) errors.push(issue("ACTION_FIELD_REQUIRED", `执行跟进动作字段缺失：${name}`, `${base}.${key}`));
       });
-      if (!action.metrics.length) errors.push(issue("ACTION_FIELD_REQUIRED", "过程动作至少需要一个管理指标", `${base}.metrics`));
+      if (!action.metrics.length) errors.push(issue("ACTION_FIELD_REQUIRED", "执行跟进动作至少需要一个过程管理指标", `${base}.metrics`));
     });
 
-    if (!doc.strategyActions.length) warnings.push(issue("STRATEGY_ACTION_MISSING", "当前编排没有客群 / 场景策略动作", "strategyActions"));
-    if (!doc.processActions.length) warnings.push(issue("PROCESS_ACTION_MISSING", "当前编排没有过程管理动作", "processActions"));
+    if (!doc.strategyActions.length) warnings.push(issue("STRATEGY_ACTION_MISSING", "当前流程没有客户触达内容", "strategyActions"));
+    if (!doc.processActions.length) warnings.push(issue("PROCESS_ACTION_MISSING", "当前流程没有执行跟进动作", "processActions"));
     doc.nodes.forEach((node, index) => {
       if (["process", "wait", "recycle", "reentry"].includes(node.nodeType)) {
         const hasProcess = doc.processActions.some(action => action.nodeId === node.localId);
-        if (!hasProcess) warnings.push(issue("PROCESS_ACTION_UNMOUNTED", "过程节点未挂接过程动作", `nodes[${index}]`));
+        if (!hasProcess) warnings.push(issue("PROCESS_ACTION_UNMOUNTED", "中间跟进卡片尚未添加执行跟进动作", `nodes[${index}]`));
       }
     });
 
@@ -319,7 +348,7 @@
     const nodes = new Map(doc.nodes.map(node => [node.localId, node]));
     const lines = ["flowchart TD"];
     doc.nodes.forEach(node => {
-      const label = `${node.time || "时间待确认"}｜${node.executor || "执行人待确认"}｜${node.subject.state || "主体状态待确认"}`;
+      const label = `${node.time || "时间待确认"}｜${node.executor || "执行人待确认"}｜${node.subject.state || "状态待确认"}`;
       lines.push(`    ${node.localId}["${escapeMermaid(label)}"]`);
     });
     doc.edges.forEach(edge => {
@@ -385,8 +414,15 @@
     const layoutState = { left: true, right: true, bottom: true };
 
     const NODE_TYPE_LABELS = new Map([
-      ["entry", "入口"], ["process", "过程"], ["wait", "等待"], ["outcome", "结果"],
-      ["recycle", "回收"], ["reentry", "重入"], ["terminal", "终态"],
+      ["entry", "开始进入"], ["process", "中间跟进"], ["wait", "等待观察"], ["outcome", "目标达成"],
+      ["recycle", "收回重启"], ["reentry", "重新进入"], ["terminal", "流程结束"],
+    ]);
+    const EDGE_TYPE_LABELS = new Map([
+      ["state_transition", "正常流转"], ["handoff", "责任人交接"], ["outcome", "达成结果"],
+      ["recycle", "收回重启"], ["reentry", "重新进入"], ["exception", "异常处理"],
+    ]);
+    const SUBJECT_TYPE_LABELS = new Map([
+      ["customer", "客群"], ["scene", "场景"], ["event", "事件"], ["activity", "活动"],
     ]);
 
     function toast(message, isError = false) {
@@ -467,14 +503,7 @@
     }
 
     function nextId(prefix, items) {
-      let index = items.length + 1;
-      let candidate = `${prefix}${index}`;
-      const used = new Set(items.map(item => item.localId));
-      while (used.has(candidate)) {
-        index += 1;
-        candidate = `${prefix}${index}`;
-      }
-      return candidate;
+      return nextAutomaticId(prefix, items);
     }
 
     function defaultSubjectType() {
@@ -560,7 +589,7 @@
     function addStrategyAction() {
       const current = selectedObject();
       const nodeId = current?.kind === "node" ? current.value.localId : documentState.nodes[0]?.localId || "";
-      if (!nodeId) return toast("请先创建节点", true);
+      if (!nodeId) return toast("请先创建流程卡片", true);
       const node = documentState.nodes.find(item => item.localId === nodeId);
       const action = normalizeStrategyAction({
         localId: nextId("sa", documentState.strategyActions),
@@ -584,7 +613,7 @@
     function addProcessAction() {
       const current = selectedObject();
       const nodeId = current?.kind === "node" ? current.value.localId : documentState.nodes[0]?.localId || "";
-      if (!nodeId) return toast("请先创建节点", true);
+      if (!nodeId) return toast("请先创建流程卡片", true);
       const node = documentState.nodes.find(item => item.localId === nodeId);
       const action = normalizeProcessAction({
         localId: nextId("pa", documentState.processActions),
@@ -651,17 +680,17 @@
         const strategyActions = documentState.strategyActions.filter(item => item.nodeId === node.localId);
         const processActions = documentState.processActions.filter(item => item.nodeId === node.localId);
         const chips = [
-          ...strategyActions.map(item => `<button type="button" class="action-chip strategy${selected?.kind === "strategyAction" && selected.id === item.localId ? " selected" : ""}" data-select-kind="strategyAction" data-select-id="${escapeHtml(item.localId)}">策略·${escapeHtml(item.theme || item.localId)}</button>`),
-          ...processActions.map(item => `<button type="button" class="action-chip process${selected?.kind === "processAction" && selected.id === item.localId ? " selected" : ""}" data-select-kind="processAction" data-select-id="${escapeHtml(item.localId)}">过程·${escapeHtml(item.action || item.localId)}</button>`),
+          ...strategyActions.map(item => `<button type="button" class="action-chip strategy${selected?.kind === "strategyAction" && selected.id === item.localId ? " selected" : ""}" data-select-kind="strategyAction" data-select-id="${escapeHtml(item.localId)}">触达·${escapeHtml(item.theme || "待确认")}</button>`),
+          ...processActions.map(item => `<button type="button" class="action-chip process${selected?.kind === "processAction" && selected.id === item.localId ? " selected" : ""}" data-select-kind="processAction" data-select-id="${escapeHtml(item.localId)}">跟进·${escapeHtml(item.action || "待确认")}</button>`),
         ].join("");
         return `<article class="node-card${selected?.kind === "node" && selected.id === node.localId ? " selected" : ""}" data-id="${escapeHtml(node.localId)}" data-type="${escapeHtml(node.nodeType)}" style="transform:translate(${node.layout.x}px,${node.layout.y}px)" id="node-${escapeHtml(node.localId)}">
           <div><span class="node-type">${NODE_TYPE_LABELS.get(node.nodeType) || node.nodeType}</span><span class="node-time">${escapeHtml(node.time || "时间待确认")}</span></div>
           <div class="node-executor">${escapeHtml(node.executor || "执行人待确认")}</div>
-          <div class="node-state">${escapeHtml(node.subject.state || "主体状态待确认")}</div>
-          <div class="node-id">${escapeHtml(node.localId)} · ${escapeHtml(node.subject.type)}</div>
-          <div class="node-actions">${chips || "<span class='action-chip'>未挂接动作</span>"}</div>
+          <div class="node-state">${escapeHtml(node.subject.state || "状态待确认")}</div>
+          <div class="node-id">自动编号 ${escapeHtml(node.localId)} · ${escapeHtml(SUBJECT_TYPE_LABELS.get(node.subject.type) || node.subject.type)}</div>
+          <div class="node-actions">${chips || "<span class='action-chip'>尚未添加业务内容</span>"}</div>
           <span class="node-port input" data-port="input" title="目标锚点"></span>
-          <span class="node-port output" data-port="output" title="拖拽到目标节点创建边"></span>
+          <span class="node-port output" data-port="output" title="拖拽到目标卡片创建流转规则"></span>
         </article>`;
       }).join("");
     }
@@ -769,13 +798,17 @@
       return textareaField(label, path, values.join("\n"), "每行一个指标；缺失填“待确认”");
     }
 
+    function systemIdField(label, value, note) {
+      return `<div class="system-field"><span>${escapeHtml(label)}（自动生成）</span><b>${escapeHtml(value || "待生成")}</b><small>${escapeHtml(note)}</small></div>`;
+    }
+
     function renderStrategyInspector() {
       const strategy = documentState.strategy;
       inspector.innerHTML = `<div class="side-block">
-        <div class="inspector-head"><div><b>策略信息</b><small>先填基础信息，再编排节点和动作。</small></div></div>
+        <div class="inspector-head"><div><b>策略基础信息</b><small>先填业务信息，再画流程。</small></div></div>
         <div class="inspector-form">
           ${inputField("策略名称", "strategy.strategyName", strategy.strategyName)}
-          ${inputField("策略编号", "strategy.strategyId", strategy.strategyId, "text", "首次提交可留空")}
+          ${inputField("门户策略编号", "strategy.strategyId", strategy.strategyId, "text", "首次提交留空，注册后回填")}
           ${inputField("主要负责人", "strategy.owner", strategy.owner)}
           ${inputField("提交人", "strategy.submitter", strategy.submitter)}
           ${inputField("业务场景", "strategy.businessScene", strategy.businessScene)}
@@ -789,24 +822,24 @@
     function renderNodeInspector(node) {
       inspector.innerHTML = `<div class="side-block">
         <div class="inspector-head">
-          <div><b>编排节点</b><small>${escapeHtml(node.localId)}</small></div>
+          <div><b>流程卡片</b><small>系统编号自动生成</small></div>
           <button class="btn danger small" data-action="delete" type="button">删除</button>
         </div>
         <div class="inspector-form">
-          ${inputField("节点 ID", `nodes.${node.localId}.localId`, node.localId)}
-          ${selectField("节点类型", `nodes.${node.localId}.nodeType`, node.nodeType, NODE_TYPES.map(value => [value, NODE_TYPE_LABELS.get(value) || value]))}
+          <div class="wide">${systemIdField("卡片系统编号", node.localId, "系统自动维护，业务人员不需要填写或修改。")}</div>
+          ${selectField("卡片类型", `nodes.${node.localId}.nodeType`, node.nodeType, NODE_TYPES.map(value => [value, NODE_TYPE_LABELS.get(value) || value]))}
           ${inputField("时间 / 阶段", `nodes.${node.localId}.time`, node.time, "text", "填写业务时间表达式")}
-          ${inputField("责任执行人", `nodes.${node.localId}.executor`, node.executor)}
-          ${selectField("主体类型", `nodes.${node.localId}.subject.type`, node.subject.type, SUBJECT_TYPES.map(value => [value, value]))}
-          ${inputField("主体状态", `nodes.${node.localId}.subject.state`, node.subject.state)}
-          ${inputField("展示名", `nodes.${node.localId}.displayName`, node.displayName, "text", "默认自动拼接")}
+          ${inputField("负责执行的角色 / 人", `nodes.${node.localId}.executor`, node.executor)}
+          ${selectField("对象类型", `nodes.${node.localId}.subject.type`, node.subject.type, SUBJECT_TYPES.map(value => [value, SUBJECT_TYPE_LABELS.get(value) || value]))}
+          ${inputField("对象当前状态", `nodes.${node.localId}.subject.state`, node.subject.state)}
+          ${inputField("卡片展示名", `nodes.${node.localId}.displayName`, node.displayName, "text", "不填时按执行人和状态展示")}
         </div>
       </div>
       <div class="side-block">
-        <h2 class="side-title">挂接动作</h2>
+        <h2 class="side-title">添加业务内容</h2>
         <div class="node-buttons">
-          <button class="btn wide" type="button" data-action="add-strategy">新增策略动作</button>
-          <button class="btn wide" type="button" data-action="add-process">新增过程动作</button>
+          <button class="btn wide" type="button" data-action="add-strategy">新增客户触达内容</button>
+          <button class="btn wide" type="button" data-action="add-process">新增执行跟进动作</button>
         </div>
       </div>`;
     }
@@ -814,47 +847,47 @@
     function renderEdgeInspector(edge) {
       inspector.innerHTML = `<div class="side-block">
         <div class="inspector-head">
-          <div><b>流转边</b><small>${escapeHtml(edge.localId)}｜${escapeHtml(edge.from)} → ${escapeHtml(edge.to)}</small></div>
+          <div><b>流转规则</b><small>从一张卡片进入下一张卡片的业务条件</small></div>
           <button class="btn danger small" data-action="delete" type="button">删除</button>
         </div>
         <div class="inspector-form">
-          ${inputField("边 ID", `edges.${edge.localId}.localId`, edge.localId)}
-          ${selectField("边类型", `edges.${edge.localId}.edgeType`, edge.edgeType, EDGE_TYPES.map(value => [value, value]))}
-          ${inputField("互斥组", `edges.${edge.localId}.mutexGroup`, edge.mutexGroup, "text", "同组互斥分支")}
-          ${inputField("流转标签", `edges.${edge.localId}.label`, edge.label)}
+          <div class="wide">${systemIdField("规则系统编号", edge.localId, "系统自动维护；导出 JSON 时用于保持引用关系。")}</div>
+          ${selectField("流转类型", `edges.${edge.localId}.edgeType`, edge.edgeType, EDGE_TYPES.map(value => [value, EDGE_TYPE_LABELS.get(value) || value]))}
+          ${inputField("互斥分组", `edges.${edge.localId}.mutexGroup`, edge.mutexGroup, "text", "同一组里只能走一条分支")}
+          ${inputField("业务说明", `edges.${edge.localId}.label`, edge.label, "text", "给业务同事看的短说明")}
           ${checkboxField("业务已确认", `edges.${edge.localId}.confirmed`, edge.confirmed)}
-          ${checkboxField("覆盖源主体", `edges.${edge.localId}.overwriteSource`, edge.overwriteSource)}
+          ${checkboxField("客户离开原状态", `edges.${edge.localId}.overwriteSource`, edge.overwriteSource)}
         </div>
       </div>
       <div class="side-block">
-        <h2 class="side-title">执行人行为</h2>
+        <h2 class="side-title">执行人做了什么</h2>
         <div class="inspector-form field-grid">
           ${inputField("时间", `edges.${edge.localId}.actorBehavior.time`, edge.actorBehavior.time, "text", "填写业务时间表达式")}
-          ${selectField("状态", `edges.${edge.localId}.actorBehavior.status`, edge.actorBehavior.status, ACTOR_STATUSES)}
-          <div class="field-grid wide">${inputField("动作", `edges.${edge.localId}.actorBehavior.action`, edge.actorBehavior.action)}</div>
+          ${selectField("执行状态", `edges.${edge.localId}.actorBehavior.status`, edge.actorBehavior.status, ACTOR_STATUSES)}
+          <div class="field-grid wide">${inputField("执行动作", `edges.${edge.localId}.actorBehavior.action`, edge.actorBehavior.action)}</div>
         </div>
-        <h2 class="side-title" style="margin-top:14px">策略主体行为</h2>
+        <h2 class="side-title" style="margin-top:14px">客户 / 对象发生了什么</h2>
         <div class="inspector-form field-grid">
           ${inputField("时间", `edges.${edge.localId}.subjectBehavior.time`, edge.subjectBehavior.time, "text", "填写业务时间表达式")}
-          ${selectField("状态", `edges.${edge.localId}.subjectBehavior.status`, edge.subjectBehavior.status, SUBJECT_STATUSES)}
-          <div class="field-grid wide">${inputField("行为", `edges.${edge.localId}.subjectBehavior.action`, edge.subjectBehavior.action)}</div>
+          ${selectField("发生状态", `edges.${edge.localId}.subjectBehavior.status`, edge.subjectBehavior.status, SUBJECT_STATUSES)}
+          <div class="field-grid wide">${inputField("发生的行为", `edges.${edge.localId}.subjectBehavior.action`, edge.subjectBehavior.action)}</div>
         </div>
       </div>`;
     }
 
     function renderActionInspector(kind, action) {
-      const nodeOptions = documentState.nodes.map(node => [node.localId, `${node.localId}｜${node.subject.state || "待确认"}`]);
-      const edgeOptions = [["", "不挂流出边"], ...documentState.edges.filter(edge => edge.from === action.nodeId).map(edge => [edge.localId, `${edge.localId}｜${edge.actorBehavior.action || "待确认"}`])];
+      const nodeOptions = documentState.nodes.map(node => [node.localId, `${node.executor || "执行人待确认"}｜${node.subject.state || "状态待确认"}`]);
+      const edgeOptions = [["", "暂不绑定流转规则"], ...documentState.edges.filter(edge => edge.from === action.nodeId).map(edge => [edge.localId, `规则｜${edge.actorBehavior.action || "待确认"}`])];
       if (kind === "strategyAction") {
         inspector.innerHTML = `<div class="side-block">
-          <div class="inspector-head"><div><b>策略动作</b><small>${escapeHtml(action.localId)}</small></div><button class="btn danger small" data-action="delete" type="button">删除</button></div>
+          <div class="inspector-head"><div><b>客户触达内容</b><small>对客户说什么、用什么权益</small></div><button class="btn danger small" data-action="delete" type="button">删除</button></div>
           <div class="inspector-form field-grid">
-            ${inputField("动作 ID", `strategyActions.${action.localId}.localId`, action.localId)}
-            ${selectField("挂接节点", `strategyActions.${action.localId}.nodeId`, action.nodeId, nodeOptions)}
-            ${selectField("流出边", `strategyActions.${action.localId}.outgoingEdgeId`, action.outgoingEdgeId, edgeOptions)}
+            <div class="wide">${systemIdField("内容系统编号", action.localId, "系统自动维护，不需要业务填写。")}</div>
+            ${selectField("所属流程卡片", `strategyActions.${action.localId}.nodeId`, action.nodeId, nodeOptions)}
+            ${selectField("绑定的流转规则", `strategyActions.${action.localId}.outgoingEdgeId`, action.outgoingEdgeId, edgeOptions)}
             ${inputField("时间", `strategyActions.${action.localId}.time`, action.time, "text", "填写业务时间表达式")}
-            ${inputField("主体状态", `strategyActions.${action.localId}.subjectState`, action.subjectState)}
-            ${inputField("判断", `strategyActions.${action.localId}.judge`, action.judge)}
+            ${inputField("对象当前状态", `strategyActions.${action.localId}.subjectState`, action.subjectState)}
+            ${inputField("进入条件", `strategyActions.${action.localId}.judge`, action.judge)}
             ${inputField("触达场景", `strategyActions.${action.localId}.touchScene`, action.touchScene)}
             ${inputField("触达方式", `strategyActions.${action.localId}.touchMethod`, action.touchMethod)}
             ${inputField("话术主题", `strategyActions.${action.localId}.theme`, action.theme)}
@@ -867,19 +900,19 @@
         </div>`;
       } else {
         inspector.innerHTML = `<div class="side-block">
-          <div class="inspector-head"><div><b>过程动作</b><small>${escapeHtml(action.localId)}</small></div><button class="btn danger small" data-action="delete" type="button">删除</button></div>
+          <div class="inspector-head"><div><b>执行跟进动作</b><small>谁执行、执行什么、交给谁</small></div><button class="btn danger small" data-action="delete" type="button">删除</button></div>
           <div class="inspector-form field-grid">
-            ${inputField("动作 ID", `processActions.${action.localId}.localId`, action.localId)}
-            ${selectField("挂接节点", `processActions.${action.localId}.nodeId`, action.nodeId, nodeOptions)}
-            ${selectField("流出边", `processActions.${action.localId}.outgoingEdgeId`, action.outgoingEdgeId, edgeOptions)}
-            ${inputField("执行人", `processActions.${action.localId}.executor`, action.executor)}
-            ${inputField("场景", `processActions.${action.localId}.scene`, action.scene)}
+            <div class="wide">${systemIdField("动作系统编号", action.localId, "系统自动维护，不需要业务填写。")}</div>
+            ${selectField("所属流程卡片", `processActions.${action.localId}.nodeId`, action.nodeId, nodeOptions)}
+            ${selectField("绑定的流转规则", `processActions.${action.localId}.outgoingEdgeId`, action.outgoingEdgeId, edgeOptions)}
+            ${inputField("执行人 / 角色", `processActions.${action.localId}.executor`, action.executor)}
+            ${inputField("执行场景", `processActions.${action.localId}.scene`, action.scene)}
             ${inputField("执行抓手", `processActions.${action.localId}.hook`, action.hook)}
             ${inputField("接受对象", `processActions.${action.localId}.recipient`, action.recipient)}
-            <div class="wide">${textareaField("判断条件", `processActions.${action.localId}.condition`, action.condition)}</div>
-            <div class="wide">${textareaField("判断结果", `processActions.${action.localId}.result`, action.result)}</div>
-            <div class="wide">${textareaField("执行动作", `processActions.${action.localId}.action`, action.action)}</div>
-            <div class="wide">${metricsField("管理指标", `processActions.${action.localId}.metrics`, action.metrics)}</div>
+            <div class="wide">${textareaField("什么情况下执行", `processActions.${action.localId}.condition`, action.condition)}</div>
+            <div class="wide">${textareaField("执行后的结果", `processActions.${action.localId}.result`, action.result)}</div>
+            <div class="wide">${textareaField("具体执行动作", `processActions.${action.localId}.action`, action.action)}</div>
+            <div class="wide">${metricsField("过程管理指标", `processActions.${action.localId}.metrics`, action.metrics)}</div>
           </div>
         </div>`;
       }

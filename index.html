@@ -33,37 +33,37 @@
   <main class="workbench">
     <aside class="side-panel">
       <div class="side-block">
-        <h2 class="side-title">策略范式</h2>
+        <h2 class="side-title">策略类型</h2>
         <div class="mode-switch" id="paradigmSwitch">
-          <button type="button" data-paradigm="customer">客群策略</button>
-          <button type="button" data-paradigm="scene">场景触发</button>
+          <button type="button" data-paradigm="customer">按客群经营</button>
+          <button type="button" data-paradigm="scene">按场景触发</button>
         </div>
-        <p class="hint">切换只影响默认主体类型和文案提示，不会改写已有节点状态。</p>
+        <p class="hint">按客群经营：先选一群客户，再设计触达和跟进。按场景触发：客户发生某个事件后进入策略。</p>
       </div>
       <div class="side-block">
-        <h2 class="side-title">添加节点</h2>
+        <h2 class="side-title">添加流程卡片</h2>
         <div class="node-buttons" id="nodeButtons">
-          <button class="btn" type="button" data-node-type="entry">入口</button>
-          <button class="btn" type="button" data-node-type="process">过程</button>
-          <button class="btn" type="button" data-node-type="wait">等待</button>
-          <button class="btn" type="button" data-node-type="outcome">结果</button>
-          <button class="btn" type="button" data-node-type="recycle">回收</button>
-          <button class="btn" type="button" data-node-type="reentry">重入</button>
-          <button class="btn" type="button" data-node-type="terminal">终态</button>
+          <button class="btn" type="button" data-node-type="entry" title="客户或对象从这里进入策略">开始进入</button>
+          <button class="btn" type="button" data-node-type="process" title="中间跟进、推送、服务等待处理">中间跟进</button>
+          <button class="btn" type="button" data-node-type="wait" title="暂时不动作，等待条件成熟">等待观察</button>
+          <button class="btn" type="button" data-node-type="outcome" title="业务目标已经达成">目标达成</button>
+          <button class="btn" type="button" data-node-type="recycle" title="收回线索、资格或资源，准备重新开始">收回重启</button>
+          <button class="btn" type="button" data-node-type="reentry" title="重新进入策略的下一个周期">重新进入</button>
+          <button class="btn" type="button" data-node-type="terminal" title="流程结束，不再继续流转">流程结束</button>
         </div>
-        <p class="hint">从节点右侧圆点拖到目标节点创建流转边。</p>
+        <p class="hint">一张卡片表示“谁负责 + 客户/对象当前处于什么状态”。从卡片右侧圆点拖到目标卡片，即可添加流转规则。</p>
       </div>
       <div class="side-block">
-        <h2 class="side-title">挂接动作</h2>
+        <h2 class="side-title">添加业务内容</h2>
         <div class="node-buttons">
-          <button class="btn wide" id="addStrategyActionBtn" type="button">新增策略动作</button>
-          <button class="btn wide" id="addProcessActionBtn" type="button">新增过程动作</button>
+          <button class="btn wide" id="addStrategyActionBtn" type="button">新增客户触达内容</button>
+          <button class="btn wide" id="addProcessActionBtn" type="button">新增执行跟进动作</button>
         </div>
-        <p class="hint">动作会下挂到当前选中节点；没有选中时挂到第一个节点。</p>
+        <p class="hint">客户触达内容：对客户说什么、用什么权益、看什么业务指标。执行跟进动作：谁执行、执行什么、看什么过程指标。</p>
       </div>
       <div class="side-block">
         <h2 class="side-title">画布操作</h2>
-        <p class="hint">拖拽节点调整布局；拖拽空白处平移画布；点击节点 / 边 / 动作标签编辑属性。坐标只保存在 layout，不进入业务语义。</p>
+        <p class="hint">拖拽卡片调整布局；拖拽空白处平移画布；点击卡片、连线或动作标签编辑内容。内部系统编号自动生成，不需要手工填写。</p>
       </div>
     </aside>
 
