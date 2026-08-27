@@ -25,6 +25,36 @@ let browser;
   await page.waitForSelector(".node-card");
 
   assert.equal(await page.locator(".node-card").count(), 3);
+  await page.click("#toggleLeftPanelBtn");
+  await page.click("#toggleRightPanelBtn");
+  await page.click("#toggleBottomPanelBtn");
+  await page.waitForFunction(() => document.getElementById("strategyFlowDesigner").classList.contains("left-collapsed"));
+  assert.equal(
+    true,
+    await page.evaluate(() => ({
+      left: document.getElementById("strategyFlowDesigner").classList.contains("left-collapsed"),
+      right: document.getElementById("strategyFlowDesigner").classList.contains("right-collapsed"),
+      bottom: document.getElementById("strategyFlowDesigner").classList.contains("bottom-collapsed"),
+    }).left)
+  );
+  assert.equal(
+    true,
+    await page.evaluate(() => document.getElementById("strategyFlowDesigner").classList.contains("right-collapsed"))
+  );
+  assert.equal(
+    true,
+    await page.evaluate(() => document.getElementById("strategyFlowDesigner").classList.contains("bottom-collapsed"))
+  );
+  await page.reload();
+  await page.waitForSelector(".node-card");
+  assert.equal(
+    true,
+    await page.evaluate(() => document.getElementById("strategyFlowDesigner").classList.contains("left-collapsed"))
+  );
+  await page.click("#toggleLeftPanelBtn");
+  await page.click("#toggleRightPanelBtn");
+  await page.click("#toggleBottomPanelBtn");
+  await page.waitForFunction(() => !document.getElementById("strategyFlowDesigner").classList.contains("bottom-collapsed"));
 
   await page.click('[data-node-type="process"]');
   await page.waitForFunction(() => document.querySelectorAll(".node-card").length === 4);

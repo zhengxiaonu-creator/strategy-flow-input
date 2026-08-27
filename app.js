@@ -8,6 +8,7 @@
 
   const SCHEMA_VERSION = "strategy-flow-input/0.1";
   const STORAGE_KEY = "ebscn.strategy-flow-designer.draft.v0";
+  const LAYOUT_STORAGE_KEY = "ebscn.strategy-flow-designer.layout.v0";
   const TIME_VALUES = ["T日", "T+1日", "T+7日前", "T+7日后"];
   const NODE_TYPES = ["entry", "process", "wait", "outcome", "recycle", "reentry", "terminal"];
   const EDGE_TYPES = ["state_transition", "handoff", "outcome", "recycle", "reentry", "exception"];
@@ -383,6 +384,7 @@
     let canvasPan = null;
     let connecting = null;
     let toastTimer = null;
+    const layoutState = { left: true, right: true, bottom: true };
 
     const NODE_TYPE_LABELS = new Map([
       ["entry", "入口"], ["process", "过程"], ["wait", "等待"], ["outcome", "结果"],
@@ -413,6 +415,57 @@
       } catch (_) {
         return false;
       }
+    }
+
+    function loadLayout() {
+      try {
+        const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        ["left", "right", "bottom"].forEach(name => {
+          if (typeof saved[name] === "boolean") layoutState[name] = saved[name];
+        });
+      } catch (_) {
+        // UI preference is non-critical; fall back to showing all panels.
+      }
+      renderLayout(false);
+    }
+
+    function saveLayout() {
+      try {
+        localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layoutState));
+      } catch (_) {
+        // Ignore private-mode storage failures.
+      }
+    }
+
+    function renderLayout(redrawEdges = true) {
+      root.classList.toggle("left-collapsed", !layoutState.left);
+      root.classList.toggle("right-collapsed", !layoutState.right);
+      root.classList.toggle("bottom-collapsed", !layoutState.bottom);
+      const buttons = {
+        left: el("toggleLeftPanelBtn"),
+        right: el("toggleRightPanelBtn"),
+        bottom: el("toggleBottomPanelBtn"),
+      };
+      Object.entries(buttons).forEach(([name, button]) => {
+        button?.classList.toggle("on", layoutState[name]);
+        if (button) button.setAttribute("aria-pressed", String(layoutState[name]));
+      });
+      if (redrawEdges) {
+        requestAnimationFrame(() => {
+          // Grid track transition changes the visible canvas area; redraw once
+          // on the next frame so connectors stay attached to their cards.
+          renderEdges();
+        });
+      }
+    }
+
+    function setPanelVisible(name, visible) {
+      if (!["left", "right", "bottom"].includes(name)) return;
+      layoutState[name] = visible;
+      renderLayout();
+      saveLayout();
     }
 
     function nextId(prefix, items) {
@@ -1132,6 +1185,9 @@
       const button = event.target.closest("[data-node-type]");
       if (button) addNode(button.dataset.nodeType);
     });
+    el("toggleLeftPanelBtn").addEventListener("click", event => setPanelVisible("left", !layoutState.left));
+    el("toggleRightPanelBtn").addEventListener("click", event => setPanelVisible("right", !layoutState.right));
+    el("toggleBottomPanelBtn").addEventListener("click", event => setPanelVisible("bottom", !layoutState.bottom));
     el("paradigmSwitch").addEventListener("click", event => {
       const button = event.target.closest("[data-paradigm]");
       if (!button) return;
@@ -1213,6 +1269,7 @@
     }
 
     if (!loadDraft()) documentState = sampleDocument();
+    loadLayout();
     renderAll();
   }
 
