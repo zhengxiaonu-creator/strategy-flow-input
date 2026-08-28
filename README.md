@@ -29,7 +29,7 @@ strategy-flow-input --open
 
 ```bash
 npm install --save-dev github:zhengxiaonu-creator/strategy-flow-input#v1.0.0
-npm start
+npx strategy-flow-input --open
 ```
 
 直接克隆运行：
