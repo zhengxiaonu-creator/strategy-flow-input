@@ -1,3 +1,9 @@
+# Version 1.0.0
+
+- 项目升级为 1.0.0。
+- 新增 npm package 元数据和 `strategy-flow-input` CLI。
+- 支持 `npm install github:zhengxiaonu-creator/strategy-flow-input` 后本地启动设计器。
+
 # Version 0.13.0
 
 - 双击流程卡片或流转规则标签时自动展开右侧属性栏并进入对应编辑态。

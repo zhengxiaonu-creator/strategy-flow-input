@@ -1,0 +1,43 @@
+{
+  "name": "strategy-flow-input",
+  "version": "1.0.0",
+  "description": "EBSCN strategy flow orchestration designer for strategy-flow-input JSON and Mermaid",
+  "private": true,
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhengxiaonu-creator/strategy-flow-input.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zhengxiaonu-creator/strategy-flow-input/issues"
+  },
+  "homepage": "https://github.com/zhengxiaonu-creator/strategy-flow-input#readme",
+  "bin": {
+    "strategy-flow-input": "./bin/strategy-flow-input.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node ./bin/strategy-flow-input.js",
+    "test": "node ./scripts/test.js"
+  },
+  "files": [
+    "app.js",
+    "bin",
+    "examples",
+    "index.html",
+    "references",
+    "schema",
+    "scripts/test.js",
+    "styles.css",
+    "VERSION.md"
+  ],
+  "keywords": [
+    "strategy",
+    "flow",
+    "orchestration",
+    "mermaid",
+    "json"
+  ]
+}

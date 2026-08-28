@@ -1,8 +1,55 @@
 # EBSCN Strategy Flow Designer
 
-全项目通用的策略编排设计器 MVP，用于把“责任人 + 对象状态 + 双行为条件”画成可校验的 `strategy-flow-input/0.1` JSON，并导出 Mermaid 沟通图。页面内置示例只演示结构，不承载任何具体业务口径。
+全项目通用的策略编排设计器，用于把“责任人 + 对象状态 + 双行为条件”画成可校验的 `strategy-flow-input/0.1` JSON，并导出 Mermaid 沟通图。页面内置示例只演示结构，不承载任何具体业务口径。
 
 视觉层采用 Fluent Light：Acrylic 命令栏和流程卡片、Mica 侧栏、轻量光照画布、统一焦点环与动效曲线。业务交互色使用 Fluent Blue，EBSCN 红色仅保留品牌标识。
+
+## 从 Git 安装和启动
+
+项目版本：
+
+```text
+1.0.0
+```
+
+一次性运行：
+
+```bash
+npx github:zhengxiaonu-creator/strategy-flow-input#v1.0.0 --open
+```
+
+全局安装：
+
+```bash
+npm install -g github:zhengxiaonu-creator/strategy-flow-input#v1.0.0
+strategy-flow-input --open
+```
+
+安装到当前项目：
+
+```bash
+npm install --save-dev github:zhengxiaonu-creator/strategy-flow-input#v1.0.0
+npm start
+```
+
+直接克隆运行：
+
+```bash
+git clone https://github.com/zhengxiaonu-creator/strategy-flow-input.git
+cd strategy-flow-input
+npm start
+```
+
+CLI 选项：
+
+```text
+--host <host>   监听地址，默认 127.0.0.1
+--port <port>   监听端口，默认 4173
+--open          启动后打开默认浏览器
+--help          查看帮助
+```
+
+`package.json` 中 `private: true` 只用于防止误发布到 npm registry，不影响从 GitHub 安装。
 
 ## 当前边界
 
