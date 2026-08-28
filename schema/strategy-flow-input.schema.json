@@ -152,8 +152,8 @@
           "properties": {
             "normalOffset": {
               "type": "number",
-              "minimum": -240,
-              "maximum": 240
+              "minimum": -4800,
+              "maximum": 4800
             }
           }
         }

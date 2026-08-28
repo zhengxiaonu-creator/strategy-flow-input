@@ -152,7 +152,7 @@ let browser;
   await page.waitForFunction(() => document.getElementById("canvas").dataset.zoom === "1.2");
   assert.equal(await page.locator("#zoomLevel").textContent(), "120%");
   assert.equal(
-    2880,
+    5760,
     await page.evaluate(() => document.getElementById("canvasSize").getBoundingClientRect().width)
   );
   await page.locator("#canvasShell").dispatchEvent("wheel", {
@@ -166,6 +166,16 @@ let browser;
   await page.waitForFunction(() => Number(document.getElementById("canvas").dataset.zoom) > 1.2);
   await page.click("#zoomResetBtn");
   await page.waitForFunction(() => document.getElementById("canvas").dataset.zoom === "1");
+  for (let index = 0; index < 8; index += 1) await page.click("#zoomOutBtn");
+  await page.waitForFunction(() => document.getElementById("canvas").dataset.zoom === "0.25");
+  assert.equal(await page.locator("#zoomLevel").textContent(), "25%");
+  assert.equal(
+    true,
+    await page.locator("#zoomOutBtn").isDisabled()
+  );
+  await page.click("#zoomResetBtn");
+  await page.waitForFunction(() => document.getElementById("canvas").dataset.zoom === "1");
+  await page.evaluate(() => document.getElementById("canvasShell").scrollTo(0, 0));
   await page.click("#zoomInBtn");
   await page.waitForFunction(() => document.getElementById("canvas").dataset.zoom === "1.1");
   const layoutsAfterZoom = await page.evaluate(() => JSON.parse(

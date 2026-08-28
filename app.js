@@ -9,6 +9,7 @@
   const SCHEMA_VERSION = "strategy-flow-input/0.1";
   const STORAGE_KEY = "ebscn.strategy-flow-designer.draft.v0";
   const LAYOUT_STORAGE_KEY = "ebscn.strategy-flow-designer.layout.v0";
+  const NORMAL_OFFSET_LIMIT = 4800;
   const NODE_TYPES = ["entry", "process", "wait", "outcome", "recycle", "reentry", "terminal"];
   const EDGE_TYPES = ["state_transition", "handoff", "outcome", "recycle", "reentry", "exception"];
   const SUBJECT_TYPES = ["customer", "scene", "event", "activity"];
@@ -101,7 +102,10 @@
       overwriteSource: source.overwriteSource === true,
       label: string(source.label),
       layout: {
-        normalOffset: Math.max(-240, Math.min(240, numberOr(layout.normalOffset, 0))),
+        normalOffset: Math.max(
+          -NORMAL_OFFSET_LIMIT,
+          Math.min(NORMAL_OFFSET_LIMIT, numberOr(layout.normalOffset, 0)),
+        ),
       },
     };
   }
@@ -422,8 +426,8 @@
     let saveStatusTimer = null;
     let clickOrigin = null;
     const layoutState = { left: true, right: true, bottom: true, zoom: 1 };
-    const CANVAS_BASE = { width: 2400, height: 1600 };
-    const CANVAS_ZOOM_LIMITS = { min: 0.5, max: 1.5 };
+    const CANVAS_BASE = { width: 4800, height: 3200 };
+    const CANVAS_ZOOM_LIMITS = { min: 0.25, max: 1.5 };
 
     const NODE_TYPE_LABELS = new Map([
       ["entry", "开始进入"], ["process", "中间跟进"], ["wait", "等待观察"], ["outcome", "目标达成"],
@@ -810,8 +814,8 @@
 
     function edgeGeometry(fromBox, toBox, slot = {}) {
       const routeOffset = Math.max(
-        -240,
-        Math.min(240, (slot.autoOffset ?? 0) + (slot.normalOffset ?? 0)),
+        -NORMAL_OFFSET_LIMIT,
+        Math.min(NORMAL_OFFSET_LIMIT, (slot.autoOffset ?? 0) + (slot.normalOffset ?? 0)),
       );
       const shiftedControl = (x, y, x1, y1, x2, y2) => {
         const dx = x2 - x1;
@@ -1444,8 +1448,11 @@
             + screenDeltaY * edgeLabelDrag.normalY
           ) / layoutState.zoom;
           edge.layout.normalOffset = Math.max(
-            -240,
-            Math.min(240, Math.round(edgeLabelDrag.startOffset + logicalNormalDelta)),
+            -NORMAL_OFFSET_LIMIT,
+            Math.min(
+              NORMAL_OFFSET_LIMIT,
+              Math.round(edgeLabelDrag.startOffset + logicalNormalDelta),
+            ),
           );
           renderEdges();
         }
