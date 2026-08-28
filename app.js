@@ -422,6 +422,7 @@
     let canvasPan = null;
     let connecting = null;
     let edgeLabelDrag = null;
+    let lastCanvasClick = null;
     let toastTimer = null;
     let saveStatusTimer = null;
     let clickOrigin = null;
@@ -540,6 +541,27 @@
       layoutState[name] = visible;
       renderLayout();
       saveLayout();
+    }
+
+    function openInspectorFor(kind, id) {
+      selected = { kind, id };
+      if (!layoutState.right) setPanelVisible("right", true);
+      renderAll();
+      requestAnimationFrame(() => {
+        inspector.querySelector("input, select, textarea")?.focus?.();
+      });
+    }
+
+    function markRepeatedCanvasClick(kind, id) {
+      const now = performance.now();
+      const repeated = Boolean(
+        lastCanvasClick
+        && lastCanvasClick.kind === kind
+        && lastCanvasClick.id === id
+        && now - lastCanvasClick.at <= 450
+      );
+      lastCanvasClick = { kind, id, at: now };
+      return repeated;
     }
 
     function applyCanvasZoom() {
@@ -1362,6 +1384,13 @@
       }
     });
 
+    nodeLayer.addEventListener("dblclick", event => {
+      const card = event.target.closest(".node-card");
+      if (!card) return;
+      event.preventDefault();
+      openInspectorFor("node", card.dataset.id);
+    });
+
     nodeLayer.addEventListener("pointerdown", event => {
       if (event.button !== 0 || event.target.closest(".action-chip")) return;
       const port = event.target.closest(".node-port.output");
@@ -1376,6 +1405,11 @@
       if (!card) return;
       const node = documentState.nodes.find(item => item.localId === card.dataset.id);
       if (!node) return;
+      if (markRepeatedCanvasClick("node", node.localId)) {
+        openInspectorFor("node", node.localId);
+        event.preventDefault();
+        return;
+      }
       selected = { kind: "node", id: node.localId };
       renderInspector();
       renderCanvas();
@@ -1399,6 +1433,11 @@
       const edgeId = label.dataset.edgeId;
       const edge = documentState.edges.find(item => item.localId === edgeId);
       if (!edge) return;
+      if (markRepeatedCanvasClick("edge", edgeId)) {
+        openInspectorFor("edge", edgeId);
+        event.preventDefault();
+        return;
+      }
       selected = { kind: "edge", id: label.dataset.edgeId };
       const path = [...edgeSvg.querySelectorAll("path.visible")]
         .find(item => item.dataset.edgeId === edgeId);
@@ -1422,6 +1461,13 @@
         event.preventDefault();
       }
       renderAll();
+    });
+
+    edgeLabelLayer.addEventListener("dblclick", event => {
+      const label = event.target.closest(".edge-label");
+      if (!label) return;
+      event.preventDefault();
+      openInspectorFor("edge", label.dataset.edgeId);
     });
 
     canvasShell.addEventListener("pointerdown", event => {

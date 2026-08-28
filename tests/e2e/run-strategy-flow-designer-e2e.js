@@ -129,8 +129,20 @@ let browser;
     true,
     await page.evaluate(() => document.getElementById("strategyFlowDesigner").classList.contains("left-collapsed"))
   );
-  await page.click("#toggleLeftPanelBtn");
+  await page.dblclick("#node-n1");
+  await page.waitForFunction(() => !document.getElementById("strategyFlowDesigner").classList.contains("right-collapsed"));
+  assert.equal(
+    true,
+    (await page.locator("#inspector").innerText()).includes("流程卡片")
+  );
   await page.click("#toggleRightPanelBtn");
+  await page.locator(".edge-label").first().dblclick();
+  await page.waitForFunction(() => !document.getElementById("strategyFlowDesigner").classList.contains("right-collapsed"));
+  assert.equal(
+    true,
+    (await page.locator("#inspector").innerText()).includes("流转规则")
+  );
+  await page.click("#toggleLeftPanelBtn");
   await page.click("#toggleBottomPanelBtn");
   await page.waitForFunction(() => !document.getElementById("strategyFlowDesigner").classList.contains("bottom-collapsed"));
   await page.click('[data-panel="codeView"]');
