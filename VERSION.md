@@ -1,4 +1,6 @@
-# Version 1.2.0
+# Version 1.2.0 — 2026-08-30
+
+Release tag: `v1.2.0`
 
 - 原生导出并解析 `strategy-flow-input/0.2`。
 - 新增 `strategy-taxonomy/2026-09` 标签字典、结构化标签选择和三类父子级联校验。
