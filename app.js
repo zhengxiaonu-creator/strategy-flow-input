@@ -16,7 +16,7 @@
   const ACTOR_STATUSES = [
     ["executed", "已执行"],
     ["not_executed", "未执行"],
-    ["no_requirement", "无行为要求"],
+    ["no_requirement", "无动作要求"],
   ];
   const SUBJECT_STATUSES = [
     ["happened", "已发生"],
@@ -78,9 +78,10 @@
 
   function normalizeBehavior(value, kind) {
     const source = value && typeof value === "object" ? value : {};
+    const noAction = source.status === "no_requirement";
     return {
       time: string(source.time),
-      action: string(source.action),
+      action: noAction ? "无动作" : string(source.action),
       status: kind === "actor"
         ? (ACTOR_STATUSES.some(item => item[0] === source.status) ? source.status : "")
         : (SUBJECT_STATUSES.some(item => item[0] === source.status) ? source.status : ""),
@@ -363,12 +364,12 @@
     });
     doc.edges.forEach(edge => {
       if (!nodes.has(edge.from) || !nodes.has(edge.to)) return;
-      const actorStatus = labelOf(edge.actorBehavior.status, ACTOR_STATUSES);
+    const actorStatus = labelOf(edge.actorBehavior.status, ACTOR_STATUSES);
       const subjectStatus = labelOf(edge.subjectBehavior.status, SUBJECT_STATUSES);
       const label = [
         `${edge.edgeType || "state_transition"}`,
-        `执行人：${edge.actorBehavior.time || "时间待确认"}·${edge.actorBehavior.action || "动作待确认"}·${actorStatus}`,
-        `对象：${edge.subjectBehavior.time || "时间待确认"}·${subjectStatus}·${edge.subjectBehavior.action || "行为待确认"}`,
+        `执行人：${edge.actorBehavior.time || "时间待确认"}·${actorStatus}${edge.actorBehavior.status === "no_requirement" ? "" : `·${edge.actorBehavior.action || "动作待确认"}`}`,
+        `对象：${edge.subjectBehavior.time || "时间待确认"}·${subjectStatus}${edge.subjectBehavior.status === "no_requirement" ? "" : `·${edge.subjectBehavior.action || "行为待确认"}`}`,
       ].join("<br/>");
       const arrow = ["recycle", "reentry"].includes(edge.edgeType) ? "-.->" : edge.edgeType === "outcome" ? "==>" : "-->";
       lines.push(`    ${edge.from} ${arrow}|"${escapeMermaid(label)}"| ${edge.to}`);
@@ -384,16 +385,109 @@
     return lines.join("\n");
   }
 
+  function autoLayoutDocument(input) {
+    const doc = normalizeDocument(input);
+    if (!doc.nodes.length) return doc;
+    const ids = doc.nodes.map(node => node.localId);
+    const idSet = new Set(ids);
+    const allOutgoing = new Map(ids.map(id => [id, []]));
+    const allIncoming = new Map(ids.map(id => [id, []]));
+    doc.edges.forEach(edge => {
+      if (idSet.has(edge.from) && idSet.has(edge.to) && edge.from !== edge.to) {
+        allOutgoing.get(edge.from).push(edge.to);
+        allIncoming.get(edge.to).push(edge.from);
+      }
+    });
+
+    // Detect back edges first, then rank only the remaining forward graph.
+    // Recycle / reentry therefore cannot collapse later stages onto stage one.
+    const visitState = new Map(ids.map(id => [id, "unvisited"]));
+    const backEdges = new Set();
+    const finished = [];
+    const visit = id => {
+      if (visitState.get(id) !== "unvisited") return;
+      visitState.set(id, "active");
+      allOutgoing.get(id).forEach(target => {
+        if (visitState.get(target) === "active") backEdges.add(`${id}>${target}`);
+        else visit(target);
+      });
+      visitState.set(id, "done");
+      finished.push(id);
+    };
+    ids.forEach(visit);
+    const forwardOutgoing = new Map(ids.map(id => [
+      id,
+      allOutgoing.get(id).filter(target => !backEdges.has(`${id}>${target}`)),
+    ]));
+    const forwardIncoming = new Map(ids.map(id => [
+      id,
+      allIncoming.get(id).filter(source => !backEdges.has(`${source}>${id}`)),
+    ]));
+
+    const ranks = new Map(ids.map(id => [id, 0]));
+    [...finished].reverse().forEach(id => {
+      forwardOutgoing.get(id).forEach(target => {
+        ranks.set(target, Math.max(ranks.get(target), ranks.get(id) + 1));
+      });
+    });
+
+    const isolated = new Set(ids.filter(id => !allOutgoing.get(id).length && !allIncoming.get(id).length));
+    let levels = new Map();
+    ids.forEach(id => {
+      if (isolated.has(id)) return;
+      const rank = ranks.get(id);
+      if (!levels.has(rank)) levels.set(rank, []);
+      levels.get(rank).push(id);
+    });
+    const rankKeys = [...levels.keys()].sort((a, b) => a - b);
+    if (isolated.size) {
+      const isolatedRank = (rankKeys.at(-1) ?? -1) + 1;
+      levels.set(isolatedRank, [...isolated]);
+      rankKeys.push(isolatedRank);
+    }
+
+    const position = new Map();
+    rankKeys.forEach(rank => levels.get(rank).forEach((id, index) => position.set(id, index)));
+    const barycenter = (id, neighbors, fallback) => neighbors.length
+      ? neighbors.reduce((sum, neighbor) => sum + position.get(neighbor), 0) / neighbors.length
+      : fallback;
+    for (let sweep = 0; sweep < 4; sweep += 1) {
+      rankKeys.forEach(rank => {
+        levels.get(rank).sort((a, b) =>
+          barycenter(a, forwardIncoming.get(a), position.get(a))
+          - barycenter(b, forwardIncoming.get(b), position.get(b)));
+        levels.get(rank).forEach((id, index) => position.set(id, index));
+      });
+      [...rankKeys].reverse().forEach(rank => {
+        levels.get(rank).sort((a, b) =>
+          barycenter(a, forwardOutgoing.get(a), position.get(a))
+          - barycenter(b, forwardOutgoing.get(b), position.get(b)));
+        levels.get(rank).forEach((id, index) => position.set(id, index));
+      });
+    }
+
+    rankKeys.forEach((rank, rankIndex) => {
+      levels.get(rank).forEach((id, index) => {
+        const node = doc.nodes.find(item => item.localId === id);
+        if (node) node.layout = { x: 100 + rankIndex * 370, y: 100 + index * 215 };
+      });
+    });
+    return doc;
+  }
+
   const publicApi = {
     SCHEMA_VERSION,
     NODE_TYPES,
     EDGE_TYPES,
+    ACTOR_STATUSES,
+    SUBJECT_STATUSES,
     defaultDocument,
     normalizeDocument,
     validateDocument,
     toExportDocument,
     toJSON,
     toMermaid,
+    autoLayoutDocument,
   };
 
   if (typeof module !== "undefined" && module.exports) {
@@ -414,11 +508,15 @@
     const nodeLayer = el("nodeLayer");
     const edgeLabelLayer = el("edgeLabelLayer");
     const edgeSvg = el("edgeSvg");
+    const selectionBox = el("selectionBox");
     const inspector = el("inspector");
     const toastEl = el("toast");
     let documentState = defaultDocument();
     let selected = null;
+    let selection = new Set();
+    let clipboard = null;
     let nodeDrag = null;
+    let selectionDrag = null;
     let canvasPan = null;
     let connecting = null;
     let edgeLabelDrag = null;
@@ -426,6 +524,7 @@
     let toastTimer = null;
     let saveStatusTimer = null;
     let clickOrigin = null;
+    const historyState = { past: [], future: [], lastKey: null, lastAt: 0 };
     const layoutState = { left: true, right: true, bottom: true, zoom: 1 };
     const CANVAS_BASE = { width: 4800, height: 3200 };
     const CANVAS_ZOOM_LIMITS = { min: 0.25, max: 1.5 };
@@ -550,6 +649,99 @@
       requestAnimationFrame(() => {
         inspector.querySelector("input, select, textarea")?.focus?.();
       });
+    }
+
+    function selectionKey(kind, id) {
+      return `${kind}:${id}`;
+    }
+
+    function isSelected(kind, id) {
+      return selection.has(selectionKey(kind, id))
+        || (selected?.kind === kind && selected.id === id);
+    }
+
+    function setSelection(entries = [], primary = null) {
+      selection = new Set(entries.map(entry => selectionKey(entry.kind, entry.id)));
+      selected = primary ? { kind: primary.kind, id: primary.id } : null;
+      if (selected && !selection.has(selectionKey(selected.kind, selected.id))) {
+        selection.add(selectionKey(selected.kind, selected.id));
+      }
+    }
+
+    function toggleSelection(kind, id) {
+      const key = selectionKey(kind, id);
+      const next = new Set(selection);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      selection = next;
+      selected = null;
+    }
+
+    function clearSelection() {
+      selection = new Set();
+      selected = null;
+    }
+
+    function selectedEntries() {
+      const entries = [...selection].map(key => {
+        const [kind, id] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
+        return { kind, id };
+      });
+      if (!entries.length && selected) return [{ kind: selected.kind, id: selected.id }];
+      return entries;
+    }
+
+    function snapshotState() {
+      return {
+        document: JSON.parse(JSON.stringify(documentState)),
+        selected: selected ? { ...selected } : null,
+        selection: [...selection],
+      };
+    }
+
+    function pushHistory(coalesceKey = "") {
+      const now = Date.now();
+      if (coalesceKey && coalesceKey === historyState.lastKey && now - historyState.lastAt < 900) {
+        historyState.lastAt = now;
+        return;
+      }
+      historyState.past.push(snapshotState());
+      if (historyState.past.length > 100) historyState.past.shift();
+      historyState.future = [];
+      historyState.lastKey = coalesceKey;
+      historyState.lastAt = now;
+    }
+
+    function restoreHistory(snapshot) {
+      documentState = normalizeDocument(snapshot.document);
+      selection = new Set(snapshot.selection || []);
+      selected = snapshot.selected || null;
+      const current = selectedObject();
+      if (selected && !current?.value) {
+        clearSelection();
+      }
+      renderAll();
+    }
+
+    function undo() {
+      const previous = historyState.past.pop();
+      if (!previous) return toast("没有可撤销的操作");
+      historyState.future.push(snapshotState());
+      historyState.lastKey = "";
+      restoreHistory(previous);
+      toast("已撤销");
+    }
+
+    function redo() {
+      const next = historyState.future.pop();
+      if (!next) return toast("没有可重做的操作");
+      historyState.past.push(snapshotState());
+      historyState.lastKey = "";
+      restoreHistory(next);
+      toast("已重做");
     }
 
     function markRepeatedCanvasClick(kind, id) {
@@ -702,6 +894,7 @@
         displayName: "",
         layout: { x, y },
       }, documentState.nodes.length);
+      pushHistory("add-node");
       documentState.nodes.push(node);
       selected = { kind: "node", id: node.localId };
       renderAll();
@@ -726,6 +919,7 @@
         copy: "待确认",
         metrics: ["待确认"],
       });
+      pushHistory("add-strategy-action");
       documentState.strategyActions.push(action);
       selected = { kind: "strategyAction", id: action.localId };
       renderAll();
@@ -748,6 +942,7 @@
         recipient: "待确认",
         metrics: ["待确认"],
       });
+      pushHistory("add-process-action");
       documentState.processActions.push(action);
       selected = { kind: "processAction", id: action.localId };
       renderAll();
@@ -769,31 +964,132 @@
         label: "",
       });
       if (["outcome", "terminal"].includes(to.nodeType)) edge.edgeType = "outcome";
+      pushHistory("connect");
       documentState.edges.push(edge);
       selected = { kind: "edge", id: edge.localId };
       renderAll();
     }
 
     function deleteSelected() {
-      const current = selectedObject();
-      if (!current?.value) return;
-      const id = current.value.localId;
-      if (current.kind === "node") {
-        documentState.nodes = documentState.nodes.filter(item => item.localId !== id);
-        documentState.edges = documentState.edges.filter(item => item.from !== id && item.to !== id);
-        documentState.strategyActions = documentState.strategyActions.filter(item => item.nodeId !== id);
-        documentState.processActions = documentState.processActions.filter(item => item.nodeId !== id);
-      } else if (current.kind === "edge") {
-        documentState.edges = documentState.edges.filter(item => item.localId !== id);
-        documentState.strategyActions.forEach(item => { if (item.outgoingEdgeId === id) item.outgoingEdgeId = ""; });
-        documentState.processActions.forEach(item => { if (item.outgoingEdgeId === id) item.outgoingEdgeId = ""; });
-      } else if (current.kind === "strategyAction") {
-        documentState.strategyActions = documentState.strategyActions.filter(item => item.localId !== id);
-      } else if (current.kind === "processAction") {
-        documentState.processActions = documentState.processActions.filter(item => item.localId !== id);
+      const entries = selectedEntries().filter(entry => ["node", "edge", "strategyAction", "processAction"].includes(entry.kind));
+      if (!entries.length) return;
+      pushHistory(`delete:${entries.map(item => item.id).sort().join(",")}`);
+      const nodeIds = new Set(entries.filter(item => item.kind === "node").map(item => item.id));
+      const edgeIds = new Set(entries.filter(item => item.kind === "edge").map(item => item.id));
+      // A selected card also removes its connected edges and mounted actions.
+      // Explicitly selected actions without a selected card are removed too.
+      if (nodeIds.size) {
+        documentState.nodes.forEach(node => {
+          if (!nodeIds.has(node.localId)) return;
+          documentState.edges.forEach(edge => {
+            if (edge.from === node.localId || edge.to === node.localId) edgeIds.add(edge.localId);
+          });
+        });
       }
-      selected = null;
+      if (edgeIds.size) {
+        documentState.strategyActions.forEach(item => { if (edgeIds.has(item.outgoingEdgeId)) item.outgoingEdgeId = ""; });
+        documentState.processActions.forEach(item => { if (edgeIds.has(item.outgoingEdgeId)) item.outgoingEdgeId = ""; });
+      }
+      const actionEntries = new Set(entries.filter(item => item.kind === "strategyAction" || item.kind === "processAction").map(item => `${item.kind}:${item.id}`));
+      documentState.nodes = documentState.nodes.filter(item => !nodeIds.has(item.localId));
+      documentState.edges = documentState.edges.filter(item => !edgeIds.has(item.localId));
+      documentState.strategyActions = documentState.strategyActions.filter(item =>
+        !nodeIds.has(item.nodeId) && !actionEntries.has(`strategyAction:${item.localId}`));
+      documentState.processActions = documentState.processActions.filter(item =>
+        !nodeIds.has(item.nodeId) && !actionEntries.has(`processAction:${item.localId}`));
+      clearSelection();
       renderAll();
+    }
+
+    function copySelection() {
+      const entries = selectedEntries().filter(entry => ["node", "edge"].includes(entry.kind));
+      if (!entries.length) return toast("请先选择卡片或流转规则", true);
+      const nodeIds = new Set(entries.filter(item => item.kind === "node").map(item => item.id));
+      const edgeIds = new Set(entries.filter(item => item.kind === "edge").map(item => item.id));
+      const nodes = JSON.parse(JSON.stringify(documentState.nodes.filter(item => nodeIds.has(item.localId))));
+      const edges = JSON.parse(JSON.stringify(documentState.edges.filter(item => edgeIds.has(item.localId))));
+      const strategyActions = JSON.parse(JSON.stringify(
+        documentState.strategyActions.filter(item => nodeIds.has(item.nodeId))
+      ));
+      const processActions = JSON.parse(JSON.stringify(
+        documentState.processActions.filter(item => nodeIds.has(item.nodeId))
+      ));
+      if (!nodes.length && !edges.length) return toast("没有可复制的内容", true);
+      clipboard = {
+        nodes,
+        edges,
+        strategyActions,
+        processActions,
+        origin: nodes.length ? {
+          x: Math.min(...nodes.map(item => item.layout.x)),
+          y: Math.min(...nodes.map(item => item.layout.y)),
+        } : { x: 0, y: 0 },
+      };
+      toast(`已复制 ${nodes.length} 张卡片、${edges.length} 条流转规则`);
+    }
+
+    function pasteClipboard() {
+      if (!clipboard?.nodes?.length && !clipboard?.edges?.length) return toast("剪贴板为空", true);
+      pushHistory("paste");
+      const nodeMap = new Map();
+      const edgeMap = new Map();
+      const nodes = [];
+      clipboard.nodes.forEach(item => {
+        const localId = nextId("n", [...documentState.nodes, ...nodes]);
+        nodeMap.set(item.localId, localId);
+        nodes.push(normalizeNode({
+          ...item,
+          localId,
+          layout: { x: item.layout.x, y: item.layout.y },
+        }));
+      });
+      const edges = [];
+      clipboard.edges.forEach(item => {
+        const localId = nextId("e", [...documentState.edges, ...edges]);
+        edgeMap.set(item.localId, localId);
+        edges.push(normalizeEdge({
+          ...item,
+          localId,
+          from: nodeMap.get(item.from) || item.from,
+          to: nodeMap.get(item.to) || item.to,
+        }));
+      });
+      const strategyActions = [];
+      clipboard.strategyActions.forEach(item => {
+        strategyActions.push(normalizeStrategyAction({
+          ...item,
+          localId: nextId("sa", [...documentState.strategyActions, ...strategyActions]),
+          nodeId: nodeMap.get(item.nodeId) || item.nodeId,
+          outgoingEdgeId: edgeMap.get(item.outgoingEdgeId) || "",
+        }));
+      });
+      const processActions = [];
+      clipboard.processActions.forEach(item => {
+        processActions.push(normalizeProcessAction({
+          ...item,
+          localId: nextId("pa", [...documentState.processActions, ...processActions]),
+          nodeId: nodeMap.get(item.nodeId) || item.nodeId,
+          outgoingEdgeId: edgeMap.get(item.outgoingEdgeId) || "",
+        }));
+      });
+      const offsetX = 36;
+      const offsetY = clipboard.nodes.length ? 36 : 0;
+      nodes.forEach(node => {
+        node.layout = {
+          x: Math.max(0, node.layout.x - clipboard.origin.x + offsetX),
+          y: Math.max(0, node.layout.y - clipboard.origin.y + offsetY),
+        };
+      });
+      documentState.nodes.push(...nodes);
+      documentState.edges.push(...edges);
+      documentState.strategyActions.push(...strategyActions);
+      documentState.processActions.push(...processActions);
+      setSelection([
+        ...nodes.map(item => ({ kind: "node", id: item.localId })),
+        ...edges.map(item => ({ kind: "edge", id: item.localId })),
+      ]);
+      renderAll();
+      toast(`已粘贴 ${nodes.length} 张卡片、${edges.length} 条流转规则`);
     }
 
     function renderNodes() {
@@ -801,15 +1097,23 @@
         const strategyActions = documentState.strategyActions.filter(item => item.nodeId === node.localId);
         const processActions = documentState.processActions.filter(item => item.nodeId === node.localId);
         const chips = [
-          ...strategyActions.map(item => `<button type="button" class="action-chip strategy${selected?.kind === "strategyAction" && selected.id === item.localId ? " selected" : ""}" data-select-kind="strategyAction" data-select-id="${escapeHtml(item.localId)}">触达·${escapeHtml(item.theme || "待确认")}</button>`),
-          ...processActions.map(item => `<button type="button" class="action-chip process${selected?.kind === "processAction" && selected.id === item.localId ? " selected" : ""}" data-select-kind="processAction" data-select-id="${escapeHtml(item.localId)}">跟进·${escapeHtml(item.action || "待确认")}</button>`),
+          ...strategyActions.map(item => `<button type="button" class="action-chip strategy${isSelected("strategyAction", item.localId) ? " selected" : ""}" data-select-kind="strategyAction" data-select-id="${escapeHtml(item.localId)}">触达·${escapeHtml(item.theme || "待确认")}</button>`),
+          ...processActions.map(item => `<button type="button" class="action-chip process${isSelected("processAction", item.localId) ? " selected" : ""}" data-select-kind="processAction" data-select-id="${escapeHtml(item.localId)}">跟进·${escapeHtml(item.action || "待确认")}</button>`),
         ].join("");
-        return `<article class="node-card${selected?.kind === "node" && selected.id === node.localId ? " selected" : ""}" data-id="${escapeHtml(node.localId)}" data-type="${escapeHtml(node.nodeType)}" style="transform:translate(${node.layout.x}px,${node.layout.y}px)" id="node-${escapeHtml(node.localId)}">
+        return `<article class="node-card${isSelected("node", node.localId) ? " selected" : ""}" data-id="${escapeHtml(node.localId)}" data-type="${escapeHtml(node.nodeType)}" style="transform:translate(${node.layout.x}px,${node.layout.y}px)" id="node-${escapeHtml(node.localId)}">
           <div><span class="node-type">${NODE_TYPE_LABELS.get(node.nodeType) || node.nodeType}</span><span class="node-time">${escapeHtml(node.time || "时间待确认")}</span></div>
-          <div class="node-executor">${escapeHtml(node.executor || "执行人待确认")}</div>
-          <div class="node-subject">对象：${escapeHtml(SUBJECT_TYPE_LABELS.get(node.subject.type) || node.subject.type)}｜${escapeHtml(node.subject.name || "名称待确认")}</div>
-          <div class="node-state-label">对象状态</div>
-          <div class="node-state">${escapeHtml(node.subject.state || "待确认")}</div>
+          <div class="node-fact">
+            <span class="node-fact-label">● 执行人</span>
+            <strong>${escapeHtml(node.executor || "执行人待确认")}</strong>
+          </div>
+          <div class="node-fact">
+            <span class="node-fact-label">● 对象</span>
+            <strong>${escapeHtml(SUBJECT_TYPE_LABELS.get(node.subject.type) || node.subject.type)}｜${escapeHtml(node.subject.name || "名称待确认")}</strong>
+          </div>
+          <div class="node-fact">
+            <span class="node-fact-label">● 对象状态</span>
+            <strong>${escapeHtml(node.subject.state || "待确认")}</strong>
+          </div>
           <div class="node-id">自动编号 ${escapeHtml(node.localId)}</div>
           <div class="node-actions">${chips || "<span class='action-chip'>尚未添加业务内容</span>"}</div>
           <span class="node-port input" data-port="input" title="目标锚点"></span>
@@ -938,10 +1242,20 @@
     function renderEdges() {
       edgeSvg.innerHTML = "";
       edgeLabelLayer.innerHTML = "";
-      const marker = `<defs><marker id="arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#605e5c"></path></marker></defs>`;
       const paths = [];
       const slots = buildEdgeSlots();
       const labelEntries = [];
+      const directedPairs = new Map();
+      documentState.edges.forEach(edge => {
+        const key = [edge.from, edge.to].sort().join("=>");
+        if (!directedPairs.has(key)) directedPairs.set(key, new Set());
+        directedPairs.get(key).add(`${edge.from}>${edge.to}`);
+      });
+      const bidirectionalEdges = new Set(documentState.edges.filter(edge => {
+        const key = [edge.from, edge.to].sort().join("=>");
+        return directedPairs.get(key)?.size > 1;
+      }).map(edge => edge.localId));
+      const marker = `<defs><marker id="arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#605e5c"></path></marker></defs>`;
 
       documentState.edges.forEach(edge => {
         const from = nodeBox(edge.from);
@@ -952,8 +1266,12 @@
           normalOffset: edge.layout.normalOffset,
         };
         const geometry = edgeGeometry(from, to, slot);
-        const edgeSelected = selected?.kind === "edge" && selected.id === edge.localId;
-        paths.push(`<path class="hit" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" stroke="transparent" stroke-width="14" fill="none"><title>${escapeHtml(edge.label || edge.localId)}</title></path><path class="visible edge ${escapeHtml(edge.edgeType)}${edgeSelected ? " selected" : ""}" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" marker-end="url(#arrowhead)"></path>`);
+        const edgeSelected = isSelected("edge", edge.localId);
+        const bidirectional = bidirectionalEdges.has(edge.localId);
+        const markers = bidirectional
+          ? 'marker-start="url(#arrowhead)" marker-end="url(#arrowhead)"'
+          : 'marker-end="url(#arrowhead)"';
+        paths.push(`<path class="hit" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" stroke="transparent" stroke-width="14" fill="none"><title>${escapeHtml(edge.label || edge.localId)}</title></path><path class="visible edge ${escapeHtml(edge.edgeType)}${bidirectional ? " bidirectional" : ""}${edgeSelected ? " selected" : ""}" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" ${markers}></path>`);
       });
       edgeSvg.innerHTML = marker + paths.join("");
 
@@ -980,15 +1298,15 @@
         const normalY = dx / vector;
 
         const div = document.createElement("div");
-        div.className = `edge-label${selected?.kind === "edge" && selected.id === edge.localId ? " selected" : ""}`;
+        div.className = `edge-label${isSelected("edge", edge.localId) ? " selected" : ""}`;
         div.dataset.edgeId = edge.localId;
         div.title = "拖拽标签可沿法线方向调整曲线间距";
         const actorStatus = labelOf(edge.actorBehavior.status, ACTOR_STATUSES);
         const objectStatus = labelOf(edge.subjectBehavior.status, SUBJECT_STATUSES);
         div.innerHTML = `
           <b>${escapeHtml(edge.label || EDGE_TYPE_LABELS.get(edge.edgeType) || edge.edgeType)}${edge.confirmed ? " · 已确认" : " · 待确认"}</b>
-          <span>执行人：${escapeHtml(edge.actorBehavior.time || "时间待确认")} ${escapeHtml(actorStatus)} ${escapeHtml(edge.actorBehavior.action || "动作待确认")}</span>
-          <span>对象：${escapeHtml(edge.subjectBehavior.time || "时间待确认")} ${escapeHtml(objectStatus)} ${escapeHtml(edge.subjectBehavior.action || "行为待确认")}</span>`;
+          <span>执行人：${escapeHtml(edge.actorBehavior.time || "时间待确认")} ${escapeHtml(actorStatus)}${edge.actorBehavior.status === "no_requirement" ? "" : ` ${escapeHtml(edge.actorBehavior.action || "动作待确认")}`}</span>
+          <span>对象：${escapeHtml(edge.subjectBehavior.time || "时间待确认")} ${escapeHtml(objectStatus)}${edge.subjectBehavior.status === "no_requirement" ? "" : ` ${escapeHtml(edge.subjectBehavior.action || "行为待确认")}`}</span>`;
         edgeLabelLayer.appendChild(div);
         labelEntries.push({
           div,
@@ -1050,20 +1368,20 @@
       return options.map(([value_, label]) => `<option value="${escapeHtml(value_)}"${value_ === value ? " selected" : ""}>${escapeHtml(label)}</option>`).join("");
     }
 
-    function inputField(label, path, value, type = "text", placeholder = "") {
-      return `<label class="field"><span>${escapeHtml(label)}</span><input data-bind="${escapeHtml(path)}" type="${type}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}"></label>`;
+    function inputField(label, path, value, type = "text", placeholder = "", disabled = false) {
+      return `<label class="field"><span>${escapeHtml(label)}</span><input data-bind="${escapeHtml(path)}" type="${type}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}"${disabled ? " disabled" : ""}></label>`;
     }
 
-    function selectField(label, path, value, options) {
-      return `<label class="field"><span>${escapeHtml(label)}</span><select data-bind="${escapeHtml(path)}">${optionsHtml(options, value)}</select></label>`;
+    function selectField(label, path, value, options, disabled = false) {
+      return `<label class="field"><span>${escapeHtml(label)}</span><select data-bind="${escapeHtml(path)}"${disabled ? " disabled" : ""}>${optionsHtml(options, value)}</select></label>`;
     }
 
     function textareaField(label, path, value, placeholder = "") {
       return `<label class="field"><span>${escapeHtml(label)}</span><textarea data-bind="${escapeHtml(path)}" placeholder="${escapeHtml(placeholder)}">${escapeHtml(value)}</textarea></label>`;
     }
 
-    function checkboxField(label, path, checked) {
-      return `<label class="checkbox-field"><input data-bind="${escapeHtml(path)}" type="checkbox"${checked ? " checked" : ""}>${escapeHtml(label)}</label>`;
+    function checkboxField(label, path, checked, dataAction = "") {
+      return `<label class="checkbox-field"><input data-bind="${escapeHtml(path)}" type="checkbox"${checked ? " checked" : ""}${dataAction ? ` data-action="${escapeHtml(dataAction)}"` : ""}>${escapeHtml(label)}</label>`;
     }
 
     function metricsField(label, path, values) {
@@ -1144,14 +1462,16 @@
         <h2 class="side-title">执行人做了什么</h2>
         <div class="inspector-form field-grid">
           ${inputField("时间", `edges.${edge.localId}.actorBehavior.time`, edge.actorBehavior.time, "text", "填写业务时间表达式")}
-          ${selectField("执行状态", `edges.${edge.localId}.actorBehavior.status`, edge.actorBehavior.status, ACTOR_STATUSES)}
-          <div class="field-grid wide">${inputField("执行动作", `edges.${edge.localId}.actorBehavior.action`, edge.actorBehavior.action)}</div>
+          ${selectField("执行状态", `edges.${edge.localId}.actorBehavior.status`, edge.actorBehavior.status, ACTOR_STATUSES, edge.actorBehavior.status === "no_requirement")}
+          <div class="wide">${checkboxField("无动作", `edges.${edge.localId}.actorBehavior.noAction`, edge.actorBehavior.status === "no_requirement", "toggle-no-action")}</div>
+          <div class="field-grid wide">${inputField("执行动作", `edges.${edge.localId}.actorBehavior.action`, edge.actorBehavior.action, "text", "", edge.actorBehavior.status === "no_requirement")}</div>
         </div>
         <h2 class="side-title" style="margin-top:14px">对象发生了什么</h2>
         <div class="inspector-form field-grid">
           ${inputField("时间", `edges.${edge.localId}.subjectBehavior.time`, edge.subjectBehavior.time, "text", "填写业务时间表达式")}
-          ${selectField("发生状态", `edges.${edge.localId}.subjectBehavior.status`, edge.subjectBehavior.status, SUBJECT_STATUSES)}
-          <div class="field-grid wide">${inputField("发生的行为", `edges.${edge.localId}.subjectBehavior.action`, edge.subjectBehavior.action)}</div>
+          ${selectField("发生状态", `edges.${edge.localId}.subjectBehavior.status`, edge.subjectBehavior.status, SUBJECT_STATUSES, edge.subjectBehavior.status === "no_requirement")}
+          <div class="wide">${checkboxField("无动作", `edges.${edge.localId}.subjectBehavior.noAction`, edge.subjectBehavior.status === "no_requirement", "toggle-no-action")}</div>
+          <div class="field-grid wide">${inputField("发生的行为", `edges.${edge.localId}.subjectBehavior.action`, edge.subjectBehavior.action, "text", "", edge.subjectBehavior.status === "no_requirement")}</div>
         </div>
       </div>`;
     }
@@ -1169,6 +1489,7 @@
             ${inputField("时间", `strategyActions.${action.localId}.time`, action.time, "text", "填写业务时间表达式")}
             ${inputField("对象状态", `strategyActions.${action.localId}.subjectState`, action.subjectState, "text", "该触达内容适用的对象状态")}
             ${inputField("进入条件", `strategyActions.${action.localId}.judge`, action.judge)}
+            <p class="field-help wide">进入条件是这条触达内容被选用前的前置判断，用来筛“该用哪套内容”。它不决定流程是否进入下一张卡片；流程走向仍由流转规则的执行人行为和对象行为判断。</p>
             ${inputField("触达场景", `strategyActions.${action.localId}.touchScene`, action.touchScene)}
             ${inputField("触达方式", `strategyActions.${action.localId}.touchMethod`, action.touchMethod)}
             ${inputField("话术主题", `strategyActions.${action.localId}.theme`, action.theme)}
@@ -1246,37 +1567,9 @@
     }
 
     function autoLayout() {
-      const incoming = new Map(documentState.nodes.map(node => [node.localId, 0]));
-      const outgoing = new Map(documentState.nodes.map(node => [node.localId, []]));
-      documentState.edges.forEach(edge => {
-        if (outgoing.has(edge.from) && incoming.has(edge.to)) {
-          incoming.set(edge.to, incoming.get(edge.to) + 1);
-          outgoing.get(edge.from).push(edge.to);
-        }
-      });
-      const queue = documentState.nodes.filter(node => incoming.get(node.localId) === 0).map(node => node.localId);
-      const seen = new Set();
-      const levels = [];
-      while (queue.length) {
-        const level = [...queue];
-        queue.length = 0;
-        levels.push(level);
-        level.forEach(id => {
-          seen.add(id);
-          outgoing.get(id).forEach(target => {
-            incoming.set(target, Math.max(0, incoming.get(target) - 1));
-            if (!seen.has(target) && incoming.get(target) === 0) queue.push(target);
-          });
-        });
-      }
-      const remaining = documentState.nodes.map(node => node.localId).filter(id => !seen.has(id));
-      if (remaining.length) levels.push(remaining);
-      levels.forEach((level, levelIndex) => {
-        level.forEach((id, index) => {
-          const node = documentState.nodes.find(item => item.localId === id);
-          if (node) node.layout = { x: 80 + levelIndex * 360, y: 80 + index * 180 };
-        });
-      });
+      if (!documentState.nodes.length) return;
+      pushHistory("auto-layout");
+      documentState = autoLayoutDocument(documentState);
       canvasShell.scrollTo({ left: 0, top: 0, behavior: "smooth" });
       renderAll();
     }
@@ -1284,8 +1577,9 @@
     function applyImport(raw, silent = false) {
       try {
         const parsed = JSON.parse(raw);
+        pushHistory("import");
         documentState = normalizeDocument(parsed);
-        selected = null;
+        clearSelection();
         renderAll();
         const result = validateDocument(documentState);
         if (!silent) toast(result.errors.length ? "已导入草稿；仍有校验错误" : "导入成功，校验通过");
@@ -1326,6 +1620,23 @@
       const path = target.dataset?.bind;
       if (!path) return;
       const current = selectedObject();
+      if (target.dataset.action === "toggle-no-action") {
+        pushHistory(path);
+        const behaviorName = path.includes(".subjectBehavior.") ? "subjectBehavior" : "actorBehavior";
+        const behavior = selectedObject()?.value?.[behaviorName];
+        if (target.checked) {
+          setPath(`${path.replace(/\.noAction$/, "")}.action`, "无动作");
+          setPath(`${path.replace(/\.noAction$/, "")}.status`, "no_requirement");
+        } else {
+          setPath(`${path.replace(/\.noAction$/, "")}.status`, behaviorName === "subjectBehavior" ? "happened" : "executed");
+          if (behavior?.action === "无动作") {
+            setPath(`${path.replace(/\.noAction$/, "")}.action`, "待确认");
+          }
+        }
+        renderAll();
+        return;
+      }
+      pushHistory(path);
       if (target.type === "checkbox") {
         setPath(path, target.checked);
       } else if (path.endsWith(".metrics")) {
@@ -1373,13 +1684,15 @@
     nodeLayer.addEventListener("click", event => {
       const chip = event.target.closest("[data-select-kind]");
       if (chip) {
-        selected = { kind: chip.dataset.selectKind, id: chip.dataset.selectId };
+        if (event.ctrlKey || event.metaKey) toggleSelection(chip.dataset.selectKind, chip.dataset.selectId);
+        else setSelection([{ kind: chip.dataset.selectKind, id: chip.dataset.selectId }], { kind: chip.dataset.selectKind, id: chip.dataset.selectId });
         renderAll();
         return;
       }
       const card = event.target.closest(".node-card");
       if (card) {
-        selected = { kind: "node", id: card.dataset.id };
+        if (event.ctrlKey || event.metaKey) toggleSelection("node", card.dataset.id);
+        else setSelection([{ kind: "node", id: card.dataset.id }], { kind: "node", id: card.dataset.id });
         renderAll();
       }
     });
@@ -1410,6 +1723,12 @@
         event.preventDefault();
         return;
       }
+      if (event.ctrlKey || event.metaKey) {
+        toggleSelection("node", node.localId);
+        renderAll();
+        event.preventDefault();
+        return;
+      }
       selected = { kind: "node", id: node.localId };
       renderInspector();
       renderCanvas();
@@ -1423,7 +1742,8 @@
     edgeSvg.addEventListener("pointerdown", event => {
       const path = event.target.closest("path.hit");
       if (!path) return;
-      selected = { kind: "edge", id: path.dataset.edgeId };
+      if (event.ctrlKey || event.metaKey) toggleSelection("edge", path.dataset.edgeId);
+      else setSelection([{ kind: "edge", id: path.dataset.edgeId }], { kind: "edge", id: path.dataset.edgeId });
       renderAll();
     });
 
@@ -1438,7 +1758,8 @@
         event.preventDefault();
         return;
       }
-      selected = { kind: "edge", id: label.dataset.edgeId };
+      if (event.ctrlKey || event.metaKey) toggleSelection("edge", edgeId);
+      else setSelection([{ kind: "edge", id: edgeId }], { kind: "edge", id: edgeId });
       const path = [...edgeSvg.querySelectorAll("path.visible")]
         .find(item => item.dataset.edgeId === edgeId);
       if (path) {
@@ -1473,6 +1794,17 @@
     canvasShell.addEventListener("pointerdown", event => {
       if (event.button !== 0) return;
       if (event.target.closest(".node-card") || event.target.closest(".edge-label") || event.target.closest("path.hit")) return;
+      if (event.shiftKey) {
+        const point = canvasPoint(event);
+        selectionDrag = { startX: point.x, startY: point.y, x: point.x, y: point.y };
+        selectionBox.hidden = false;
+        selectionBox.style.left = `${point.x}px`;
+        selectionBox.style.top = `${point.y}px`;
+        selectionBox.style.width = "0px";
+        selectionBox.style.height = "0px";
+        event.preventDefault();
+        return;
+      }
       canvasPan = { x: event.clientX, y: event.clientY, left: canvasShell.scrollLeft, top: canvasShell.scrollTop };
       canvasShell.classList.add("dragging");
     });
@@ -1487,6 +1819,10 @@
       if (edgeLabelDrag) {
         const edge = documentState.edges.find(item => item.localId === edgeLabelDrag.id);
         if (edge) {
+          if (!edgeLabelDrag.pushed) {
+            pushHistory(`edge-label:${edgeLabelDrag.id}`);
+            edgeLabelDrag.pushed = true;
+          }
           const screenDeltaX = event.clientX - edgeLabelDrag.startX;
           const screenDeltaY = event.clientY - edgeLabelDrag.startY;
           const logicalNormalDelta = (
@@ -1506,6 +1842,10 @@
         const point = canvasPoint(event);
         const node = documentState.nodes.find(item => item.localId === nodeDrag.id);
         if (node) {
+          if (!nodeDrag.pushed) {
+            pushHistory(`node-drag:${nodeDrag.id}`);
+            nodeDrag.pushed = true;
+          }
           node.layout.x = Math.max(0, Math.round(point.x - nodeDrag.offsetX));
           node.layout.y = Math.max(0, Math.round(point.y - nodeDrag.offsetY));
           const card = document.getElementById(`node-${node.localId}`);
@@ -1528,6 +1868,19 @@
       } else if (canvasPan) {
         canvasShell.scrollLeft = canvasPan.left - (event.clientX - canvasPan.x);
         canvasShell.scrollTop = canvasPan.top - (event.clientY - canvasPan.y);
+      }
+      if (selectionDrag) {
+        const point = canvasPoint(event);
+        selectionDrag.x = point.x;
+        selectionDrag.y = point.y;
+        const left = Math.min(selectionDrag.startX, point.x);
+        const top = Math.min(selectionDrag.startY, point.y);
+        const width = Math.abs(point.x - selectionDrag.startX);
+        const height = Math.abs(point.y - selectionDrag.startY);
+        selectionBox.style.left = `${left}px`;
+        selectionBox.style.top = `${top}px`;
+        selectionBox.style.width = `${width}px`;
+        selectionBox.style.height = `${height}px`;
       }
     });
 
@@ -1557,6 +1910,42 @@
         }
       }
       canvasPan = null;
+      if (selectionDrag) {
+        const rect = {
+          left: Math.min(selectionDrag.startX, selectionDrag.x),
+          right: Math.max(selectionDrag.startX, selectionDrag.x),
+          top: Math.min(selectionDrag.startY, selectionDrag.y),
+          bottom: Math.max(selectionDrag.startY, selectionDrag.y),
+        };
+        const intersects = box => box
+          && box.x < rect.right
+          && box.x + box.w > rect.left
+          && box.y < rect.bottom
+          && box.y + box.h > rect.top;
+        const entries = [
+          ...documentState.nodes
+            .map(node => ({ node, box: nodeBox(node.localId) }))
+            .filter(item => intersects(item.box))
+            .map(item => ({ kind: "node", id: item.node.localId })),
+          ...[...edgeLabelLayer.querySelectorAll(".edge-label")].map(label => {
+            const box = label.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            return {
+              id: label.dataset.edgeId,
+              box: {
+                x: (box.left - canvasRect.left) / layoutState.zoom,
+                y: (box.top - canvasRect.top) / layoutState.zoom,
+                w: box.width / layoutState.zoom,
+                h: box.height / layoutState.zoom,
+              },
+            };
+          }).filter(item => intersects(item.box)).map(item => ({ kind: "edge", id: item.id })),
+        ];
+        selectionDrag = null;
+        selectionBox.hidden = true;
+        setSelection(entries);
+        renderAll();
+      }
       canvasShell.classList.remove("dragging");
     });
 
@@ -1578,13 +1967,50 @@
       if (origin?.moved) return;
       if (event.target.closest(".topbar") || event.target.closest(".side-panel") || event.target.closest(".bottom-panel")) return;
       if (event.target.closest(".node-card") || event.target.closest(".edge-label") || event.target.closest("path.hit")) return;
-      selected = null;
+      clearSelection();
       renderAll();
     });
 
     el("nodeButtons").addEventListener("click", event => {
       const button = event.target.closest("[data-node-type]");
       if (button) addNode(button.dataset.nodeType);
+    });
+    el("copySelectionBtn").addEventListener("click", copySelection);
+    el("pasteSelectionBtn").addEventListener("click", pasteClipboard);
+    el("deleteSelectionBtn").addEventListener("click", deleteSelected);
+    el("undoBtn").addEventListener("click", undo);
+    el("redoBtn").addEventListener("click", redo);
+    document.addEventListener("keydown", event => {
+      const target = event.target;
+      if (target?.closest?.("input, select, textarea")) return;
+      const modifier = event.ctrlKey || event.metaKey;
+      if (modifier && event.key.toLowerCase() === "c") {
+        event.preventDefault();
+        copySelection();
+      } else if (modifier && event.key.toLowerCase() === "v") {
+        event.preventDefault();
+        pasteClipboard();
+      } else if (modifier && event.key.toLowerCase() === "a") {
+        event.preventDefault();
+        setSelection([
+          ...documentState.nodes.map(item => ({ kind: "node", id: item.localId })),
+          ...documentState.edges.map(item => ({ kind: "edge", id: item.localId })),
+        ]);
+        renderAll();
+      } else if (modifier && !event.shiftKey && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        undo();
+      } else if ((modifier && event.shiftKey && event.key.toLowerCase() === "z")
+        || (event.ctrlKey && event.key.toLowerCase() === "y")) {
+        event.preventDefault();
+        redo();
+      } else if (event.key === "Delete" || event.key === "Backspace") {
+        event.preventDefault();
+        deleteSelected();
+      } else if (event.key === "Escape") {
+        clearSelection();
+        renderAll();
+      }
     });
     el("toggleLeftPanelBtn").addEventListener("click", event => setPanelVisible("left", !layoutState.left));
     el("toggleRightPanelBtn").addEventListener("click", event => setPanelVisible("right", !layoutState.right));
@@ -1615,9 +2041,10 @@
     }, { passive: false });
     el("loadExampleBtn").addEventListener("click", () => applyImport(JSON.stringify(sampleDocument())));
     el("resetBtn").addEventListener("click", () => {
-      if (!window.confirm("确定清空当前草稿？此操作不可撤销。")) return;
+      if (!window.confirm("确定清空当前草稿？可使用撤销恢复。")) return;
+      pushHistory("reset");
       documentState = defaultDocument();
-      selected = null;
+      clearSelection();
       renderAll();
       toast("已清空草稿");
     });

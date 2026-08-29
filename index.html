@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>EBSCN 策略编排设计器 · strategy-flow-input</title>
-  <link rel="stylesheet" href="./styles.css?v=1.0.0">
+  <link rel="stylesheet" href="./styles.css?v=1.1.0">
 </head>
 <body>
 <div class="app" id="strategyFlowDesigner">
@@ -26,7 +26,12 @@
         <button id="zoomResetBtn" type="button" title="恢复 100% 缩放">1:1</button>
       </div>
       <span class="save-status" id="saveStatus" role="status">自动保存已开启</span>
+      <button class="btn ghost" id="undoBtn" type="button" title="撤销（Ctrl/⌘ + Z）">撤销</button>
+      <button class="btn ghost" id="redoBtn" type="button" title="重做（Ctrl/⌘ + Shift + Z）">重做</button>
       <button class="btn" id="saveDraftBtn" type="button" title="把当前草稿保存到本机浏览器">保存草稿</button>
+      <button class="btn ghost" id="copySelectionBtn" type="button" title="复制选中卡片 / 流转规则（Ctrl/⌘ + C）">复制选中</button>
+      <button class="btn ghost" id="pasteSelectionBtn" type="button" title="粘贴（Ctrl/⌘ + V）">粘贴</button>
+      <button class="btn danger ghost" id="deleteSelectionBtn" type="button" title="删除选中对象（Delete）">删除选中</button>
       <button class="btn ghost" id="loadExampleBtn" type="button">加载示例</button>
       <button class="btn ghost" id="resetBtn" type="button">清空草稿</button>
       <button class="btn ghost" id="autoLayoutBtn" type="button">自动布局</button>
@@ -71,7 +76,7 @@
       </div>
       <div class="side-block">
         <h2 class="side-title">画布操作</h2>
-        <p class="hint">拖拽卡片调整布局；拖拽空白处平移画布；Ctrl/⌘ + 滚轮缩放画布；双击流程卡片或流转规则标签可打开右侧编辑。内部系统编号自动生成，不需要手工填写。</p>
+        <p class="hint">拖拽卡片调整布局；空白处拖拽平移；Shift + 空白拖拽框选；Ctrl/⌘ + 点击多选；Ctrl/⌘ + C/V 复制粘贴。双击流程卡片或流转规则标签可打开右侧编辑。</p>
       </div>
     </aside>
 
@@ -81,6 +86,7 @@
           <svg class="edge-svg" id="edgeSvg" aria-hidden="true"></svg>
           <div id="nodeLayer"></div>
           <div id="edgeLabelLayer"></div>
+          <div id="selectionBox" class="selection-box" hidden></div>
         </div>
       </div>
     </section>

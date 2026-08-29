@@ -9,19 +9,19 @@
 项目版本：
 
 ```text
-1.0.0
+1.1.0
 ```
 
 一次性运行：
 
 ```bash
-npx github:zhengxiaonu-creator/strategy-flow-input#v1.0.0 --open
+npx github:zhengxiaonu-creator/strategy-flow-input#v1.1.0 --open
 ```
 
 全局安装：
 
 ```bash
-npm install -g github:zhengxiaonu-creator/strategy-flow-input#v1.0.0
+npm install -g github:zhengxiaonu-creator/strategy-flow-input#v1.1.0
 strategy-flow-input --open
 ```
 
@@ -111,6 +111,8 @@ ebscn-strategy-flow-designer/index.html
 - 对象名称：该类型下的具体业务对象，例如目标客群名称、触发场景名称、事件名称、活动名称。
 - 对象状态：对象进入这张卡片时的业务状态，例如未触达、已触达、已转化；它不是对象类别，也不是执行人的处理进度。
 
+流转规则里的“无动作”勾选项作用于执行人和对象两侧行为；导出时均固定为 `no_requirement + 无动作`。
+
 ## 契约
 
 - Schema：`schema/strategy-flow-input.schema.json`
@@ -143,7 +145,7 @@ validation         导出时计算；导入时忽略并重算
 ```text
 executed         已执行
 not_executed     未执行
-no_requirement   无行为要求
+no_requirement   无动作要求
 ```
 
 对象行为状态：
@@ -153,6 +155,14 @@ happened         已发生
 not_happened     未发生
 no_requirement   无行为要求
 ```
+
+## 画布操作
+
+- `Shift + 空白拖拽`：框选流程卡片和流转规则。
+- `Ctrl/⌘ + 点击`：追加选择；`Ctrl/⌘ + A` 全选；`Esc` 清空选择。
+- `Ctrl/⌘ + C / V`：批量复制、粘贴；复制卡片会同步复制挂接动作。
+- `Ctrl/⌘ + Z / Shift + Z`：撤销、重做。
+- 同一对卡片存在双向规则时，画布显示双向引导标识；两条规则仍独立保存。
 
 ## 校验错误码
 
