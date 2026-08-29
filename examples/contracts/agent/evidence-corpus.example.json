@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "strategy-agent-evidence-corpus/0.1",
+  "corpusId": "ec-20260830-001",
+  "manifestId": "sm-20260830-001",
+  "parserVersion": "office-parser@0.1.0",
+  "createdAt": "2026-08-30T09:00:02+08:00",
+  "fragments": [
+    {
+      "evidenceId": "ev-001",
+      "fileId": "sf-001",
+      "fragmentType": "heading",
+      "ordinal": 1,
+      "text": "通用客群激活策略",
+      "locator": { "page": 1, "paragraph": 1 }
+    },
+    {
+      "evidenceId": "ev-002",
+      "fileId": "sf-001",
+      "fragmentType": "paragraph",
+      "ordinal": 2,
+      "text": "面向存量通用客群，通过 APP 站内信在启动日触达，以通用权益引导完成关键行为；策略负责人张三，提交人李四。",
+      "locator": { "page": 1, "paragraph": 2 }
+    },
+    {
+      "evidenceId": "ev-003",
+      "fileId": "sf-002",
+      "fragmentType": "sheet",
+      "ordinal": 1,
+      "text": "启动后1日，系统将通用目标客群从“未触达”推进到“已触达”。",
+      "table": {
+        "name": "流程节点",
+        "columns": ["节点", "时间", "执行人", "对象状态"],
+        "rows": [["n2", "启动后1日", "系统", "已触达"]]
+      },
+      "locator": { "sheet": "流程节点", "row": 2 }
+    },
+    {
+      "evidenceId": "ev-004",
+      "fileId": "sf-003",
+      "fragmentType": "slide",
+      "ordinal": 1,
+      "text": "观察期结束前，责任执行人对已触达客群进行人工跟进，客群完成转化。",
+      "slide": { "slideNumber": 3, "title": "跟进与转化" },
+      "locator": { "page": 3 }
+    },
+    {
+      "evidenceId": "ev-005",
+      "fileId": "sf-001",
+      "fragmentType": "paragraph",
+      "ordinal": 3,
+      "text": "对外触达文案必须经合规口径二次确认后定稿。",
+      "locator": { "page": 2, "paragraph": 1 }
+    }
+  ]
+}

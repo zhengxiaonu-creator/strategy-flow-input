@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ebscn.local/strategy-taxonomy/2026-09/schema.json",
+  "title": "EBSCN Strategy Taxonomy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "fields"],
+  "properties": {
+    "schemaVersion": {
+      "const": "strategy-taxonomy/2026-09"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "sha256"],
+      "properties": {
+        "file": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "fields": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/field" }
+    }
+  },
+  "$defs": {
+    "fieldCode": {
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9_]*$"
+    },
+    "tagCode": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    "dependencyRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code"],
+      "properties": {
+        "code": {
+          "enum": [
+            "parent_value_match",
+            "exclusive_value",
+            "value_requires_parent_value",
+            "each_selected_parent_requires_child"
+          ]
+        },
+        "valueCode": { "$ref": "#/$defs/tagCode" },
+        "parentValueCode": { "$ref": "#/$defs/tagCode" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "enum": ["exclusive_value", "value_requires_parent_value"]
+              }
+            }
+          },
+          "then": { "required": ["valueCode"] }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": { "const": "value_requires_parent_value" }
+            }
+          },
+          "then": { "required": ["parentValueCode"] }
+        }
+      ]
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fieldCode",
+        "label",
+        "cardinality",
+        "required",
+        "customProposals"
+      ],
+      "properties": {
+        "fieldCode": { "$ref": "#/$defs/fieldCode" },
+        "label": { "type": "string", "minLength": 1 },
+        "cardinality": {
+          "enum": ["single", "multi", "free_text"]
+        },
+        "required": { "type": "boolean" },
+        "parentFieldCode": { "$ref": "#/$defs/fieldCode" },
+        "values": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/value" }
+        },
+        "dependencyRules": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/dependencyRule" }
+        },
+        "customProposals": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["allowed", "codeGeneratedBy", "approvalRequired", "scope"],
+          "properties": {
+            "allowed": { "type": "boolean" },
+            "codeGeneratedBy": {
+              "enum": ["strategy_workbench", "not_applicable"]
+            },
+            "approvalRequired": { "type": "boolean" },
+            "scope": {
+              "enum": ["none", "workbench"]
+            }
+          }
+        },
+        "x-default": {
+          "type": "null"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "cardinality": {
+                "enum": ["single", "multi"]
+              }
+            }
+          },
+          "then": { "required": ["values"] }
+        },
+        {
+          "if": {
+            "properties": {
+              "cardinality": { "const": "free_text" }
+            }
+          },
+          "then": { "not": { "required": ["values"] } }
+        }
+      ]
+    },
+    "value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "label"],
+      "properties": {
+        "code": { "$ref": "#/$defs/tagCode" },
+        "label": { "type": "string", "minLength": 1 },
+        "parentCode": { "$ref": "#/$defs/tagCode" },
+        "status": {
+          "enum": ["active", "disabled"]
+        }
+      }
+    }
+  }
+}

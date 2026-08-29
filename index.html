@@ -4,54 +4,80 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>EBSCN 策略编排设计器 · strategy-flow-input</title>
-  <link rel="stylesheet" href="./styles.css?v=1.1.0">
+  <link rel="stylesheet" href="./styles.css?v=1.2.5">
 </head>
 <body>
 <div class="app" id="strategyFlowDesigner">
   <header class="topbar">
     <div class="brand">
       <b><i title="EBSCN">E</i> 策略编排设计器</b>
-      <span>strategy-flow-input/0.1 · JSON 是事实源，Mermaid 是投影</span>
+      <div class="brand-meta">
+        <span>strategy-flow-input/0.2 · JSON 是事实源，Mermaid 是投影</span>
+        <div class="editor-status" id="editorStatusSummary">
+          <span class="status draft" id="editorStatusPill">draft</span>
+          <span class="issue-count" id="editorIssueCount">0 errors · 0 warnings</span>
+        </div>
+      </div>
     </div>
     <div class="topbar-actions">
-      <div class="layout-switch" role="group" aria-label="面板显示控制">
-        <button id="toggleLeftPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起左侧组件栏">左栏</button>
-        <button id="toggleRightPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起右侧属性栏">右栏</button>
-        <button id="toggleBottomPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起底部校验与代码栏">下栏</button>
+        <div class="primary-actions">
+          <button class="btn" id="importBtn" type="button">导入 Design</button>
+          <button class="btn" id="importMetadataBtn" type="button">导入元数据</button>
+          <button class="btn" id="openRegistrationDrawerBtn" type="button">本策略注册信息</button>
+          <button class="btn" id="openAgentDrawerBtn" type="button">Agent 草稿</button>
+          <button class="btn primary" id="openExportDrawerBtn" type="button">导出</button>
       </div>
-      <div class="zoom-switch" role="group" aria-label="画布缩放控制">
-        <button id="zoomOutBtn" type="button" title="缩小画布（Ctrl/⌘ + 滚轮向下）">−</button>
-        <output id="zoomLevel" for="zoomInBtn zoomOutBtn">100%</output>
-        <button id="zoomInBtn" type="button" title="放大画布（Ctrl/⌘ + 滚轮向上）">+</button>
-        <button id="zoomResetBtn" type="button" title="恢复 100% 缩放">1:1</button>
+      <div class="utility-actions">
+        <div class="layout-switch" role="group" aria-label="面板显示控制">
+          <button id="toggleLeftPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起左侧组件栏">左栏</button>
+          <button id="toggleRightPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起右侧属性栏">右栏</button>
+          <button id="toggleBottomPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起底部校验与代码栏">下栏</button>
+        </div>
+        <div class="zoom-switch" role="group" aria-label="画布缩放控制">
+          <button id="zoomOutBtn" type="button" title="缩小画布（Ctrl/⌘ + 滚轮向下）">−</button>
+          <output id="zoomLevel" for="zoomInBtn zoomOutBtn">100%</output>
+          <button id="zoomInBtn" type="button" title="放大画布（Ctrl/⌘ + 滚轮向上）">+</button>
+          <button id="zoomResetBtn" type="button" title="恢复 100% 缩放">1:1</button>
+        </div>
+      </div>
+      <div class="more-actions">
+        <button class="btn ghost" id="moreActionsBtn" type="button" aria-haspopup="true" aria-expanded="false">更多</button>
+        <div class="more-menu" id="moreActionsMenu" hidden>
+          <button class="btn ghost" id="undoBtn" type="button" title="撤销（Ctrl/⌘ + Z）">撤销</button>
+          <button class="btn ghost" id="redoBtn" type="button" title="重做（Ctrl/⌘ + Shift + Z）">重做</button>
+          <button class="btn" id="saveDraftBtn" type="button" title="把当前草稿保存到本机浏览器">保存草稿</button>
+          <button class="btn ghost" id="copySelectionBtn" type="button" title="复制选中卡片 / 流转规则（Ctrl/⌘ + C）">复制选中</button>
+          <button class="btn ghost" id="pasteSelectionBtn" type="button" title="粘贴（Ctrl/⌘ + V）">粘贴</button>
+          <button class="btn danger ghost" id="deleteSelectionBtn" type="button" title="删除选中对象（Delete）">删除选中</button>
+          <button class="btn ghost" id="loadExampleBtn" type="button">加载示例</button>
+          <button class="btn ghost" id="resetBtn" type="button">清空草稿</button>
+          <button class="btn ghost" id="autoLayoutBtn" type="button">自动布局</button>
+        </div>
       </div>
       <span class="save-status" id="saveStatus" role="status">自动保存已开启</span>
-      <button class="btn ghost" id="undoBtn" type="button" title="撤销（Ctrl/⌘ + Z）">撤销</button>
-      <button class="btn ghost" id="redoBtn" type="button" title="重做（Ctrl/⌘ + Shift + Z）">重做</button>
-      <button class="btn" id="saveDraftBtn" type="button" title="把当前草稿保存到本机浏览器">保存草稿</button>
-      <button class="btn ghost" id="copySelectionBtn" type="button" title="复制选中卡片 / 流转规则（Ctrl/⌘ + C）">复制选中</button>
-      <button class="btn ghost" id="pasteSelectionBtn" type="button" title="粘贴（Ctrl/⌘ + V）">粘贴</button>
-      <button class="btn danger ghost" id="deleteSelectionBtn" type="button" title="删除选中对象（Delete）">删除选中</button>
-      <button class="btn ghost" id="loadExampleBtn" type="button">加载示例</button>
-      <button class="btn ghost" id="resetBtn" type="button">清空草稿</button>
-      <button class="btn ghost" id="autoLayoutBtn" type="button">自动布局</button>
-      <button class="btn" id="importBtn" type="button">导入 JSON</button>
-      <button class="btn" id="copyJsonBtn" type="button">复制 JSON</button>
-      <button class="btn primary" id="downloadJsonBtn" type="button">导出 JSON</button>
-      <button class="btn" id="downloadMermaidBtn" type="button">导出 Mermaid</button>
       <input id="importFile" type="file" accept=".json,application/json">
+      <input id="importMetadataFile" type="file" accept=".json,application/json">
+      <input id="agentDraftFile" type="file" accept=".json,application/json">
+      <input id="agentCorpusFile" type="file" accept=".json,application/json">
     </div>
   </header>
 
   <main class="workbench">
     <aside class="side-panel">
-      <div class="side-block">
-        <h2 class="side-title">策略类型</h2>
-        <div class="mode-switch" id="paradigmSwitch">
-          <button type="button" data-paradigm="customer">按客群经营</button>
-          <button type="button" data-paradigm="scene">按场景触发</button>
+      <div class="side-block paradigm-block">
+        <div class="side-block-head">
+          <h2 class="side-title">策略范式</h2>
+          <span class="paradigm-status" id="paradigmStatus">客群</span>
         </div>
-        <p class="hint">按客群经营：先选一群客户，再设计触达和跟进。按场景触发：客户发生某个事件后进入策略。</p>
+        <div class="mode-switch paradigm-cards" id="paradigmSwitch">
+          <button type="button" data-paradigm="customer">
+            <span class="paradigm-copy"><b>按客群经营</b><small>先圈定客群，再编排触达与跟进</small></span>
+          </button>
+          <button type="button" data-paradigm="scene">
+            <span class="paradigm-copy"><b>按场景触发</b><small>事件发生后进入策略，需配置触发口径</small></span>
+          </button>
+        </div>
+        <p class="hint">切换范式只改变策略入口逻辑；标签、元数据和流程图仍由 0.2 契约统一校验。</p>
       </div>
       <div class="side-block">
         <h2 class="side-title">添加流程卡片</h2>
@@ -80,6 +106,16 @@
       </div>
     </aside>
 
+    <div
+      class="panel-resizer vertical"
+      data-panel-resizer="left"
+      role="separator"
+      tabindex="0"
+      aria-orientation="vertical"
+      aria-label="调整左侧组件栏宽度"
+      title="拖拽或按 ← / → 调整左侧栏宽度"
+    ></div>
+
     <section class="canvas-shell" id="canvasShell">
       <div class="canvas-size" id="canvasSize">
         <div class="canvas" id="canvas">
@@ -91,8 +127,109 @@
       </div>
     </section>
 
+    <div
+      class="panel-resizer vertical"
+      data-panel-resizer="right"
+      role="separator"
+      tabindex="0"
+      aria-orientation="vertical"
+      aria-label="调整右侧属性栏宽度"
+      title="拖拽或按 ← / → 调整右侧栏宽度"
+    ></div>
+
     <aside class="side-panel inspector" id="inspector"></aside>
   </main>
+
+  <div
+    class="panel-resizer horizontal"
+    data-panel-resizer="bottom"
+    role="separator"
+    tabindex="0"
+    aria-orientation="horizontal"
+    aria-label="调整底部校验栏高度"
+    title="拖拽或按 ↑ / ↓ 调整底部栏高度"
+  ></div>
+
+  <section class="export-drawer registration-drawer" id="registrationDrawer" hidden aria-label="本策略注册信息">
+    <div class="export-drawer-head">
+      <div>
+        <b>本策略注册信息</b>
+        <small>低频全局配置：基础信息、策略标签和注册元数据。关闭后不影响当前对象编辑。</small>
+      </div>
+      <button class="btn ghost small" id="closeRegistrationDrawerBtn" type="button">关闭</button>
+    </div>
+    <div class="registration-tabs" id="registrationTabs" role="tablist" aria-label="策略注册信息分类"></div>
+    <div class="registration-content" id="registrationDrawerContent"></div>
+  </section>
+
+  <section class="export-drawer" id="exportDrawer" hidden aria-label="导出策略看板输入文件">
+    <div class="export-drawer-head">
+      <div>
+        <b>导出策略看板输入</b>
+        <small>Workbench 需要同时接收 Design 0.2 与 Metadata 2.0 两份文件。</small>
+      </div>
+      <button class="btn ghost small" id="closeExportDrawerBtn" type="button">关闭</button>
+    </div>
+    <div class="export-file-grid">
+      <article>
+        <b>strategy-flow-input/0.2</b>
+        <span id="exportDesignStatus">draft</span>
+        <p>流程编排与 taxonomy 标签的事实源。</p>
+        <div>
+          <button class="btn small" id="copyJsonBtn" type="button">复制</button>
+          <button class="btn primary small" id="downloadJsonBtn" type="button">下载</button>
+        </div>
+      </article>
+      <article>
+        <b>registration-metadata/2.0</b>
+        <span id="exportMetadataStatus">draft</span>
+        <p>业务归属、提交日期、核心抓手、生效日期与触发场景。</p>
+        <div>
+          <button class="btn small" id="copyMetadataBtn" type="button">复制</button>
+          <button class="btn primary small" id="downloadMetadataBtn" type="button">下载</button>
+        </div>
+      </article>
+    </div>
+    <div class="export-cli">
+      <b>Workbench CLI 模板</b>
+      <textarea id="exportCliTemplate" readonly spellcheck="false"></textarea>
+    </div>
+    <div class="export-footnote">
+      <button class="btn small" id="copyMermaidBtn" type="button">复制 Mermaid</button>
+      <button class="btn small" id="downloadMermaidBtn" type="button">下载 Mermaid</button>
+      <span>Mermaid 仅用于沟通，不承诺无损 round-trip。</span>
+    </div>
+  </section>
+
+  <section class="export-drawer agent-drawer" id="agentDrawer" hidden aria-label="Agent 草稿审查">
+    <div class="export-drawer-head">
+      <div>
+        <b>Agent 草稿审查</b>
+        <small>逐项核对证据；存在 missing / conflict 或契约校验错误时，禁止导入编辑器。</small>
+      </div>
+      <button class="btn ghost small" id="closeAgentDrawerBtn" type="button">关闭</button>
+    </div>
+    <div class="agent-summary" id="agentDraftMeta">尚未导入草稿。先用 strategy-agent generate-draft 生成，再导入此处审查。</div>
+    <div class="agent-actions">
+      <button class="btn small" id="agentLoadDraftBtn" type="button">导入草稿 JSON</button>
+      <button class="btn small" id="agentLoadCorpusBtn" type="button">导入证据库 JSON</button>
+      <button class="btn primary small" id="agentImportCandidateBtn" type="button" disabled>确认并导入编辑器</button>
+    </div>
+    <div class="agent-grid">
+      <article>
+        <b>字段来源</b>
+        <div class="agent-item-list" id="agentProvenanceList"></div>
+      </article>
+      <article>
+        <b>待确认问题</b>
+        <div class="agent-item-list" id="agentQuestionList"></div>
+      </article>
+      <article>
+        <b>证据预览</b>
+        <div class="agent-evidence-view" id="agentEvidenceView">点击字段来源中的 evidenceId 查看原文片段。</div>
+      </article>
+    </div>
+  </section>
 
   <section class="bottom-panel">
     <div class="panel-tabs">
@@ -103,7 +240,10 @@
     </div>
     <div class="panel-body">
       <div class="panel-view on" id="validationView">
-        <div class="issue-list" id="issueList"></div>
+        <div class="issue-list">
+          <div class="readiness-summary" id="readinessSummary"></div>
+          <div class="issue-groups" id="issueList"></div>
+        </div>
         <div class="validation-help">
           <b>提交规则</b><br>
           1. JSON 是正式输入；Mermaid 仅用于业务沟通。<br>
@@ -115,11 +255,20 @@
         </div>
       </div>
       <div class="panel-view" id="codeView">
-        <div class="code-pane">
+        <div class="code-subtabs" role="tablist" aria-label="代码输出">
+          <button class="on" data-code-pane="jsonCodePane" type="button">Design 0.2</button>
+          <button data-code-pane="metadataCodePane" type="button">Metadata 2.0</button>
+          <button data-code-pane="mermaidCodePane" type="button">Mermaid</button>
+        </div>
+        <div class="code-pane on" id="jsonCodePane">
           <div class="code-title"><span>strategy-flow-input JSON</span><button class="btn small" id="copyJsonBottomBtn" type="button">复制</button></div>
           <textarea id="jsonOutput" readonly spellcheck="false"></textarea>
         </div>
-        <div class="code-pane">
+        <div class="code-pane" id="metadataCodePane">
+          <div class="code-title"><span>registration-metadata JSON</span><button class="btn small" id="copyMetadataBottomBtn" type="button">复制</button></div>
+          <textarea id="metadataOutput" readonly spellcheck="false"></textarea>
+        </div>
+        <div class="code-pane" id="mermaidCodePane">
           <div class="code-title"><span>Mermaid 沟通图</span><button class="btn small" id="copyMermaidBtn" type="button">复制</button></div>
           <textarea id="mermaidOutput" readonly spellcheck="false"></textarea>
         </div>
@@ -130,7 +279,7 @@
         </div>
         <aside class="import-help">
           <b>导入规则</b>
-          <p class="hint">1. 仅支持 strategy-flow-input/0.1。<br>2. validation 字段会被忽略并重新计算。<br>3. 未知字段会被丢弃，避免把临时 UI 状态带入正式输入。<br>4. layout 缺失时自动补默认坐标。<br>5. 导入后必须先处理校验错误，再导出正式 JSON。</p>
+          <p class="hint">1. 支持 strategy-flow-input/0.1 导入迁移和 0.2 原生解析。<br>2. validation 字段会被忽略并重新计算。<br>3. 0.2 标签唯一事实源在 taxonomy；0.1 缺失标签需补齐。<br>4. 注册元数据需单独导入 / 导出。<br>5. 导入后必须先处理校验错误，再导出正式 JSON。</p>
           <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">
             <button class="btn primary" id="applyImportBtn" type="button">应用导入</button>
             <button class="btn" id="formatImportBtn" type="button">格式化校验</button>
@@ -141,6 +290,7 @@
   </section>
 </div>
 <div class="toast" id="toast"></div>
-<script src="./app.js?v=1.0.0"></script>
+<script src="./contracts/strategy-taxonomy-2026-09.js?v=2026-09"></script>
+<script src="./app.js?v=1.2.4"></script>
 </body>
 </html>

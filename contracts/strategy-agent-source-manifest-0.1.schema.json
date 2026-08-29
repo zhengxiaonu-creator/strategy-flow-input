@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ebscn.local/strategy-agent/source-manifest/0.1/schema.json",
+  "title": "Strategy Agent Source Manifest",
+  "description": "Inventory of unstructured business materials fed to the strategy agent. The manifest is the audit and idempotency anchor: requestId plus the ordered set of file sha256 values defines whether a parse result may be replayed from cache. Parsing status is recorded here; parsed content lives only in the evidence corpus.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "manifestId", "caseId", "requestId", "createdAt", "files"],
+  "properties": {
+    "schemaVersion": {
+      "const": "strategy-agent-source-manifest/0.1"
+    },
+    "manifestId": {
+      "type": "string",
+      "pattern": "^sm-[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "caseId": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}-[A-Za-z0-9][A-Za-z0-9_-]*$",
+      "description": "Agent-session case id. It is local to the agent workbench and independent of the portal strategy id; recovery must rely on this persisted id, not on chat memory."
+    },
+    "requestId": {
+      "type": "string",
+      "pattern": "^req-[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "createdAt": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fileId", "fileName", "mimeType", "byteSize", "sha256", "parserStatus"],
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "pattern": "^sf-[A-Za-z0-9][A-Za-z0-9_-]*$"
+          },
+          "fileName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mimeType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "byteSize": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "parserStatus": {
+            "enum": ["pending", "parsed", "unsupported", "failed"]
+          },
+          "parsedAt": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "corpusIds": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^ec-[A-Za-z0-9][A-Za-z0-9_-]*$"
+            }
+          },
+          "failureCode": {
+            "type": "string",
+            "pattern": "^E_[A-Z][A-Z0-9_]*$"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "parserStatus": {
+                  "const": "parsed"
+                }
+              }
+            },
+            "then": {
+              "required": ["parsedAt", "corpusIds"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "parserStatus": {
+                  "enum": ["unsupported", "failed"]
+                }
+              }
+            },
+            "then": {
+              "required": ["failureCode"]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    }
+  }
+}

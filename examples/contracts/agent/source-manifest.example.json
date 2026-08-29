@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "strategy-agent-source-manifest/0.1",
+  "manifestId": "sm-20260830-001",
+  "caseId": "AG-20260830-001",
+  "requestId": "req-parse-20260830-001",
+  "createdAt": "2026-08-30T09:00:00+08:00",
+  "files": [
+    {
+      "fileId": "sf-001",
+      "fileName": "需求说明.docx",
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "byteSize": 18234,
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "parserStatus": "parsed",
+      "parsedAt": "2026-08-30T09:00:01+08:00",
+      "corpusIds": ["ec-20260830-001"]
+    },
+    {
+      "fileId": "sf-002",
+      "fileName": "流程节点.xlsx",
+      "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "byteSize": 9650,
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "parserStatus": "parsed",
+      "parsedAt": "2026-08-30T09:00:01+08:00",
+      "corpusIds": ["ec-20260830-001"]
+    },
+    {
+      "fileId": "sf-003",
+      "fileName": "经营汇报.pptx",
+      "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "byteSize": 45120,
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "parserStatus": "parsed",
+      "parsedAt": "2026-08-30T09:00:02+08:00",
+      "corpusIds": ["ec-20260830-001"]
+    }
+  ]
+}

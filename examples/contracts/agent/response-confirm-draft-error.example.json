@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "strategy-agent-response/0.1",
+  "requestId": "req-confirm-20260830-001",
+  "command": "confirm-draft",
+  "status": "error",
+  "replayed": false,
+  "error": {
+    "code": "E_DRAFT_UNCONFIRMED_REQUIRED_FIELD",
+    "message": "存在未确认的必填字段，禁止批量确认或提交。",
+    "details": [
+      { "target": "design", "pointer": "/strategy/strategyId" },
+      { "target": "design", "pointer": "/processActions/0/hook" }
+    ]
+  }
+}

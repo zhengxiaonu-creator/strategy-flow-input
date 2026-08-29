@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ebscn.local/strategy-agent/response/0.1/schema.json",
+  "title": "Strategy Agent Response Envelope",
+  "description": "Stable envelope for every strategy-agent command. Commands are registered explicitly; unknown commands must be rejected before any side effect. ok responses carry data and never error; error responses carry error and never data. replayed=true marks an idempotent cache hit, not a new execution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "requestId", "command", "status", "replayed"],
+  "properties": {
+    "schemaVersion": {
+      "const": "strategy-agent-response/0.1"
+    },
+    "requestId": {
+      "type": "string",
+      "pattern": "^req-[A-Za-z0-9][A-Za-z0-9_-]*$",
+      "description": "Caller-supplied idempotency key. Same requestId plus same input fingerprint must return the cached response with replayed=true."
+    },
+    "command": {
+      "enum": ["parse-sources", "generate-draft", "get-draft", "resolve-draft", "request-approval", "confirm-draft", "discard-draft", "get-case"]
+    },
+    "status": {
+      "enum": ["ok", "error"]
+    },
+    "replayed": {
+      "type": "boolean"
+    },
+    "data": {
+      "type": "object",
+      "description": "Command payload. Structure is owned by each command contract; must be absent on error."
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/errorCode"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "target": {
+                "enum": ["design", "metadata"]
+              },
+              "field": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pointer": {
+                "type": "string",
+                "pattern": "^(/[^/~]*(~0|~1)*)*$"
+              },
+              "evidenceId": {
+                "type": "string",
+                "pattern": "^ev-[A-Za-z0-9][A-Za-z0-9_-]*$"
+              },
+              "fileId": {
+                "type": "string",
+                "pattern": "^sf-[A-Za-z0-9][A-Za-z0-9_-]*$"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ok"
+          }
+        }
+      },
+      "then": {
+        "required": ["data"],
+        "not": {
+          "required": ["error"]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "error"
+          }
+        }
+      },
+      "then": {
+        "required": ["error"],
+        "not": {
+          "required": ["data"]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "errorCode": {
+      "type": "string",
+      "pattern": "^E_[A-Z][A-Z0-9_]*$"
+    }
+  }
+}

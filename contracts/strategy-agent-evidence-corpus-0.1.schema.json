@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ebscn.local/strategy-agent/evidence-corpus/0.1/schema.json",
+  "title": "Strategy Agent Evidence Corpus",
+  "description": "Deterministic parse output of one source manifest. Fragments carry stable evidenceIds so every agent-filled field can cite where its value came from. Parsing must not call a model: same file bytes plus same parser version must produce the same corpus. Referential integrity (evidenceId uniqueness, fileId membership in the manifest) is enforced by the validator, not by this shape schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "corpusId", "manifestId", "parserVersion", "createdAt", "fragments"],
+  "properties": {
+    "schemaVersion": {
+      "const": "strategy-agent-evidence-corpus/0.1"
+    },
+    "corpusId": {
+      "type": "string",
+      "pattern": "^ec-[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "manifestId": {
+      "type": "string",
+      "pattern": "^sm-[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "parserVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Semver-ish parser identity. The corpus fingerprint is only comparable within one parser version."
+    },
+    "createdAt": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "fragments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["evidenceId", "fileId", "fragmentType", "ordinal", "text"],
+        "properties": {
+          "evidenceId": {
+            "type": "string",
+            "pattern": "^ev-[A-Za-z0-9][A-Za-z0-9_-]*$"
+          },
+          "fileId": {
+            "type": "string",
+            "pattern": "^sf-[A-Za-z0-9][A-Za-z0-9_-]*$"
+          },
+          "fragmentType": {
+            "enum": ["heading", "paragraph", "list", "table", "sheet", "slide"]
+          },
+          "ordinal": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Document order within the source file; parsing must be reproducible."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Normalized plain text. Tables and slides must also provide a flattened text form so downstream consumers never re-parse raw files."
+          },
+          "table": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["columns", "rows"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "columns": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "rows": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "slide": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["slideNumber"],
+            "properties": {
+              "slideNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "locator": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "paragraph": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "row": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "column": {
+                "type": "string"
+              },
+              "sheet": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "fragmentType": {
+                  "enum": ["table", "sheet"]
+                }
+              }
+            },
+            "then": {
+              "required": ["table"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "fragmentType": {
+                  "const": "slide"
+                }
+              }
+            },
+            "then": {
+              "required": ["slide"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "fragmentType": {
+                  "enum": ["heading", "paragraph", "list", "table", "sheet"]
+                }
+              }
+            },
+            "then": {
+              "not": {
+                "required": ["slide"]
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    }
+  }
+}

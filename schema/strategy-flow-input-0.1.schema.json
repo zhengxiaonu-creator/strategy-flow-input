@@ -1,27 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ebscn.local/strategy-flow-input/0.2/schema.json",
+  "$id": "https://ebsecn.local/strategy-flow-input/0.1/schema.json",
   "title": "EBSCN Strategy Flow Input",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schemaVersion",
-    "strategy",
-    "taxonomy",
-    "nodes",
-    "edges",
-    "strategyActions",
-    "processActions"
-  ],
+  "required": ["schemaVersion", "strategy", "nodes", "edges", "strategyActions", "processActions"],
   "properties": {
     "schemaVersion": {
-      "const": "strategy-flow-input/0.2"
+      "const": "strategy-flow-input/0.1"
     },
     "strategy": {
       "$ref": "#/$defs/strategy"
-    },
-    "taxonomy": {
-      "$ref": "#/$defs/taxonomy"
     },
     "nodes": {
       "type": "array",
@@ -80,131 +69,21 @@
         }
       }
     },
-    "fieldCode": {
-      "type": "string",
-      "pattern": "^[a-z][a-zA-Z0-9_]*$"
-    },
-    "tagCode": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-    },
-    "taxonomy": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "schemaVersion",
-        "tagSelections",
-        "freeTextTags",
-        "customTagProposals"
-      ],
-      "properties": {
-        "schemaVersion": {
-          "const": "strategy-taxonomy/2026-09"
-        },
-        "tagSelections": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["fieldCode", "values"],
-            "properties": {
-              "fieldCode": { "$ref": "#/$defs/fieldCode" },
-              "values": {
-                "type": "array",
-                "minItems": 1,
-                "items": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": ["code"],
-                  "properties": {
-                    "code": { "$ref": "#/$defs/tagCode" },
-                    "parentCode": {
-                      "anyOf": [
-                        { "type": "null" },
-                        { "$ref": "#/$defs/tagCode" }
-                      ]
-                    },
-                    "label": { "type": "string", "minLength": 1 }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "freeTextTags": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["fieldCode", "value"],
-            "properties": {
-              "fieldCode": { "$ref": "#/$defs/fieldCode" },
-              "value": { "type": "string", "minLength": 1 }
-            }
-          }
-        },
-        "customTagProposals": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "proposalId",
-              "fieldCode",
-              "label",
-              "reason"
-            ],
-            "properties": {
-              "proposalId": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$"
-              },
-              "fieldCode": { "$ref": "#/$defs/fieldCode" },
-              "label": { "type": "string", "minLength": 1 },
-              "reason": { "type": "string", "minLength": 1 },
-              "parentRef": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["fieldCode"],
-                "properties": {
-                  "fieldCode": { "$ref": "#/$defs/fieldCode" },
-                  "code": { "$ref": "#/$defs/tagCode" },
-                  "proposalId": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$"
-                  }
-                },
-                "oneOf": [
-                  { "required": ["code"] },
-                  { "required": ["proposalId"] }
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
     "strategy": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "strategyName",
-        "strategyId",
-        "paradigm",
-        "owner",
-        "submitter",
-        "version",
-        "versionStatus"
-      ],
+      "required": ["strategyName", "paradigm", "owner", "submitter"],
       "properties": {
         "strategyName": { "type": "string", "minLength": 1 },
-        "strategyId": { "type": "string", "minLength": 1 },
+        "strategyId": { "type": "string" },
         "paradigm": { "enum": ["customer", "scene"] },
         "owner": { "type": "string", "minLength": 1 },
         "submitter": { "type": "string", "minLength": 1 },
-        "version": { "type": "string", "minLength": 1 },
-        "versionStatus": { "enum": ["draft", "candidate"] }
+        "businessScene": { "type": "string" },
+        "strategyType": { "type": "string" },
+        "strategySubtype": { "type": "string" },
+        "version": { "type": "string" },
+        "versionStatus": { "enum": ["draft", "candidate", "registered", "deprecated"] }
       }
     },
     "node": {

@@ -6,7 +6,13 @@
 (function () {
   "use strict";
 
-  const SCHEMA_VERSION = "strategy-flow-input/0.1";
+  const SCHEMA_NAMESPACE = "strategy-flow-input";
+  const SCHEMA_VERSION_0_1 = "strategy-flow-input/0.1";
+  const SCHEMA_VERSION_0_2 = "strategy-flow-input/0.2";
+  const SCHEMA_VERSION = SCHEMA_VERSION_0_2;
+  const SUPPORTED_SCHEMA_VERSIONS = [SCHEMA_VERSION_0_1, SCHEMA_VERSION_0_2];
+  const METADATA_SCHEMA_VERSION = "strategy-flow-registration-metadata/2.0";
+  const TAXONOMY_SCHEMA_VERSION = "strategy-taxonomy/2026-09";
   const STORAGE_KEY = "ebscn.strategy-flow-designer.draft.v0";
   const LAYOUT_STORAGE_KEY = "ebscn.strategy-flow-designer.layout.v0";
   const NORMAL_OFFSET_LIMIT = 4800;
@@ -23,6 +29,21 @@
     ["not_happened", "未发生"],
     ["no_requirement", "无行为要求"],
   ];
+  const TAXONOMY_CONTRACT = typeof window !== "undefined" && window.STRATEGY_TAXONOMY_2026_09
+    ? window.STRATEGY_TAXONOMY_2026_09
+    : require("./contracts/strategy-taxonomy-2026-09");
+  const TAXONOMY_FIELDS = new Map(TAXONOMY_CONTRACT.fields.map(field => [field.fieldCode, field]));
+  const LEGACY_BUSINESS_SCENES = new Map([
+    ["新客服务", "new_customer_service"],
+    ["用户激活", "user_activation"],
+    ["资产提升", "asset_promotion"],
+    ["流失挽留", "churn_retention"],
+    ["产品销售", "product_sales"],
+    ["业务开通", "business_open"],
+    ["用户运营", "user_operations"],
+  ]);
+  const LEGACY_STRATEGY_TYPES = new Map([...TAXONOMY_FIELDS.get("strategyType").values]
+    .map(value => [value.label, value]));
 
   const clean = value => String(value ?? "").trim();
   const array = value => Array.isArray(value) ? value : [];
@@ -37,19 +58,139 @@
     return result || fallback;
   }
 
+  function parseSchemaVersion(value) {
+    const raw = clean(value);
+    if (!raw) {
+      return { valid: false, missing: true, raw };
+    }
+    const match = /^strategy-flow-input\/(\d+)\.(\d+)$/.exec(raw);
+    if (!match) return { valid: false, missing: false, raw };
+    return {
+      valid: true,
+      missing: false,
+      raw,
+      major: Number(match[1]),
+      minor: Number(match[2]),
+      key: `${match[1]}.${match[2]}`,
+    };
+  }
+
   function normalizeStrategy(value) {
     const source = value && typeof value === "object" ? value : {};
     return {
       strategyName: string(source.strategyName),
       strategyId: string(source.strategyId),
-      paradigm: source.paradigm === "scene" ? "scene" : "customer",
+      paradigm: source.paradigm === "customer" || source.paradigm === "scene" ? source.paradigm : "",
       owner: string(source.owner),
       submitter: string(source.submitter),
-      businessScene: string(source.businessScene),
-      strategyType: string(source.strategyType),
-      strategySubtype: string(source.strategySubtype),
-      version: string(source.version, "0.1"),
-      versionStatus: ["draft", "candidate", "registered", "deprecated"].includes(source.versionStatus) ? source.versionStatus : "draft",
+      version: string(source.version),
+      versionStatus: ["draft", "candidate"].includes(source.versionStatus) ? source.versionStatus : "",
+    };
+  }
+
+  function emptyTaxonomySelections() {
+    return Object.fromEntries([...TAXONOMY_FIELDS.keys()].map(fieldCode => [fieldCode, []]));
+  }
+
+  function normalizeTagSelection(value) {
+    const source = value && typeof value === "object" ? value : {};
+    return {
+      code: string(source.code),
+      parentCode: typeof source.parentCode === "string" ? clean(source.parentCode) : null,
+    };
+  }
+
+  function normalizeCustomTagProposal(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const parentRef = source.parentRef && typeof source.parentRef === "object" ? source.parentRef : {};
+    return {
+      proposalId: string(source.proposalId),
+      fieldCode: string(source.fieldCode),
+      label: string(source.label),
+      reason: string(source.reason),
+      parentRef: source.parentRef === undefined ? null : {
+        fieldCode: string(parentRef.fieldCode),
+        code: string(parentRef.code),
+        proposalId: string(parentRef.proposalId),
+      },
+    };
+  }
+
+  function normalizeTaxonomy(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const selections = emptyTaxonomySelections();
+    if (source.selections && typeof source.selections === "object") {
+      Object.entries(source.selections).forEach(([fieldCode, values]) => {
+        if (TAXONOMY_FIELDS.has(fieldCode) && fieldCode !== "strategySubtype") {
+          selections[fieldCode] = array(values).map(normalizeTagSelection);
+        }
+      });
+    }
+    array(source.tagSelections).forEach(selection => {
+      const fieldCode = clean(selection?.fieldCode);
+      if (TAXONOMY_FIELDS.has(fieldCode) && fieldCode !== "strategySubtype") {
+        selections[fieldCode] = array(selection.values).map(normalizeTagSelection);
+      }
+    });
+    const freeText = array(source.freeTextTags).find(item => clean(item?.fieldCode) === "strategySubtype");
+    return {
+      schemaVersion: clean(source.schemaVersion) || TAXONOMY_SCHEMA_VERSION,
+      selections,
+      strategySubtype: source.strategySubtype === undefined ? string(freeText?.value) : string(source.strategySubtype),
+      customTagProposals: array(source.customTagProposals).map(normalizeCustomTagProposal),
+    };
+  }
+
+  function taxonomyFromLegacyStrategy(strategy) {
+    const source = strategy && typeof strategy === "object" ? strategy : {};
+    const businessScene = LEGACY_BUSINESS_SCENES.get(clean(source.businessScene)) || "";
+    const legacyType = LEGACY_STRATEGY_TYPES.get(clean(source.strategyType));
+    const strategyTypes = legacyType && legacyType.parentCode === businessScene
+      ? [{ code: legacyType.code, parentCode: legacyType.parentCode }]
+      : [];
+    return normalizeTaxonomy({
+      schemaVersion: TAXONOMY_SCHEMA_VERSION,
+      tagSelections: [
+        businessScene ? { fieldCode: "businessScene", values: [{ code: businessScene }] } : null,
+        strategyTypes.length ? { fieldCode: "strategyType", values: strategyTypes } : null,
+      ].filter(Boolean),
+      freeTextTags: [{ fieldCode: "strategySubtype", value: string(source.strategySubtype) }],
+      customTagProposals: [],
+    });
+  }
+
+  function toTaxonomyContract(input) {
+    const taxonomy = normalizeTaxonomy(input);
+    const tagSelections = [...TAXONOMY_FIELDS.keys()]
+      .filter(fieldCode => fieldCode !== "strategySubtype")
+      .map(fieldCode => ({
+        fieldCode,
+        values: taxonomy.selections[fieldCode].map(value => {
+          const definition = TAXONOMY_FIELDS.get(fieldCode).values.find(item => item.code === value.code);
+          const result = { code: value.code };
+          if (definition?.parentCode !== undefined) result.parentCode = value.parentCode;
+          return result;
+        }),
+      }))
+      .filter(selection => selection.values.length);
+    return {
+      schemaVersion: TAXONOMY_SCHEMA_VERSION,
+      tagSelections,
+      freeTextTags: [{
+        fieldCode: "strategySubtype",
+        value: taxonomy.strategySubtype,
+      }],
+      customTagProposals: taxonomy.customTagProposals.map(proposal => {
+        const result = { ...proposal };
+        if (!result.parentRef) delete result.parentRef;
+        else {
+          Object.keys(result.parentRef).forEach(key => {
+            if (!clean(result.parentRef[key])) delete result.parentRef[key];
+          });
+          if (!Object.keys(result.parentRef).length) delete result.parentRef;
+        }
+        return result;
+      }),
     };
   }
 
@@ -148,15 +289,50 @@
     };
   }
 
+  function normalizeRegistrationMetadata(value) {
+    const source = value && typeof value === "object" ? value : {};
+    return {
+      schemaVersion: METADATA_SCHEMA_VERSION,
+      businessUnit: string(source.businessUnit),
+      submitDate: string(source.submitDate),
+      coreHook: string(source.coreHook),
+      effectiveFrom: string(source.effectiveFrom),
+      baselineVersion: string(source.baselineVersion),
+      triggerScenes: array(source.triggerScenes).map(item => ({
+        triggerSceneId: string(item?.triggerSceneId),
+        triggerScene: string(item?.triggerScene),
+        threshold: string(item?.threshold),
+        frequency: string(item?.frequency),
+        deduplication: string(item?.deduplication),
+        cooldown: string(item?.cooldown),
+        audienceScope: string(item?.audienceScope),
+        qualification: string(item?.qualification),
+        dataSource: string(item?.dataSource),
+        confirmationStatus: string(item?.confirmationStatus),
+      })),
+    };
+  }
+
   function normalizeDocument(value) {
     const source = value && typeof value === "object" ? value : {};
+    const isCanonicalInput = Boolean(source.taxonomy?.selections);
+    const parsedVersion = parseSchemaVersion(source.schemaVersion);
+    const sourceSchemaVersion = isCanonicalInput
+      ? clean(source.sourceSchemaVersion) || parsedVersion.raw
+      : parsedVersion.raw;
+    const isV0_1 = !isCanonicalInput && sourceSchemaVersion === SCHEMA_VERSION_0_1;
     const normalized = {
-      schemaVersion: string(source.schemaVersion, SCHEMA_VERSION),
+      schemaVersion: SCHEMA_VERSION,
+      sourceSchemaVersion,
       strategy: normalizeStrategy(source.strategy),
+      taxonomy: isV0_1
+        ? taxonomyFromLegacyStrategy(source.strategy)
+        : normalizeTaxonomy(source.taxonomy),
       nodes: array(source.nodes).map(normalizeNode),
       edges: array(source.edges).map(normalizeEdge),
       strategyActions: array(source.strategyActions).map(normalizeStrategyAction),
       processActions: array(source.processActions).map(normalizeProcessAction),
+      registrationMetadata: normalizeRegistrationMetadata(source.registrationMetadata),
     };
     ensureAutomaticLocalIds(normalized);
     return normalized;
@@ -192,16 +368,163 @@
   function defaultDocument() {
     return {
       schemaVersion: SCHEMA_VERSION,
+      sourceSchemaVersion: SCHEMA_VERSION,
       strategy: normalizeStrategy({ paradigm: "customer" }),
+      taxonomy: normalizeTaxonomy(),
       nodes: [],
       edges: [],
       strategyActions: [],
       processActions: [],
+      registrationMetadata: normalizeRegistrationMetadata(),
     };
   }
 
   function issue(code, message, path) {
     return { code, message, path };
+  }
+
+  function unknownKeys(value, allowed) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+    const allowedSet = new Set(allowed);
+    return Object.keys(value).filter(key => !allowedSet.has(key));
+  }
+
+  function validateExternalContractShape(raw, errors, version) {
+    const source = raw && typeof raw === "object" ? raw : {};
+    const v0_1 = version === SCHEMA_VERSION_0_1;
+    const topLevelAllowed = [
+      "schemaVersion", "strategy", ...(v0_1 ? [] : ["taxonomy"]),
+      "nodes", "edges", "strategyActions", "processActions", "validation",
+    ];
+    unknownKeys(source, topLevelAllowed).forEach(key => {
+      errors.push(issue("SCHEMA_UNKNOWN_FIELD", `顶层未知字段：${key}`, key));
+    });
+
+    const strategyAllowed = v0_1
+      ? ["strategyName", "strategyId", "paradigm", "owner", "submitter", "businessScene", "strategyType", "strategySubtype", "version", "versionStatus"]
+      : ["strategyName", "strategyId", "paradigm", "owner", "submitter", "version", "versionStatus"];
+    unknownKeys(source.strategy, strategyAllowed).forEach(key => {
+      errors.push(issue("SCHEMA_UNKNOWN_FIELD", `strategy 未知字段：${key}`, `strategy.${key}`));
+    });
+
+    if (v0_1) return;
+    ["schemaVersion", "strategy", "taxonomy", "nodes", "edges", "strategyActions", "processActions"].forEach(key => {
+      if (source[key] === undefined) errors.push(issue("SCHEMA_FIELD_REQUIRED", `顶层必填字段缺失：${key}`, key));
+    });
+    ["strategyName", "strategyId", "paradigm", "owner", "submitter", "version", "versionStatus"].forEach(key => {
+      if (clean(source.strategy?.[key]) === "") errors.push(issue("STRATEGY_FIELD_REQUIRED", `策略字段缺失：${key}`, `strategy.${key}`));
+    });
+    if (source.strategy && !["customer", "scene"].includes(source.strategy.paradigm)) {
+      errors.push(issue("ENUM_INVALID", "策略范式只能是 customer 或 scene", "strategy.paradigm"));
+    }
+    if (source.strategy && !["draft", "candidate"].includes(source.strategy.versionStatus)) {
+      errors.push(issue("ENUM_INVALID", "版本状态只能是 draft 或 candidate", "strategy.versionStatus"));
+    }
+    ["schemaVersion", "tagSelections", "freeTextTags", "customTagProposals"].forEach(key => {
+      if (source.taxonomy?.[key] === undefined) errors.push(issue("TAXONOMY_FIELD_REQUIRED", `taxonomy 必填字段缺失：${key}`, `taxonomy.${key}`));
+    });
+    array(source.taxonomy?.tagSelections).forEach((selection, index) => {
+      const base = `taxonomy.tagSelections[${index}]`;
+      if (!clean(selection?.fieldCode)) errors.push(issue("TAG_FIELD_REQUIRED", "标签选择缺少 fieldCode", `${base}.fieldCode`));
+      if (!Array.isArray(selection?.values) || !selection.values.length) errors.push(issue("TAG_FIELD_REQUIRED", "标签选择至少需要一个值", `${base}.values`));
+      array(selection?.values).forEach((value, valueIndex) => {
+        if (!clean(value?.code)) errors.push(issue("TAG_CODE_INVALID", "标签 code 不能为空", `${base}.values[${valueIndex}].code`));
+        const field = TAXONOMY_FIELDS.get(clean(selection?.fieldCode));
+        const definition = field?.values.find(item => item.code === clean(value?.code));
+        if (definition && clean(value?.label) && clean(value?.label) !== definition.label) {
+          errors.push(issue("TAG_LABEL_MISMATCH", `标签 label 与字典不一致：${value.label}`, `${base}.values[${valueIndex}].label`));
+        }
+      });
+    });
+    source.nodes?.forEach?.((item, index) => {
+      ["localId", "nodeType", "time", "executor", "subject", "layout"].forEach(key => {
+        if (item?.[key] === undefined) errors.push(issue("SCHEMA_FIELD_REQUIRED", `节点必填字段缺失：${key}`, `nodes[${index}].${key}`));
+      });
+      ["type", "name", "state"].forEach(key => {
+        if (item?.subject?.[key] === undefined) errors.push(issue("SCHEMA_FIELD_REQUIRED", `对象必填字段缺失：${key}`, `nodes[${index}].subject.${key}`));
+      });
+      if (item && !NODE_TYPES.includes(item.nodeType)) errors.push(issue("ENUM_INVALID", "节点类型不合法", `nodes[${index}].nodeType`));
+      if (item?.subject && !SUBJECT_TYPES.includes(item.subject.type)) errors.push(issue("ENUM_INVALID", "对象类型不合法", `nodes[${index}].subject.type`));
+    });
+    source.edges?.forEach?.((item, index) => {
+      ["localId", "from", "to", "edgeType", "actorBehavior", "subjectBehavior"].forEach(key => {
+        if (item?.[key] === undefined) errors.push(issue("SCHEMA_FIELD_REQUIRED", `流转规则必填字段缺失：${key}`, `edges[${index}].${key}`));
+      });
+      ["actorBehavior", "subjectBehavior"].forEach(key => {
+        ["time", "action", "status"].forEach(child => {
+          if (item?.[key]?.[child] === undefined) errors.push(issue("SCHEMA_FIELD_REQUIRED", `行为必填字段缺失：${child}`, `edges[${index}].${key}.${child}`));
+        });
+      });
+      if (item && !EDGE_TYPES.includes(item.edgeType)) errors.push(issue("ENUM_INVALID", "流转类型不合法", `edges[${index}].edgeType`));
+      if (item?.actorBehavior && !ACTOR_STATUSES.some(pair => pair[0] === item.actorBehavior.status)) errors.push(issue("ENUM_INVALID", "执行人行为状态不合法", `edges[${index}].actorBehavior.status`));
+      if (item?.subjectBehavior && !SUBJECT_STATUSES.some(pair => pair[0] === item.subjectBehavior.status)) errors.push(issue("ENUM_INVALID", "对象行为状态不合法", `edges[${index}].subjectBehavior.status`));
+    });
+    source.strategyActions?.forEach?.((item, index) => {
+      ["localId", "nodeId", "outgoingEdgeId"].forEach(key => {
+        if (item?.[key] === undefined) errors.push(issue("ACTION_FIELD_REQUIRED", `策略动作必填字段缺失：${key}`, `strategyActions[${index}].${key}`));
+      });
+    });
+    source.processActions?.forEach?.((item, index) => {
+      ["localId", "nodeId", "outgoingEdgeId"].forEach(key => {
+        if (item?.[key] === undefined) errors.push(issue("ACTION_FIELD_REQUIRED", `过程动作必填字段缺失：${key}`, `processActions[${index}].${key}`));
+      });
+    });
+    unknownKeys(source.taxonomy, ["schemaVersion", "tagSelections", "freeTextTags", "customTagProposals"]).forEach(key => {
+      errors.push(issue("SCHEMA_UNKNOWN_FIELD", `taxonomy 未知字段：${key}`, `taxonomy.${key}`));
+    });
+    const seenTaxonomyFields = new Set();
+    array(source.taxonomy?.tagSelections).forEach((selection, index) => {
+      const base = `taxonomy.tagSelections[${index}]`;
+      unknownKeys(selection, ["fieldCode", "values"]).forEach(key => {
+        errors.push(issue("SCHEMA_UNKNOWN_FIELD", `标签选择未知字段：${key}`, `${base}.${key}`));
+      });
+      const fieldCode = clean(selection?.fieldCode);
+      if (seenTaxonomyFields.has(fieldCode)) errors.push(issue("TAG_FIELD_DUPLICATE", `taxonomy 字段重复：${fieldCode}`, `${base}.fieldCode`));
+      seenTaxonomyFields.add(fieldCode);
+      array(selection?.values).forEach((value, valueIndex) => {
+        unknownKeys(value, ["code", "parentCode", "label"]).forEach(key => {
+          errors.push(issue("SCHEMA_UNKNOWN_FIELD", `标签值未知字段：${key}`, `${base}.values[${valueIndex}].${key}`));
+        });
+      });
+    });
+    array(source.taxonomy?.freeTextTags).forEach((item, index) => {
+      unknownKeys(item, ["fieldCode", "value"]).forEach(key => {
+        errors.push(issue("SCHEMA_UNKNOWN_FIELD", `自由文本标签未知字段：${key}`, `taxonomy.freeTextTags[${index}].${key}`));
+      });
+    });
+    array(source.taxonomy?.customTagProposals).forEach((proposal, index) => {
+      const base = `taxonomy.customTagProposals[${index}]`;
+      unknownKeys(proposal, ["proposalId", "fieldCode", "label", "reason", "parentRef"]).forEach(key => {
+        errors.push(issue("SCHEMA_UNKNOWN_FIELD", `自定义标签提案未知字段：${key}`, `${base}.${key}`));
+      });
+      unknownKeys(proposal?.parentRef, ["fieldCode", "code", "proposalId"]).forEach(key => {
+        errors.push(issue("SCHEMA_UNKNOWN_FIELD", `父引用未知字段：${key}`, `${base}.parentRef.${key}`));
+      });
+    });
+
+    const nodeKeys = ["localId", "nodeType", "time", "executor", "subject", "displayName", "layout"];
+    const edgeKeys = ["localId", "from", "to", "edgeType", "actorBehavior", "subjectBehavior", "confirmed", "mutexGroup", "overwriteSource", "label", "layout"];
+    const behaviorKeys = ["time", "action", "status"];
+    const strategyActionKeys = ["localId", "nodeId", "outgoingEdgeId", "time", "subjectState", "judge", "touchScene", "touchMethod", "theme", "goal", "hook", "copy", "hasLink", "metrics"];
+    const processActionKeys = ["localId", "nodeId", "outgoingEdgeId", "executor", "scene", "condition", "result", "action", "hook", "recipient", "metrics"];
+    source.nodes?.forEach?.((item, index) => {
+      unknownKeys(item, nodeKeys).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `节点未知字段：${key}`, `nodes[${index}].${key}`)));
+      unknownKeys(item?.subject, ["type", "name", "state"]).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `对象未知字段：${key}`, `nodes[${index}].subject.${key}`)));
+      unknownKeys(item?.layout, ["x", "y"]).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `布局未知字段：${key}`, `nodes[${index}].layout.${key}`)));
+    });
+    source.edges?.forEach?.((item, index) => {
+      unknownKeys(item, edgeKeys).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `流转规则未知字段：${key}`, `edges[${index}].${key}`)));
+      ["actorBehavior", "subjectBehavior"].forEach(key => {
+        unknownKeys(item?.[key], behaviorKeys).forEach(child => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `行为未知字段：${child}`, `edges[${index}].${key}.${child}`)));
+      });
+      unknownKeys(item?.layout, ["normalOffset"]).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `布局未知字段：${key}`, `edges[${index}].layout.${key}`)));
+    });
+    source.strategyActions?.forEach?.((item, index) => {
+      unknownKeys(item, strategyActionKeys).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `策略动作未知字段：${key}`, `strategyActions[${index}].${key}`)));
+    });
+    source.processActions?.forEach?.((item, index) => {
+      unknownKeys(item, processActionKeys).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `过程动作未知字段：${key}`, `processActions[${index}].${key}`)));
+    });
   }
 
   function validateDocument(input) {
@@ -211,14 +534,161 @@
     const nodes = new Map(doc.nodes.map(node => [node.localId, node]));
     const edges = new Map(doc.edges.map(edge => [edge.localId, edge]));
 
-    if (doc.schemaVersion !== SCHEMA_VERSION) {
-      errors.push(issue("SCHEMA_VERSION_UNSUPPORTED", `仅支持 ${SCHEMA_VERSION}`, "schemaVersion"));
+    const sourceVersion = parseSchemaVersion(doc.sourceSchemaVersion);
+    if (sourceVersion.missing) {
+      errors.push(issue("SCHEMA_VERSION_REQUIRED", "导入 JSON 缺少 schemaVersion", "schemaVersion"));
+    } else if (!sourceVersion.valid) {
+      errors.push(issue("SCHEMA_VERSION_INVALID", `schemaVersion 必须形如 ${SCHEMA_NAMESPACE}/<major>.<minor>`, "schemaVersion"));
+    } else if (!SUPPORTED_SCHEMA_VERSIONS.includes(sourceVersion.raw)) {
+      errors.push(issue("SCHEMA_VERSION_UNSUPPORTED", `不支持的策略契约版本：${sourceVersion.raw}；当前支持：${SUPPORTED_SCHEMA_VERSIONS.join("、")}`, "schemaVersion"));
+    } else if (sourceVersion.raw === SCHEMA_VERSION_0_1) {
+      warnings.push(issue("SCHEMA_MIGRATED", "已从 0.1 迁移到 0.2；0.1 未承载的标签需重新确认", "schemaVersion"));
     }
-    ["strategyName", "paradigm", "owner", "submitter"].forEach(key => {
+    const isCanonicalInput = Boolean(input?.taxonomy?.selections);
+    const knownExternalVersion = sourceVersion.valid && SUPPORTED_SCHEMA_VERSIONS.includes(sourceVersion.raw);
+    if (!isCanonicalInput && knownExternalVersion) validateExternalContractShape(input, errors, sourceVersion.raw);
+    ["strategyName", "strategyId", "paradigm", "owner", "submitter", "version", "versionStatus"].forEach(key => {
       if (!clean(doc.strategy[key])) {
         errors.push(issue("STRATEGY_FIELD_REQUIRED", `策略字段缺失：${key}`, `strategy.${key}`));
       }
     });
+
+    if (doc.taxonomy.schemaVersion !== TAXONOMY_SCHEMA_VERSION) {
+      errors.push(issue("TAXONOMY_VERSION_UNSUPPORTED", `taxonomy 契约必须是 ${TAXONOMY_SCHEMA_VERSION}`, "taxonomy.schemaVersion"));
+    }
+
+    const selectedCodes = fieldCode => new Set(doc.taxonomy.selections[fieldCode].map(item => item.code));
+    [...TAXONOMY_FIELDS.keys()].forEach(fieldCode => {
+      if (fieldCode === "strategySubtype") return;
+      const field = TAXONOMY_FIELDS.get(fieldCode);
+      const values = doc.taxonomy.selections[fieldCode];
+      if (field.required && !values.length) {
+        errors.push(issue("TAG_FIELD_REQUIRED", `标签字段缺失：${field.label}`, `taxonomy.${fieldCode}`));
+      }
+      const seen = new Set();
+      values.forEach((value, index) => {
+        const definition = field.values.find(item => item.code === value.code);
+        const path = `taxonomy.tagSelections.${fieldCode}[${index}]`;
+        if (seen.has(value.code)) errors.push(issue("TAG_CODE_DUPLICATE", `标签重复：${value.code || "空"}`, `${path}.code`));
+        seen.add(value.code);
+        if (!definition) {
+          errors.push(issue("TAG_CODE_INVALID", `${field.label}存在未知标签 code：${value.code || "空"}`, `${path}.code`));
+          return;
+        }
+        if (definition.status !== "active") {
+          errors.push(issue("TAG_CODE_INACTIVE", `${field.label}标签已停用：${value.code}`, `${path}.code`));
+        }
+        if (definition.parentCode !== undefined) {
+          if (!value.parentCode) {
+            errors.push(issue("TAG_PARENT_REQUIRED", `${field.label} ${value.code} 缺少 parentCode`, `${path}.parentCode`));
+          } else if (value.parentCode !== definition.parentCode) {
+            errors.push(issue("TAG_PARENT_MISMATCH", `${fieldCode}/${value.code} parentCode 不匹配：提交 ${value.parentCode}，字典 ${definition.parentCode}`, `${path}.parentCode`));
+          }
+          const parentField = TAXONOMY_FIELDS.get(field.parentFieldCode);
+          const parentSelected = selectedCodes(field.parentFieldCode).has(value.parentCode);
+          if (!parentSelected) {
+            errors.push(issue("TAG_PARENT_REQUIRED", `${field.label} ${value.code} 的父标签未选择：${parentField.label} / ${value.parentCode}`, `${path}.parentCode`));
+          }
+        }
+      });
+      if (field.cardinality === "single" && values.length > 1) {
+        errors.push(issue("TAG_CARDINALITY_INVALID", `${field.label}只能选择一个值`, `taxonomy.${fieldCode}`));
+      }
+    });
+
+    const customerCodes = selectedCodes("customerClass");
+    const assetCodes = selectedCodes("assetRange");
+    if (assetCodes.has("unlimited") && assetCodes.size > 1) {
+      errors.push(issue("TAG_EXCLUSIVE_INVALID", "不限资产不能与具体资产区间同选", "taxonomy.assetRange"));
+    }
+    [...customerCodes].forEach(customerCode => {
+      const hasAsset = doc.taxonomy.selections.assetRange.some(value => value.parentCode === customerCode);
+      if (!hasAsset) errors.push(issue("TAG_CHILD_REQUIRED", `客群 ${customerCode} 至少需要一个匹配资产区间`, "taxonomy.assetRange"));
+    });
+    doc.taxonomy.selections.assetRange.forEach((value, index) => {
+      if (value.code !== "unlimited" && !customerCodes.has(value.parentCode)) {
+        errors.push(issue("TAG_PARENT_REQUIRED", `资产区间 ${value.code} 必须挂到已选客群`, `taxonomy.tagSelections.assetRange[${index}].parentCode`));
+      }
+    });
+
+    const riskCodes = selectedCodes("riskLevel");
+    if (riskCodes.has("unspecified") && riskCodes.size > 1) {
+      errors.push(issue("TAG_EXCLUSIVE_INVALID", "不设分风险等级不能与 C1-C5 同选", "taxonomy.riskLevel"));
+    }
+
+    const businessCodes = selectedCodes("businessScene");
+    [...businessCodes].forEach(sceneCode => {
+      const hasType = doc.taxonomy.selections.strategyType.some(value => value.parentCode === sceneCode);
+      if (!hasType) errors.push(issue("TAG_CHILD_REQUIRED", `业务场景 ${sceneCode} 至少需要一个策略类型`, "taxonomy.strategyType"));
+    });
+    const touchCodes = selectedCodes("touchScene");
+    [...touchCodes].forEach(sceneCode => {
+      const hasMethod = doc.taxonomy.selections.touchMethod.some(value => value.parentCode === sceneCode);
+      if (!hasMethod) errors.push(issue("TAG_CHILD_REQUIRED", `触达场景 ${sceneCode} 至少需要一个触达方式`, "taxonomy.touchMethod"));
+    });
+
+    const invalidFreeText = ["无", "暂无", "待确认", "源表未填写"];
+    if (!clean(doc.taxonomy.strategySubtype)) {
+      errors.push(issue("TAG_FIELD_REQUIRED", "标签字段缺失：策略子类", "taxonomy.freeTextTags.strategySubtype"));
+    } else if (invalidFreeText.includes(clean(doc.taxonomy.strategySubtype))) {
+      errors.push(issue("TAG_FREE_TEXT_INVALID", "策略子类不能是占位文本", "taxonomy.freeTextTags.strategySubtype"));
+    }
+
+    const proposalIds = new Set();
+    const proposalFields = new Set(["businessScene", "strategyType", "touchScene", "touchMethod"]);
+    const proposalLabels = new Set();
+    doc.taxonomy.customTagProposals.forEach((proposal, index) => {
+      const base = `taxonomy.customTagProposals[${index}]`;
+      ["proposalId", "fieldCode", "label", "reason"].forEach(key => {
+        if (!clean(proposal[key])) errors.push(issue("TAG_PROPOSAL_FIELD_REQUIRED", `自定义标签提案缺少 ${key}`, `${base}.${key}`));
+      });
+      if (proposal.proposalId.length < 8) errors.push(issue("TAG_PROPOSAL_FIELD_INVALID", "proposalId 至少 8 位", `${base}.proposalId`));
+      if (proposalIds.has(proposal.proposalId)) errors.push(issue("TAG_PROPOSAL_DUPLICATE", `提案 ID 重复：${proposal.proposalId}`, `${base}.proposalId`));
+      proposalIds.add(proposal.proposalId);
+      if (proposal.label && proposalLabels.has(proposal.label)) errors.push(issue("TAG_PROPOSAL_DUPLICATE", `提案展示名重复：${proposal.label}`, `${base}.label`));
+      proposalLabels.add(proposal.label);
+      const field = TAXONOMY_FIELDS.get(proposal.fieldCode);
+      if (!field || !proposalFields.has(proposal.fieldCode)) {
+        errors.push(issue("TAG_PROPOSAL_FIELD_INVALID", `字段不允许自定义提案：${proposal.fieldCode || "空"}`, `${base}.fieldCode`));
+      }
+      if (field?.values.some(value => value.label === proposal.label)) {
+        errors.push(issue("TAG_PROPOSAL_DUPLICATE", `提案展示名与字典重复：${proposal.label}`, `${base}.label`));
+      }
+      if (proposal.parentRef) {
+        if (proposal.parentRef.code && proposal.parentRef.proposalId) {
+          errors.push(issue("TAG_PROPOSAL_PARENT_INVALID", "父引用只能提供 code 或 proposalId，不能同时提供", `${base}.parentRef`));
+        }
+        const parentField = TAXONOMY_FIELDS.get(proposal.parentRef.fieldCode);
+        if (field?.parentFieldCode && proposal.parentRef.fieldCode !== field.parentFieldCode) {
+          errors.push(issue("TAG_PROPOSAL_PARENT_INVALID", `父字段必须是 ${field.parentFieldCode}`, `${base}.parentRef.fieldCode`));
+        }
+        const hasExistingParent = parentField?.values.some(value => value.code === proposal.parentRef.code);
+        const hasProposalParent = proposalIds.has(proposal.parentRef.proposalId);
+        if (!parentField || (!hasExistingParent && !hasProposalParent)) {
+          errors.push(issue("TAG_PROPOSAL_PARENT_INVALID", "自定义标签提案的父引用无效", `${base}.parentRef`));
+        }
+      } else if (field?.parentFieldCode) {
+        errors.push(issue("TAG_PROPOSAL_PARENT_INVALID", `${field.label}提案必须提供父引用`, `${base}.parentRef`));
+      }
+      warnings.push(issue("CUSTOM_TAG_APPROVAL_REQUIRED", "自定义标签提案需审批，未通过前会阻断后续处理", base));
+    });
+
+    const metadata = doc.registrationMetadata;
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    [["businessUnit", "业务归属"], ["submitDate", "提交日期"], ["coreHook", "核心抓手"], ["effectiveFrom", "生效日期"]].forEach(([key, label]) => {
+      if (!clean(metadata[key])) errors.push(issue("METADATA_FIELD_REQUIRED", `注册元数据缺失：${label}`, `registrationMetadata.${key}`));
+    });
+    ["submitDate", "effectiveFrom"].forEach(key => {
+      if (clean(metadata[key]) && !datePattern.test(metadata[key])) {
+        errors.push(issue("METADATA_DATE_INVALID", "日期必须使用 YYYY-MM-DD", `registrationMetadata.${key}`));
+      }
+    });
+    if (doc.strategy.versionStatus === "candidate" && !clean(metadata.baselineVersion)) {
+      errors.push(issue("METADATA_BASELINE_REQUIRED", "candidate 定义必须提供基准版本", "registrationMetadata.baselineVersion"));
+    }
+    if (doc.strategy.paradigm === "scene" && !metadata.triggerScenes.length) {
+      errors.push(issue("METADATA_TRIGGER_SCENE_REQUIRED", "场景触发策略必须提供触发场景", "registrationMetadata.triggerScenes"));
+    }
 
     const duplicate = (items, kind, path) => {
       const seen = new Set();
@@ -340,11 +810,54 @@
 
   function toExportDocument(input) {
     const doc = normalizeDocument(input);
-    return { ...doc, validation: validateDocument(doc) };
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      strategy: doc.strategy,
+      taxonomy: toTaxonomyContract(doc.taxonomy),
+      nodes: doc.nodes,
+      edges: doc.edges,
+      strategyActions: doc.strategyActions,
+      processActions: doc.processActions,
+      validation: validateDocument(doc),
+    };
   }
 
   function toJSON(input) {
     return JSON.stringify(toExportDocument(input), null, 2);
+  }
+
+  function toRegistrationMetadataDocument(input) {
+    return normalizeRegistrationMetadata(normalizeDocument(input).registrationMetadata);
+  }
+
+  function toRegistrationMetadataJSON(input) {
+    return JSON.stringify(toRegistrationMetadataDocument(input), null, 2);
+  }
+
+  function validateRegistrationMetadata(input) {
+    const source = input && typeof input === "object" ? input : {};
+    const errors = [];
+    if (source.schemaVersion !== METADATA_SCHEMA_VERSION) {
+      errors.push(issue("METADATA_VERSION_UNSUPPORTED", `注册元数据契约必须是 ${METADATA_SCHEMA_VERSION}`, "schemaVersion"));
+    }
+    unknownKeys(source, ["schemaVersion", "businessUnit", "submitDate", "coreHook", "effectiveFrom", "baselineVersion", "triggerScenes"]).forEach(key => {
+      errors.push(issue("SCHEMA_UNKNOWN_FIELD", `注册元数据未知字段：${key}`, key));
+    });
+    [["businessUnit", "业务归属"], ["submitDate", "提交日期"], ["coreHook", "核心抓手"], ["effectiveFrom", "生效日期"]].forEach(([key, label]) => {
+      if (!clean(source[key])) errors.push(issue("METADATA_FIELD_REQUIRED", `注册元数据缺失：${label}`, key));
+    });
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    ["submitDate", "effectiveFrom"].forEach(key => {
+      if (clean(source[key]) && !datePattern.test(source[key])) errors.push(issue("METADATA_DATE_INVALID", "日期必须使用 YYYY-MM-DD", key));
+    });
+    array(source.triggerScenes).forEach((scene, index) => {
+      const allowed = ["triggerSceneId", "triggerScene", "threshold", "frequency", "deduplication", "cooldown", "audienceScope", "qualification", "dataSource", "confirmationStatus"];
+      unknownKeys(scene, allowed).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `触发场景未知字段：${key}`, `triggerScenes[${index}].${key}`)));
+      allowed.forEach(key => {
+        if (!clean(scene?.[key])) errors.push(issue("METADATA_TRIGGER_SCENE_FIELD_REQUIRED", `触发场景缺少 ${key}`, `triggerScenes[${index}].${key}`));
+      });
+    });
+    return { status: errors.length ? "draft" : "ready_to_submit", errors, warnings: [] };
   }
 
   function escapeMermaid(value) {
@@ -475,8 +988,65 @@
     return doc;
   }
 
+  function parseAgentDraft(value) {
+    if (value?.schemaVersion !== "strategy-agent-strategy-draft/0.1") {
+      return {ok: false, error: "草稿必须是 strategy-agent-strategy-draft/0.1"};
+    }
+    if (value.candidate?.schemaVersion !== SCHEMA_VERSION_0_2) {
+      return {ok: false, error: "candidate 必须是 strategy-flow-input/0.2"};
+    }
+    if (value.registrationMetadataCandidate?.schemaVersion !== METADATA_SCHEMA_VERSION) {
+      return {ok: false, error: "registrationMetadataCandidate 必须是 strategy-flow-registration-metadata/2.0"};
+    }
+    return {ok: true, draft: value};
+  }
+
+  function agentDraftGate(draft) {
+    const blocked = [];
+    const seen = new Set();
+    const push = (target, pointer, reason) => {
+      const key = `${target}:${pointer}:${reason}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      blocked.push({target, pointer, reason});
+    };
+    for (const item of draft?.provenance ?? []) {
+      if (item.status === "missing" || item.status === "conflict") {
+        push(item.target ?? "design", item.pointer, item.status);
+      }
+    }
+    const design = validateDocument(normalizeDocument(draft.candidate));
+    for (const issue of design.errors) {
+      if (issue.path?.startsWith("registrationMetadata.")) continue;
+      push("design", issue.path || "schemaVersion", issue.code);
+    }
+    const metadata = validateRegistrationMetadata(draft.registrationMetadataCandidate);
+    for (const issue of metadata.errors) {
+      push("metadata", issue.path?.replace(/^registrationMetadata\./, "") || "schemaVersion", issue.code);
+    }
+    return {
+      blocked,
+      ready: blocked.length === 0,
+      designStatus: design.status,
+      metadataStatus: metadata.status,
+    };
+  }
+
+  function agentEvidenceIndex(corpus) {
+    const index = new Map();
+    for (const fragment of corpus?.fragments ?? []) {
+      index.set(fragment.evidenceId, fragment);
+    }
+    return index;
+  }
+
   const publicApi = {
     SCHEMA_VERSION,
+    SCHEMA_VERSION_0_1,
+    SCHEMA_VERSION_0_2,
+    SUPPORTED_SCHEMA_VERSIONS,
+    TAXONOMY_SCHEMA_VERSION,
+    TAXONOMY_FIELDS,
     NODE_TYPES,
     EDGE_TYPES,
     ACTOR_STATUSES,
@@ -484,8 +1054,16 @@
     defaultDocument,
     normalizeDocument,
     validateDocument,
+    validateRegistrationMetadata,
     toExportDocument,
     toJSON,
+    toRegistrationMetadataDocument,
+    toRegistrationMetadataJSON,
+    parseSchemaVersion,
+    parseAgentDraft,
+    agentDraftGate,
+    agentEvidenceIndex,
+    toTaxonomyContract,
     toMermaid,
     autoLayoutDocument,
   };
@@ -510,6 +1088,9 @@
     const edgeSvg = el("edgeSvg");
     const selectionBox = el("selectionBox");
     const inspector = el("inspector");
+    const registrationDrawer = el("registrationDrawer");
+    const registrationTabs = el("registrationTabs");
+    const registrationDrawerContent = el("registrationDrawerContent");
     const toastEl = el("toast");
     let documentState = defaultDocument();
     let selected = null;
@@ -520,12 +1101,24 @@
     let canvasPan = null;
     let connecting = null;
     let edgeLabelDrag = null;
+    let panelResize = null;
     let lastCanvasClick = null;
     let toastTimer = null;
     let saveStatusTimer = null;
     let clickOrigin = null;
+    let inspectorContent = null;
+    let activeInspectorTab = "basic";
+    let validationFilter = "all";
     const historyState = { past: [], future: [], lastKey: null, lastAt: 0 };
-    const layoutState = { left: true, right: true, bottom: true, zoom: 1 };
+    const layoutState = {
+      left: true,
+      right: true,
+      bottom: true,
+      leftWidth: 238,
+      rightWidth: 340,
+      bottomHeight: Math.max(260, Math.round(window.innerHeight * .32)),
+      zoom: 1,
+    };
     const CANVAS_BASE = { width: 4800, height: 3200 };
     const CANVAS_ZOOM_LIMITS = { min: 0.25, max: 1.5 };
 
@@ -593,6 +1186,9 @@
         ["left", "right", "bottom"].forEach(name => {
           if (typeof saved[name] === "boolean") layoutState[name] = saved[name];
         });
+        if (Number.isFinite(Number(saved?.leftWidth))) layoutState.leftWidth = Number(saved.leftWidth);
+        if (Number.isFinite(Number(saved?.rightWidth))) layoutState.rightWidth = Number(saved.rightWidth);
+        if (Number.isFinite(Number(saved?.bottomHeight))) layoutState.bottomHeight = Number(saved.bottomHeight);
         if (Number.isFinite(Number(saved?.zoom))) {
           layoutState.zoom = Math.min(
             CANVAS_ZOOM_LIMITS.max,
@@ -626,6 +1222,9 @@
         button?.classList.toggle("on", layoutState[name]);
         if (button) button.setAttribute("aria-pressed", String(layoutState[name]));
       });
+      root.style.setProperty("--left-col", `${Math.round(layoutState.leftWidth)}px`);
+      root.style.setProperty("--right-col", `${Math.round(layoutState.rightWidth)}px`);
+      root.style.setProperty("--bottom-row", `${Math.round(layoutState.bottomHeight)}px`);
       if (redrawEdges) {
         requestAnimationFrame(() => {
           // Grid track transition changes the visible canvas area; redraw once
@@ -640,6 +1239,51 @@
       layoutState[name] = visible;
       renderLayout();
       saveLayout();
+    }
+
+    function activatePanelView(viewId) {
+      document.querySelectorAll(".panel-tabs [data-panel]").forEach(button => {
+        button.classList.toggle("on", button.dataset.panel === viewId);
+      });
+      document.querySelectorAll(".panel-view").forEach(view => {
+        view.classList.toggle("on", view.id === viewId);
+      });
+    }
+
+    function panelSizeLimits() {
+      const effectiveRight = layoutState.right ? layoutState.rightWidth : 0;
+      const effectiveLeft = layoutState.left ? layoutState.leftWidth : 0;
+      return {
+        left: { min: 190, max: Math.max(220, window.innerWidth - effectiveRight - 520) },
+        right: { min: 300, max: Math.max(330, window.innerWidth - effectiveLeft - 520) },
+        bottom: { min: 220, max: Math.max(250, window.innerHeight - 280) },
+      };
+    }
+
+    function setPanelSize(name, size) {
+      const limits = panelSizeLimits()[name];
+      const value = Math.round(Math.min(limits.max, Math.max(limits.min, size)));
+      if (name === "left") layoutState.leftWidth = value;
+      if (name === "right") layoutState.rightWidth = value;
+      if (name === "bottom") layoutState.bottomHeight = value;
+      renderLayout();
+      return value;
+    }
+
+    function startPanelResize(event) {
+      const handle = event.target.closest("[data-panel-resizer]");
+      if (!handle) return;
+      event.preventDefault();
+      panelResize = {
+        name: handle.dataset.panelResizer,
+        startX: event.clientX,
+        startY: event.clientY,
+        startLeft: layoutState.leftWidth,
+        startRight: layoutState.rightWidth,
+        startBottom: layoutState.bottomHeight,
+      };
+      handle.setPointerCapture?.(event.pointerId);
+      document.body.classList.add("panel-resizing", `resizing-${panelResize.name}`);
     }
 
     function openInspectorFor(kind, id) {
@@ -830,6 +1474,9 @@
     function getPath(path) {
       const keys = path.split(".");
       const collectionName = keys.shift();
+      if (collectionName === "taxonomy" || collectionName === "registrationMetadata") {
+        return keys.reduce((value, key) => value?.[key], documentState[collectionName]);
+      }
       if (collectionName === "strategy") {
         return keys.reduce((value, key) => value?.[key], documentState.strategy);
       }
@@ -848,6 +1495,17 @@
       const last = keys.pop();
       const collectionName = keys.shift();
       let remainingKeys;
+      if (collectionName === "taxonomy" || collectionName === "registrationMetadata") {
+        remainingKeys = keys;
+        let parent = documentState[collectionName];
+        remainingKeys.forEach(key => {
+          if (parent[key] === null || typeof parent[key] !== "object") parent[key] = {};
+          parent = parent[key];
+        });
+        if (!parent) return;
+        parent[last] = value;
+        return;
+      }
       if (collectionName === "strategy") {
         remainingKeys = keys;
       } else {
@@ -945,6 +1603,25 @@
       pushHistory("add-process-action");
       documentState.processActions.push(action);
       selected = { kind: "processAction", id: action.localId };
+      renderAll();
+    }
+
+    function addCustomTagProposal() {
+      pushHistory("add-custom-tag-proposal");
+      documentState.taxonomy.customTagProposals.push(normalizeCustomTagProposal({
+        proposalId: "",
+        fieldCode: "businessScene",
+        label: "",
+        reason: "",
+      }));
+      renderAll();
+    }
+
+    function addTriggerScene() {
+      pushHistory("add-trigger-scene");
+      documentState.registrationMetadata.triggerScenes.push(normalizeRegistrationMetadata({
+        triggerScenes: [{}],
+      }).triggerScenes[0]);
       renderAll();
     }
 
@@ -1392,25 +2069,189 @@
       return `<div class="system-field"><span>${escapeHtml(label)}（自动生成）</span><b>${escapeHtml(value || "待生成")}</b><small>${escapeHtml(note)}</small></div>`;
     }
 
-    function renderStrategyInspector() {
+    function taxonomySelectionField(fieldCode) {
+      const field = TAXONOMY_FIELDS.get(fieldCode);
+      const selected = documentState.taxonomy.selections[fieldCode] || [];
+      const selectedCodes = new Set(selected.map(item => item.code));
+      const parentCodes = field.parentFieldCode
+        ? new Set((documentState.taxonomy.selections[field.parentFieldCode] || []).map(item => item.code))
+        : null;
+      const visibleValues = field.values.filter(value =>
+        !parentCodes || parentCodes.has(value.parentCode) || selectedCodes.has(value.code));
+      const inputType = field.cardinality === "single" ? "radio" : "checkbox";
+      return `<div class="field wide tag-field" data-taxonomy-container="${escapeHtml(fieldCode)}">
+        <span>${escapeHtml(field.label)}${field.required ? " *" : ""}</span>
+        <div class="tag-options">
+          ${visibleValues.length ? visibleValues.map(value => `<label class="tag-option">
+            <input type="${inputType}" name="taxonomy.${escapeHtml(fieldCode)}" data-taxonomy-field="${escapeHtml(fieldCode)}" data-taxonomy-code="${escapeHtml(value.code)}"${selectedCodes.has(value.code) ? " checked" : ""}>
+            <b>${escapeHtml(value.label)}</b><small>${escapeHtml(value.code)}</small>
+          </label>`).join("") : `<p class="field-help">请先选择可用的${escapeHtml(TAXONOMY_FIELDS.get(field.parentFieldCode || fieldCode)?.label || "父标签")}。</p>`}
+        </div>
+        <p class="field-help">${field.parentFieldCode ? "先选父标签，再选子标签；切换父标签会同步移除不再可用的子标签。" : `${field.cardinality === "single" ? "单选" : "多选"}；code 是正式提交值。`}</p>
+      </div>`;
+    }
+
+    function customProposalFields() {
+      const proposals = documentState.taxonomy.customTagProposals;
+      const allowedFields = ["businessScene", "strategyType", "touchScene", "touchMethod"];
+      return `<div class="wide field-section">
+        <h3>自定义标签提案</h3>
+        ${proposals.map((proposal, index) => `<div class="proposal-card">
+          <div class="field-grid">
+            ${inputField("提案 ID（至少8位）", `taxonomy.customTagProposals.${index}.proposalId`, proposal.proposalId, "text", "proposal-type-001")}
+            ${selectField("提案字段", `taxonomy.customTagProposals.${index}.fieldCode`, proposal.fieldCode, allowedFields.map(code => [code, TAXONOMY_FIELDS.get(code).label]))}
+            ${inputField("展示名", `taxonomy.customTagProposals.${index}.label`, proposal.label)}
+            ${inputField("父字段", `taxonomy.customTagProposals.${index}.parentRef.fieldCode`, proposal.parentRef?.fieldCode || "", "text", "businessScene / touchScene")}
+            ${inputField("父 code 或父提案 ID", `taxonomy.customTagProposals.${index}.parentRef.code`, proposal.parentRef?.code || "", "text", "user_activation 或 proposal-scene-001")}
+            ${inputField("父提案 ID", `taxonomy.customTagProposals.${index}.parentRef.proposalId`, proposal.parentRef?.proposalId || "", "text", "同请求内父提案")}
+            <div class="wide">${textareaField("业务理由", `taxonomy.customTagProposals.${index}.reason`, proposal.reason, "说明为什么现有字典不覆盖")}</div>
+          </div>
+          <button class="btn danger small" type="button" data-action="delete-proposal" data-index="${index}">删除提案</button>
+        </div>`).join("")}
+        <button class="btn small" type="button" data-action="add-proposal">新增提案</button>
+        <p class="field-help">调用方不能生成 code。提案审批通过前会阻断 Workbench 的 templates / process。</p>
+      </div>`;
+    }
+
+    function triggerSceneFields() {
+      const scenes = documentState.registrationMetadata.triggerScenes;
+      const fields = [
+        ["triggerSceneId", "触发场景 ID"], ["triggerScene", "触发场景"], ["threshold", "阈值"],
+        ["frequency", "频率"], ["deduplication", "去重"], ["cooldown", "冷却"],
+        ["audienceScope", "受众范围"], ["qualification", "资格条件"], ["dataSource", "数据源"],
+        ["confirmationStatus", "确认状态"],
+      ];
+      return `<div class="wide field-section">
+        <h3>触发场景</h3>
+        ${scenes.map((scene, index) => `<div class="proposal-card">
+          <div class="field-grid">
+            ${fields.map(([key, label]) => inputField(label, `registrationMetadata.triggerScenes.${index}.${key}`, scene[key]))}
+          </div>
+          <button class="btn danger small" type="button" data-action="delete-trigger-scene" data-index="${index}">删除触发场景</button>
+        </div>`).join("")}
+        <button class="btn small" type="button" data-action="add-trigger-scene">新增触发场景</button>
+      </div>`;
+    }
+
+    function updateTaxonomySelection(target) {
+      const fieldCode = target.dataset.taxonomyField;
+      const code = target.dataset.taxonomyCode;
+      const field = TAXONOMY_FIELDS.get(fieldCode);
+      if (!field || !code) return;
+      const values = documentState.taxonomy.selections[fieldCode] || [];
+      const definition = field.values.find(value => value.code === code);
+      const nextValue = definition
+        ? { code, parentCode: definition.parentCode ?? null}
+        : { code, parentCode: null };
+      if (field.cardinality === "single") {
+        documentState.taxonomy.selections[fieldCode] = target.checked ? [nextValue] : [];
+      } else if (target.checked) {
+        values.push(nextValue);
+      } else {
+        documentState.taxonomy.selections[fieldCode] = values.filter(value => value.code !== code);
+      }
+
+      // Parent switches are destructive in the UI. Imported bad pairs are kept
+      // for validation; an explicit user edit should not leave hidden children.
+      const childrenByParent = {
+        customerClass: "assetRange",
+        businessScene: "strategyType",
+        touchScene: "touchMethod",
+      };
+      if (childrenByParent[fieldCode]) {
+        const childField = childrenByParent[fieldCode];
+        const parentCodes = new Set(documentState.taxonomy.selections[fieldCode].map(value => value.code));
+        documentState.taxonomy.selections[childField] = documentState.taxonomy.selections[childField]
+          .filter(value => parentCodes.has(value.parentCode));
+      }
+
+      if (fieldCode === "assetRange") {
+        if (target.checked && code === "unlimited") {
+          documentState.taxonomy.selections.assetRange = [nextValue];
+        } else if (target.checked && code !== "unlimited") {
+          documentState.taxonomy.selections.assetRange = documentState.taxonomy.selections.assetRange
+            .filter(value => value.code !== "unlimited");
+        }
+      }
+      if (fieldCode === "riskLevel") {
+        const selected = documentState.taxonomy.selections.riskLevel;
+        if (target.checked && code === "unspecified") {
+          documentState.taxonomy.selections.riskLevel = [nextValue];
+        } else if (target.checked && code !== "unspecified") {
+          documentState.taxonomy.selections.riskLevel = selected.filter(value => value.code !== "unspecified");
+        }
+      }
+    }
+
+    function renderBasicInspector() {
       const strategy = documentState.strategy;
-      inspector.innerHTML = `<div class="side-block">
-        <div class="inspector-head"><div><b>策略基础信息</b><small>先填业务信息，再画流程。</small></div></div>
-        <div class="inspector-form">
+      inspectorContent.innerHTML = `<div class="side-block">
+        <div class="inspector-head"><div><b>策略基础信息</b><small>strategy-flow-input/0.2 · 标签由 taxonomy 统一承载</small></div></div>
+        <div class="inspector-form field-grid">
           ${inputField("策略名称", "strategy.strategyName", strategy.strategyName)}
-          ${inputField("门户策略编号", "strategy.strategyId", strategy.strategyId, "text", "首次提交留空，注册后回填")}
+          ${inputField("门户策略编号", "strategy.strategyId", strategy.strategyId, "text", "必须已绑定 case")}
           ${inputField("主要负责人", "strategy.owner", strategy.owner)}
           ${inputField("提交人", "strategy.submitter", strategy.submitter)}
-          ${inputField("业务场景", "strategy.businessScene", strategy.businessScene)}
-          ${inputField("策略类型", "strategy.strategyType", strategy.strategyType)}
-          ${inputField("策略子类", "strategy.strategySubtype", strategy.strategySubtype)}
-          ${selectField("版本状态", "strategy.versionStatus", strategy.versionStatus, [["draft", "draft"], ["candidate", "candidate"], ["registered", "registered"], ["deprecated", "deprecated"]])}
+          ${inputField("策略业务版本", "strategy.version", strategy.version)}
+          ${selectField("版本状态", "strategy.versionStatus", strategy.versionStatus, [["", "待选择"], ["draft", "draft"], ["candidate", "candidate"]])}
         </div>
       </div>`;
     }
 
+    function renderTaxonomyInspector() {
+      const taxonomyBlock = document.createElement("div");
+      taxonomyBlock.className = "side-block";
+      taxonomyBlock.innerHTML = `<h2 class="side-title">策略标签</h2>
+        <details class="taxonomy-group" data-taxonomy-group="customer" open>
+          <summary>客群识别<span>生命周期 / 客群 / 资产 / 风险</span></summary>
+          <div class="inspector-form field-grid">
+          ${taxonomySelectionField("lifecycle")}
+          ${taxonomySelectionField("customerClass")}
+          ${taxonomySelectionField("assetRange")}
+          ${taxonomySelectionField("riskLevel")}
+          </div>
+        </details>
+        <details class="taxonomy-group" data-taxonomy-group="business" open>
+          <summary>业务场景与策略类型<span>场景 → 二级类型 → 子类</span></summary>
+          <div class="inspector-form field-grid">
+          ${taxonomySelectionField("businessScene")}
+          ${taxonomySelectionField("strategyType")}
+          ${inputField("策略子类", "taxonomy.strategySubtype", documentState.taxonomy.strategySubtype)}
+          </div>
+        </details>
+        <details class="taxonomy-group" data-taxonomy-group="touch" open>
+          <summary>触达配置<span>场景 → 真实触达方式</span></summary>
+          <div class="inspector-form field-grid">
+          ${taxonomySelectionField("touchScene")}
+          ${taxonomySelectionField("touchMethod")}
+          </div>
+        </details>
+        <details class="taxonomy-group" data-taxonomy-group="proposals">
+          <summary>自定义标签提案<span>审批前不生成 code</span></summary>
+          ${customProposalFields()}
+        </details>`;
+      inspectorContent.append(taxonomyBlock);
+    }
+
+    function renderMetadataInspector() {
+      const metadata = documentState.registrationMetadata;
+      const metadataBlock = document.createElement("div");
+      metadataBlock.className = "side-block";
+      metadataBlock.innerHTML = `<h2 class="side-title">注册元数据 Companion</h2>
+        <div class="inspector-form field-grid">
+          ${inputField("业务归属", "registrationMetadata.businessUnit", metadata.businessUnit)}
+          ${inputField("提交日期", "registrationMetadata.submitDate", metadata.submitDate, "date")}
+          ${inputField("核心抓手", "registrationMetadata.coreHook", metadata.coreHook)}
+          ${inputField("生效日期", "registrationMetadata.effectiveFrom", metadata.effectiveFrom, "date")}
+          ${inputField("基准版本", "registrationMetadata.baselineVersion", metadata.baselineVersion, "text", "candidate 必填")}
+        </div>
+        ${triggerSceneFields()}`;
+      inspectorContent.append(metadataBlock);
+    }
+
+
     function renderNodeInspector(node) {
-      inspector.innerHTML = `<div class="side-block">
+      inspectorContent.innerHTML = `<div class="side-block">
         <div class="inspector-head">
           <div><b>流程卡片</b><small>系统编号自动生成</small></div>
           <button class="btn danger small" data-action="delete" type="button">删除</button>
@@ -1444,7 +2285,7 @@
     }
 
     function renderEdgeInspector(edge) {
-      inspector.innerHTML = `<div class="side-block">
+      inspectorContent.innerHTML = `<div class="side-block">
         <div class="inspector-head">
           <div><b>流转规则</b><small>从一张卡片进入下一张卡片的业务条件</small></div>
           <button class="btn danger small" data-action="delete" type="button">删除</button>
@@ -1480,7 +2321,7 @@
       const nodeOptions = documentState.nodes.map(node => [node.localId, `${node.executor || "执行人待确认"}｜${node.subject.name || "对象待确认"}｜${node.subject.state || "状态待确认"}`]);
       const edgeOptions = [["", "暂不绑定流转规则"], ...documentState.edges.filter(edge => edge.from === action.nodeId).map(edge => [edge.localId, `规则｜${edge.actorBehavior.action || "待确认"}`])];
       if (kind === "strategyAction") {
-        inspector.innerHTML = `<div class="side-block">
+        inspectorContent.innerHTML = `<div class="side-block">
           <div class="inspector-head"><div><b>客户触达内容</b><small>对客户说什么、用什么权益</small></div><button class="btn danger small" data-action="delete" type="button">删除</button></div>
           <div class="inspector-form field-grid">
             <div class="wide">${systemIdField("内容系统编号", action.localId, "系统自动维护，不需要业务填写。")}</div>
@@ -1501,7 +2342,7 @@
           </div>
         </div>`;
       } else {
-        inspector.innerHTML = `<div class="side-block">
+        inspectorContent.innerHTML = `<div class="side-block">
           <div class="inspector-head"><div><b>执行跟进动作</b><small>谁执行、执行什么、交给谁</small></div><button class="btn danger small" data-action="delete" type="button">删除</button></div>
           <div class="inspector-form field-grid">
             <div class="wide">${systemIdField("动作系统编号", action.localId, "系统自动维护，不需要业务填写。")}</div>
@@ -1520,18 +2361,190 @@
       }
     }
 
+    function renderRegistrationInspector() {
+      const tabs = [
+        ["basic", "基础信息"],
+        ["taxonomy", "策略标签"],
+        ["metadata", "元数据"],
+      ];
+      registrationTabs.innerHTML = tabs.map(([id, label]) => `<button type="button" role="tab" data-inspector-tab="${id}"${activeInspectorTab === id ? ' class="on" aria-selected="true"' : ' aria-selected="false"'}>${escapeHtml(label)}</button>`).join("");
+      registrationDrawerContent.innerHTML = "";
+      inspectorContent = registrationDrawerContent;
+      if (activeInspectorTab === "taxonomy") renderTaxonomyInspector();
+      else if (activeInspectorTab === "metadata") renderMetadataInspector();
+      else renderBasicInspector();
+    }
+
+    function renderCurrentObjectInspector(current) {
+      if (current.kind === "node") renderNodeInspector(current.value);
+      else if (current.kind === "edge") renderEdgeInspector(current.value);
+      else renderActionInspector(current.kind, current.value);
+    }
+
     function renderInspector() {
       const current = selectedObject();
       if (!current?.value) {
         selected = null;
-        renderStrategyInspector();
-      } else if (current.kind === "node") {
-        renderNodeInspector(current.value);
-      } else if (current.kind === "edge") {
-        renderEdgeInspector(current.value);
-      } else {
-        renderActionInspector(current.kind, current.value);
+        inspector.innerHTML = `<div class="object-empty object-empty-sidebar">
+          <b>当前对象</b>
+          <p>点击流程卡片、流转规则标签或动作气泡，这里会立即显示对应的编辑表单。</p>
+          <small>基础信息、策略标签和注册元数据在顶部“本策略注册信息”中维护。</small>
+        </div>`;
+        return;
       }
+      inspector.innerHTML = "";
+      inspectorContent = inspector;
+      renderCurrentObjectInspector(current);
+    }
+
+    function issueDomain(path) {
+      const value = clean(path);
+      if (value.startsWith("schemaVersion") || value.startsWith("schema") || ["schemaVersion", "schema"].includes(value)) return "contract";
+      if (value.startsWith("strategy.")) return "basic";
+      if (value.startsWith("taxonomy.")) return "taxonomy";
+      if (value.startsWith("registrationMetadata.")) return "metadata";
+      return "flow";
+    }
+
+    function domainMeta(domain) {
+      return {
+        contract: ["契约与结构", "basic"],
+        basic: ["策略基础信息", "basic"],
+        taxonomy: ["策略标签", "taxonomy"],
+        metadata: ["注册元数据", "metadata"],
+        flow: ["流程图", ""],
+      }[domain] || ["其他", "basic"];
+    }
+
+    function issueIcon(severity) {
+      return severity === "warning" ? "!" : "×";
+    }
+
+    function issueSource(item) {
+      const domain = issueDomain(item.path);
+      if (domain === "metadata") return "Metadata 2.0";
+      if (domain === "flow" || domain === "contract") return "Design 0.2";
+      return domain === "taxonomy" ? "Design taxonomy" : "Design strategy";
+    }
+
+    function issueAdvice(item) {
+      const advice = {
+        SCHEMA_VERSION_REQUIRED: "补齐 schemaVersion 后重新导入。",
+        SCHEMA_VERSION_INVALID: "使用 strategy-flow-input/<major>.<minor> 格式。",
+        SCHEMA_VERSION_UNSUPPORTED: "改用当前已注册的 0.1 / 0.2 契约。",
+        SCHEMA_UNKNOWN_FIELD: "删除契约未定义的字段，或升级到承载该字段的版本。",
+        STRATEGY_FIELD_REQUIRED: "在基础信息 Tab 补齐策略事实。",
+        TAG_FIELD_REQUIRED: "在策略标签 Tab 选择必填标签。",
+        TAG_PARENT_MISMATCH: "按 taxonomy 字典重新选择父标签。",
+        TAG_PARENT_REQUIRED: "先选父标签，再补子标签 parentCode。",
+        TAG_CHILD_REQUIRED: "为每个已选父标签至少选择一个子标签。",
+        TAG_EXCLUSIVE_INVALID: "互斥标签只能二选一。",
+        METADATA_FIELD_REQUIRED: "在元数据 Tab 补齐 companion 字段。",
+        METADATA_TRIGGER_SCENE_REQUIRED: "场景范式需要在 Metadata 2.0 中补充触发场景。",
+        EDGE_ENDPOINT_MISSING: "检查边引用的卡片 ID，或重新连线。",
+        EDGE_SELF_LOOP: "回收 / 重入必须经过显式卡片，不能自环。",
+        EXECUTOR_HANDOFF_MISSING: "执行人变化时把流转类型改为 handoff。",
+        NODE_ORPHAN: "为孤立卡片连线，或删除该卡片。",
+        ACTION_FIELD_REQUIRED: "补齐动作业务字段和指标。",
+        CUSTOM_TAG_APPROVAL_REQUIRED: "保留提案等待 Workbench 审批；未批准前不要进入 process。",
+      }[item.code];
+      return advice || (item.severity === "error" ? "处理该项阻断后再导出正式输入。" : "评估该警告是否会影响业务确认。");
+    }
+
+    function domainDetail(domain) {
+      const strategy = documentState.strategy;
+      const taxonomy = documentState.taxonomy;
+      const metadata = documentState.registrationMetadata;
+      if (domain === "contract") return `${SCHEMA_VERSION} · ${documentState.nodes.length} 卡片`;
+      if (domain === "basic") return clean(strategy.strategyName) || "缺少策略名称";
+      if (domain === "taxonomy") {
+        const selectedCount = Object.values(taxonomy.selections).reduce((sum, values) => sum + values.length, 0);
+        return `${selectedCount} 个标签 · ${taxonomy.customTagProposals.length} 个提案`;
+      }
+      if (domain === "metadata") return clean(metadata.businessUnit) || "缺少业务归属";
+      return `${documentState.nodes.length} 卡片 · ${documentState.edges.length} 规则 · ${documentState.strategyActions.length + documentState.processActions.length} 动作`;
+    }
+
+    function renderIssueGroups(issues) {
+      const filteredIssues = issues.filter(item =>
+        validationFilter === "all"
+        || (validationFilter === "error" && item.severity === "error")
+        || (validationFilter === "warning" && item.severity === "warning"));
+      const groups = new Map();
+      filteredIssues.forEach(item => {
+        const domain = issueDomain(item.path);
+        if (!groups.has(domain)) groups.set(domain, []);
+        groups.get(domain).push(item);
+      });
+      const renderedGroups = [...groups.entries()].map(([domain, items]) => {
+        const [title] = domainMeta(domain);
+        const errorCount = items.filter(item => item.severity === "error").length;
+        const warningCount = items.length - errorCount;
+        return `<section class="issue-group" data-domain="${domain}">
+          <header>
+            <div><b>${escapeHtml(title)}</b><small>${escapeHtml(domainDetail(domain))}</small></div>
+            <span>${errorCount} 阻断 · ${warningCount} 警告</span>
+          </header>
+          ${items.map(item => `<article class="issue${item.severity === "warning" ? " warning" : ""}" data-focus-path="${escapeHtml(item.path)}">
+            <div class="issue-icon">${issueIcon(item.severity)}</div>
+            <div class="issue-main">
+              <div class="issue-top">
+                <span class="issue-severity">${item.severity === "error" ? "阻断" : "警告"}</span>
+                <b>${escapeHtml(item.code)}</b>
+                <small>${escapeHtml(issueSource(item))}</small>
+              </div>
+              <p>${escapeHtml(item.message)}</p>
+              <div class="issue-meta"><span>JSON Path</span><code>${escapeHtml(item.path)}</code></div>
+              <p class="issue-advice">${escapeHtml(issueAdvice(item))}</p>
+            </div>
+            <div class="issue-actions">
+              <button class="btn small" type="button" data-focus-path="${escapeHtml(item.path)}">定位</button>
+              <button class="btn ghost small" type="button" data-copy-path="${escapeHtml(item.path)}" data-copy-code="${escapeHtml(item.code)}">复制</button>
+            </div>
+          </article>`).join("")}
+        </section>`;
+      }).join("");
+      const errorCount = issues.filter(item => item.severity === "error").length;
+      const warningCount = issues.length - errorCount;
+      const toolbar = `<div class="issue-toolbar">
+        <div class="issue-counts"><b>${issues.length}</b><span>条结果</span><em>${errorCount} 阻断</em><em>${warningCount} 警告</em></div>
+        <div class="issue-filters">
+          ${[["all", "全部"], ["error", "阻断"], ["warning", "警告"]].map(([value, label]) => `<button type="button" data-validation-filter="${value}"${validationFilter === value ? ' class="on"' : ""}>${label}</button>`).join("")}
+        </div>
+      </div>`;
+      return toolbar + (renderedGroups || `<div class="empty-issues">当前筛选下没有校验问题。</div>`);
+    }
+
+    function renderReadinessSummary(result) {
+      const domains = ["contract", "basic", "taxonomy", "metadata", "flow"];
+      const items = domains.map(domain => {
+        const errors = result.errors.filter(item => issueDomain(item.path) === domain).length;
+        const warnings = result.warnings.filter(item => issueDomain(item.path) === domain).length;
+        const state = errors ? "error" : warnings ? "warning" : "ready";
+        const [title, tab] = domainMeta(domain);
+        return {
+          domain,
+          html: `<button type="button" ${domain === "flow" ? 'data-object-focus="true"' : `data-inspector-tab="${tab}"`} data-domain="${domain}" class="${state}">
+          <b>${escapeHtml(title)}</b><span>${errors ? `${errors} 个阻断` : warnings ? `${warnings} 个警告` : "完成"}</span>
+          </button>`,
+        };
+      });
+      const readyDomains = domains.filter(domain =>
+        !result.errors.some(item => issueDomain(item.path) === domain)).length;
+      const progress = Math.round(readyDomains / domains.length * 100);
+      el("readinessSummary").innerHTML = `<header>
+          <b>提交准备度</b>
+          <span class="status ${result.status === "ready_to_submit" ? "ready" : "draft"}">${result.status}</span>
+        </header>
+        <div class="readiness-progress"><span style="width:${progress}%"></span></div>
+        <div class="readiness-metrics">
+          <div><b>${readyDomains}/${domains.length}</b><span>域无阻断</span></div>
+          <div><b>${result.errors.length}</b><span>阻断</span></div>
+          <div><b>${result.warnings.length}</b><span>警告</span></div>
+          <div><b>${documentState.nodes.length + documentState.edges.length}</b><span>图对象</span></div>
+          <div><b>${documentState.strategyActions.length + documentState.processActions.length}</b><span>动作</span></div>
+        </div>
+        <div>${items.map(item => `${item.html}<small>${escapeHtml(domainDetail(item.domain))}</small>`).join("")}</div>`;
     }
 
     function renderValidation() {
@@ -1543,15 +2556,34 @@
         ...result.errors.map(item => ({ ...item, severity: "error" })),
         ...result.warnings.map(item => ({ ...item, severity: "warning" })),
       ];
-      el("issueList").innerHTML = issues.length ? issues.map(item => `<div class="issue${item.severity === "warning" ? " warning" : ""}"><b>${escapeHtml(item.code)}</b>${escapeHtml(item.message)}<br><span>${escapeHtml(item.path)}</span></div>`).join("") : `<div class="empty-issues">没有校验问题。</div>`;
+      renderReadinessSummary(result);
+      el("issueList").innerHTML = issues.length ? renderIssueGroups(issues) : `<div class="empty-issues">没有校验问题。</div>`;
+      const editorPill = el("editorStatusPill");
+      editorPill.textContent = result.status;
+      editorPill.className = `status ${result.status === "ready_to_submit" ? "ready" : "draft"}`;
+      el("editorIssueCount").textContent = `${result.errors.length} errors · ${result.warnings.length} warnings`;
+      const exportState = result.status === "ready_to_submit" ? "ready_to_submit" : "draft";
+      el("exportDesignStatus").textContent = exportState;
+      const metadataErrors = result.errors.filter(item => issueDomain(item.path) === "metadata");
+      el("exportMetadataStatus").textContent = metadataErrors.length ? "draft" : "ready_to_submit";
+      el("exportCliTemplate").value = `python3 strategy-workbench/scripts/manage_case.py --json import-flow \\
+  --case WB-YYYYMMDD-XXXXXXXX \\
+  --design ./${clean(documentState.strategy.strategyName) || "strategy-flow"}-0.2.json \\
+  --metadata ./${clean(documentState.strategy.strategyName) || "strategy-flow"}-registration-metadata-2.0.json \\
+  --actor 李四 \\
+  --request-id REQ-IMPORT-FLOW-001`;
       el("jsonOutput").value = toJSON(documentState);
       el("mermaidOutput").value = toMermaid(documentState);
+      const metadataOutput = el("metadataOutput");
+      if (metadataOutput) metadataOutput.value = toRegistrationMetadataJSON(documentState);
     }
 
     function renderParadigm() {
       document.querySelectorAll("#paradigmSwitch button").forEach(button => {
         button.classList.toggle("on", button.dataset.paradigm === documentState.strategy.paradigm);
       });
+      const status = el("paradigmStatus");
+      if (status) status.textContent = documentState.strategy.paradigm === "scene" ? "场景" : "客群";
     }
 
     function renderSoft() {
@@ -1563,6 +2595,7 @@
 
     function renderAll() {
       renderSoft();
+      renderRegistrationInspector();
       renderInspector();
     }
 
@@ -1585,6 +2618,26 @@
         if (!silent) toast(result.errors.length ? "已导入草稿；仍有校验错误" : "导入成功，校验通过");
       } catch (error) {
         if (!silent) toast(`JSON 解析失败：${error.message}`, true);
+      }
+    }
+
+    function applyMetadataImport(raw, silent = false) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.schemaVersion !== METADATA_SCHEMA_VERSION) {
+          if (!silent) toast(`注册元数据版本必须是 ${METADATA_SCHEMA_VERSION}`, true);
+          return;
+        }
+        const metadataValidation = validateRegistrationMetadata(parsed);
+        if (metadataValidation.errors.length && !silent) {
+          toast(`注册元数据仍有 ${metadataValidation.errors.length} 个错误`, true);
+        }
+        pushHistory("import-metadata");
+        documentState.registrationMetadata = normalizeRegistrationMetadata(parsed);
+        renderAll();
+        if (!silent) toast("注册元数据已导入");
+      } catch (error) {
+        if (!silent) toast(`注册元数据解析失败：${error.message}`, true);
       }
     }
 
@@ -1615,9 +2668,81 @@
       URL.revokeObjectURL(url);
     }
 
-    inspector.addEventListener("input", event => {
+    function objectFromIssuePath(path) {
+      const match = /^(nodes|edges|strategyActions|processActions)\[(\d+)\]/.exec(clean(path));
+      if (!match) return null;
+      const collectionName = match[1];
+      const index = Number(match[2]);
+      const collection = {
+        nodes: documentState.nodes,
+        edges: documentState.edges,
+        strategyActions: documentState.strategyActions,
+        processActions: documentState.processActions,
+      }[collectionName];
+      const item = collection?.[index];
+      if (!item) return null;
+      const kind = collectionName === "strategyActions" || collectionName === "processActions"
+        ? collectionName
+        : collectionName;
+      return { kind, id: item.localId };
+    }
+
+    function focusIssue(path) {
+      const domain = issueDomain(path);
+      if (domain === "taxonomy") activeInspectorTab = "taxonomy";
+      else if (domain === "metadata") activeInspectorTab = "metadata";
+      else if (domain === "flow") {
+        const object = objectFromIssuePath(path);
+        if (object) {
+          selected = object;
+          selection = new Set([selectionKey(object.kind, object.id)]);
+          if (!layoutState.right) setPanelVisible("right", true);
+        }
+      } else activeInspectorTab = "basic";
+
+      if (domain !== "flow") {
+        registrationDrawer.hidden = false;
+        renderRegistrationInspector();
+      }
+      renderInspector();
+      if (domain === "taxonomy") {
+        const fieldCode = clean(path).match(/taxonomy\.(?:tagSelections\.)?([a-zA-Z0-9_]+)/)?.[1];
+        const groupByField = {
+          lifecycle: "customer", customerClass: "customer", assetRange: "customer", riskLevel: "customer",
+          businessScene: "business", strategyType: "business", strategySubtype: "business",
+          touchScene: "touch", touchMethod: "touch",
+        };
+        const group = groupByField[fieldCode] || "proposals";
+        const details = registrationDrawer.querySelector(`[data-taxonomy-group="${group}"]`);
+        if (details) {
+          details.open = true;
+          details.scrollIntoView({ block: "nearest" });
+        }
+      }
+    }
+
+    function bindInspectorSurface(surface) {
+      surface.addEventListener("click", event => {
+      const tabButton = event.target.closest("[data-inspector-tab]");
+      if (!tabButton || tabButton.disabled) return;
+      activeInspectorTab = tabButton.dataset.inspectorTab;
+      // Keep the click target attached until document-level click handling is
+      // finished; replacing the tab subtree mid-bubble can look like a background click.
+      requestAnimationFrame(() => {
+        if (surface === registrationDrawer) renderRegistrationInspector();
+        else renderInspector();
+      });
+      });
+
+      surface.addEventListener("input", event => {
       const target = event.target;
       const path = target.dataset?.bind;
+      if (target.dataset.taxonomyField) {
+        pushHistory(`taxonomy.${target.dataset.taxonomyField}.${target.dataset.taxonomyCode}`);
+        updateTaxonomySelection(target);
+        renderAll();
+        return;
+      }
       if (!path) return;
       const current = selectedObject();
       if (target.dataset.action === "toggle-no-action") {
@@ -1671,15 +2796,31 @@
         }
       }
       renderSoft();
-    });
+      });
 
-    inspector.addEventListener("click", event => {
+      surface.addEventListener("click", event => {
       const button = event.target.closest("[data-action]");
       if (!button) return;
       if (button.dataset.action === "delete") deleteSelected();
       if (button.dataset.action === "add-strategy") addStrategyAction();
       if (button.dataset.action === "add-process") addProcessAction();
-    });
+      if (button.dataset.action === "add-proposal") addCustomTagProposal();
+      if (button.dataset.action === "add-trigger-scene") addTriggerScene();
+      if (button.dataset.action === "delete-proposal") {
+        pushHistory("delete-custom-tag-proposal");
+        documentState.taxonomy.customTagProposals.splice(Number(button.dataset.index), 1);
+        renderAll();
+      }
+      if (button.dataset.action === "delete-trigger-scene") {
+        pushHistory("delete-trigger-scene");
+        documentState.registrationMetadata.triggerScenes.splice(Number(button.dataset.index), 1);
+        renderAll();
+      }
+      });
+    }
+
+    bindInspectorSurface(inspector);
+    bindInspectorSurface(registrationDrawer);
 
     nodeLayer.addEventListener("click", event => {
       const chip = event.target.closest("[data-select-kind]");
@@ -1810,6 +2951,19 @@
     });
 
     document.addEventListener("pointermove", event => {
+      if (panelResize) {
+        const deltaX = event.clientX - panelResize.startX;
+        const deltaY = event.clientY - panelResize.startY;
+        if (panelResize.name === "left") {
+          setPanelSize("left", panelResize.startLeft + deltaX);
+        } else if (panelResize.name === "right") {
+          setPanelSize("right", panelResize.startRight - deltaX);
+        } else if (panelResize.name === "bottom") {
+          setPanelSize("bottom", panelResize.startBottom - deltaY);
+        }
+        event.preventDefault();
+        return;
+      }
       if (
         clickOrigin
         && Math.hypot(event.clientX - clickOrigin.x, event.clientY - clickOrigin.y) > 3
@@ -1885,6 +3039,14 @@
     });
 
     document.addEventListener("pointerup", event => {
+      if (panelResize) {
+        const name = panelResize.name;
+        panelResize = null;
+        document.body.classList.remove("panel-resizing", `resizing-${name}`);
+        renderLayout();
+        saveLayout();
+        return;
+      }
       if (edgeLabelDrag) {
         edgeLabelDrag = null;
         edgeLabelLayer.classList.remove("dragging");
@@ -1965,8 +3127,13 @@
       // element under the pointer in some browsers. That is not an intentional
       // background click, so keep the current inspector selection.
       if (origin?.moved) return;
-      if (event.target.closest(".topbar") || event.target.closest(".side-panel") || event.target.closest(".bottom-panel")) return;
-      if (event.target.closest(".node-card") || event.target.closest(".edge-label") || event.target.closest("path.hit")) return;
+      const protectedByStaticSurface = event.composedPath().some(node =>
+        node instanceof Element
+        && (node.closest(".topbar") || node.closest(".side-panel") || node.closest(".bottom-panel") || node.closest(".export-drawer")));
+      const protectedByCanvasObject = event.composedPath().some(node =>
+        node instanceof Element
+        && (node.closest(".node-card") || node.closest(".edge-label") || node.closest("path.hit")));
+      if (protectedByStaticSurface || protectedByCanvasObject) return;
       clearSelection();
       renderAll();
     });
@@ -2015,6 +3182,31 @@
     el("toggleLeftPanelBtn").addEventListener("click", event => setPanelVisible("left", !layoutState.left));
     el("toggleRightPanelBtn").addEventListener("click", event => setPanelVisible("right", !layoutState.right));
     el("toggleBottomPanelBtn").addEventListener("click", event => setPanelVisible("bottom", !layoutState.bottom));
+    document.querySelectorAll("[data-panel-resizer]").forEach(handle => {
+      handle.addEventListener("pointerdown", startPanelResize);
+      handle.addEventListener("keydown", event => {
+        const name = handle.dataset.panelResizer;
+        const step = event.shiftKey ? 48 : 16;
+        let handled = true;
+        if (name === "left" && event.key === "ArrowLeft") setPanelSize(name, layoutState.leftWidth - step);
+        else if (name === "left" && event.key === "ArrowRight") setPanelSize(name, layoutState.leftWidth + step);
+        else if (name === "right" && event.key === "ArrowLeft") setPanelSize(name, layoutState.rightWidth + step);
+        else if (name === "right" && event.key === "ArrowRight") setPanelSize(name, layoutState.rightWidth - step);
+        else if (name === "bottom" && event.key === "ArrowUp") setPanelSize(name, layoutState.bottomHeight + step);
+        else if (name === "bottom" && event.key === "ArrowDown") setPanelSize(name, layoutState.bottomHeight - step);
+        else handled = false;
+        if (handled) {
+          event.preventDefault();
+          saveLayout();
+        }
+      });
+    });
+    window.addEventListener("resize", () => {
+      setPanelSize("left", layoutState.leftWidth);
+      setPanelSize("right", layoutState.rightWidth);
+      setPanelSize("bottom", layoutState.bottomHeight);
+      saveLayout();
+    });
     el("paradigmSwitch").addEventListener("click", event => {
       const button = event.target.closest("[data-paradigm]");
       if (!button) return;
@@ -2055,6 +3247,13 @@
       applyImport(await file.text());
       event.target.value = "";
     });
+    el("importMetadataBtn").addEventListener("click", () => el("importMetadataFile").click());
+    el("importMetadataFile").addEventListener("change", async event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      applyMetadataImport(await file.text());
+      event.target.value = "";
+    });
     el("applyImportBtn").addEventListener("click", () => applyImport(el("importText").value));
     el("formatImportBtn").addEventListener("click", () => {
       try {
@@ -2066,11 +3265,170 @@
         toast(`JSON 解析失败：${error.message}`, true);
       }
     });
+    const moreActionsButton = el("moreActionsBtn");
+    const moreActionsMenu = el("moreActionsMenu");
+    const setMoreActions = visible => {
+      moreActionsMenu.hidden = !visible;
+      moreActionsButton.classList.toggle("on", visible);
+      moreActionsButton.setAttribute("aria-expanded", String(visible));
+    };
+    moreActionsButton.addEventListener("click", event => {
+      event.stopPropagation();
+      setMoreActions(moreActionsMenu.hidden);
+    });
+    moreActionsMenu.addEventListener("click", () => setMoreActions(false));
+    document.addEventListener("click", event => {
+      if (!event.target.closest(".more-actions")) setMoreActions(false);
+    });
+
+    el("openExportDrawerBtn").addEventListener("click", () => {
+      el("exportDrawer").hidden = false;
+    });
+    el("closeExportDrawerBtn").addEventListener("click", () => {
+      el("exportDrawer").hidden = true;
+    });
+    el("openRegistrationDrawerBtn").addEventListener("click", () => {
+      registrationDrawer.hidden = false;
+      renderRegistrationInspector();
+    });
+    el("closeRegistrationDrawerBtn").addEventListener("click", () => {
+      registrationDrawer.hidden = true;
+    });
+    let agentDraft = null;
+    let agentCorpus = null;
+    const agentEvidence = evidenceId => {
+      const fragment = agentCorpus?.fragments?.find(item => item.evidenceId === evidenceId);
+      if (!fragment) return `证据 ${evidenceId}：未导入证据库，无法预览原文。`;
+      return `【${fragment.evidenceId}】${fragment.fileId} · ${fragment.fragmentType}\n${fragment.text}`;
+    };
+    const renderAgentDrawer = () => {
+      const meta = el("agentDraftMeta");
+      const provenanceList = el("agentProvenanceList");
+      const questionList = el("agentQuestionList");
+      if (!agentDraft) {
+        meta.textContent = "尚未导入草稿。先用 strategy-agent generate-draft 生成，再导入此处审查。";
+        provenanceList.innerHTML = "";
+        questionList.innerHTML = "";
+        el("agentImportCandidateBtn").disabled = true;
+        return;
+      }
+      const gate = agentDraftGate(agentDraft);
+      meta.innerHTML = `草稿 <b>${escapeHtml(agentDraft.draftId)}</b> · case <b>${escapeHtml(agentDraft.caseId)}</b> · ${agentCorpus ? "证据库已导入" : "证据库未导入"}`
+        + `<br>校验：${gate.ready ? "可以导入" : `blocked × ${gate.blocked.length}`}`;
+      provenanceList.innerHTML = (agentDraft.provenance ?? []).map(item => `
+        <div class="agent-item">
+          <span class="agent-badge ${item.status}">${item.status}</span>
+          <code>${escapeHtml(item.target ?? "design")}${escapeHtml(item.pointer)}</code>
+          <span class="agent-refs">${(item.evidenceRefs ?? []).map(ref =>
+            `<button type="button" class="agent-ref" data-evidence-id="${escapeHtml(ref)}">${escapeHtml(ref)}</button>`).join(" ")}</span>
+        </div>`).join("") || "<p>无 provenance。</p>";
+      questionList.innerHTML = (agentDraft.openQuestions ?? []).map(question => `
+        <div class="agent-item">
+          <code>${escapeHtml(question.target ?? "design")}${escapeHtml(question.pointer)}</code>
+          <span>${escapeHtml(question.question)}</span>
+        </div>`).join("") || "<p>无待确认问题。</p>";
+      el("agentImportCandidateBtn").disabled = !gate.ready;
+    };
+    el("openAgentDrawerBtn").addEventListener("click", () => {
+      el("agentDrawer").hidden = false;
+      renderAgentDrawer();
+    });
+    el("closeAgentDrawerBtn").addEventListener("click", () => {
+      el("agentDrawer").hidden = true;
+    });
+    el("agentLoadDraftBtn").addEventListener("click", () => el("agentDraftFile").click());
+    el("agentDraftFile").addEventListener("change", async event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        const parsed = parseAgentDraft(JSON.parse(await file.text()));
+        if (!parsed.ok) throw new Error(parsed.error);
+        agentDraft = parsed.draft;
+        renderAgentDrawer();
+        toast("Agent 草稿已加载");
+      } catch (error) {
+        toast(`Agent 草稿加载失败：${error.message}`, true);
+      }
+      event.target.value = "";
+    });
+    el("agentLoadCorpusBtn").addEventListener("click", () => el("agentCorpusFile").click());
+    el("agentCorpusFile").addEventListener("change", async event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        const parsed = JSON.parse(await file.text());
+        if (parsed.schemaVersion !== "strategy-agent-evidence-corpus/0.1") throw new Error("证据库版本必须是 strategy-agent-evidence-corpus/0.1");
+        agentCorpus = parsed;
+        renderAgentDrawer();
+        toast("Agent 证据库已加载");
+      } catch (error) {
+        toast(`Agent 证据库加载失败：${error.message}`, true);
+      }
+      event.target.value = "";
+    });
+    el("agentProvenanceList").addEventListener("click", event => {
+      const button = event.target.closest("[data-evidence-id]");
+      if (!button) return;
+      el("agentEvidenceView").textContent = agentEvidence(button.dataset.evidenceId);
+    });
+    el("agentImportCandidateBtn").addEventListener("click", () => {
+      if (!agentDraft) return;
+      const gate = agentDraftGate(agentDraft);
+      if (!gate.ready) {
+        toast(`E_DRAFT_UNCONFIRMED_REQUIRED_FIELD：blocked × ${gate.blocked.length}`, true);
+        renderAgentDrawer();
+        return;
+      }
+      applyImport(JSON.stringify(agentDraft.candidate), true);
+      applyMetadataImport(JSON.stringify(agentDraft.registrationMetadataCandidate), true);
+      toast("Agent 草稿已确认并导入编辑器；导出后走 import-flow 提交");
+      el("agentDrawer").hidden = true;
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && !moreActionsMenu.hidden) {
+        setMoreActions(false);
+        return;
+      }
+      if (event.key === "Escape" && !el("exportDrawer").hidden) el("exportDrawer").hidden = true;
+      if (event.key === "Escape" && !registrationDrawer.hidden) registrationDrawer.hidden = true;
+      if (event.key === "Escape" && !el("agentDrawer").hidden) el("agentDrawer").hidden = true;
+    });
+
+    el("issueList").addEventListener("click", event => {
+      const filterButton = event.target.closest("[data-validation-filter]");
+      if (filterButton) {
+        validationFilter = filterButton.dataset.validationFilter;
+        renderValidation();
+        return;
+      }
+      const copyButton = event.target.closest("[data-copy-path]");
+      if (copyButton) {
+        copyText(`${copyButton.dataset.copyCode}\nJSON Path: ${copyButton.dataset.copyPath}`, "校验定位已复制");
+        return;
+      }
+      const button = event.target.closest("[data-focus-path]");
+      if (button) focusIssue(button.dataset.focusPath);
+    });
+    el("readinessSummary").addEventListener("click", event => {
+      const button = event.target.closest("[data-inspector-tab], [data-object-focus]");
+      if (!button || button.disabled) return;
+      if (button.dataset.objectFocus === "true") {
+        if (!layoutState.right) setPanelVisible("right", true);
+        renderInspector();
+        return;
+      }
+      activeInspectorTab = button.dataset.inspectorTab;
+      registrationDrawer.hidden = false;
+      renderRegistrationInspector();
+    });
     el("copyJsonBtn").addEventListener("click", () => copyText(toJSON(documentState), "JSON 已复制"));
     el("copyJsonBottomBtn").addEventListener("click", () => copyText(toJSON(documentState), "JSON 已复制"));
+    el("copyMetadataBtn").addEventListener("click", () => copyText(toRegistrationMetadataJSON(documentState), "注册元数据已复制"));
+    el("copyMetadataBottomBtn").addEventListener("click", () => copyText(toRegistrationMetadataJSON(documentState), "注册元数据已复制"));
     el("copyMermaidBtn").addEventListener("click", () => copyText(toMermaid(documentState), "Mermaid 已复制"));
     const exportName = extension => `${clean(documentState.strategy.strategyName) || "strategy-flow"}-${SCHEMA_VERSION.split("/").pop()}.${extension}`;
     el("downloadJsonBtn").addEventListener("click", () => download(exportName("json"), toJSON(documentState), "application/json"));
+    el("downloadMetadataBtn").addEventListener("click", () => download(`${clean(documentState.strategy.strategyName) || "strategy-flow"}-registration-metadata-2.0.json`, toRegistrationMetadataJSON(documentState), "application/json"));
     el("downloadMermaidBtn").addEventListener("click", () => download(exportName("mmd"), toMermaid(documentState), "text/plain"));
     document.querySelector(".panel-tabs").addEventListener("click", event => {
       const button = event.target.closest("[data-panel]");
@@ -2078,19 +3436,50 @@
       document.querySelectorAll(".panel-tabs button").forEach(item => item.classList.toggle("on", item === button));
       document.querySelectorAll(".panel-view").forEach(item => item.classList.toggle("on", item.id === button.dataset.panel));
     });
+    document.querySelector(".code-subtabs").addEventListener("click", event => {
+      const button = event.target.closest("[data-code-pane]");
+      if (!button) return;
+      document.querySelectorAll(".code-subtabs button").forEach(item => item.classList.toggle("on", item === button));
+      ["jsonCodePane", "metadataCodePane", "mermaidCodePane"].forEach(id => {
+        el(id).classList.toggle("on", id === button.dataset.codePane);
+      });
+    });
 
     function sampleDocument() {
       return normalizeDocument({
         schemaVersion: SCHEMA_VERSION,
         strategy: {
           strategyName: "通用客群激活策略",
+          strategyId: "WB-CONTRACT-020-001",
           paradigm: "customer",
           owner: "张三",
           submitter: "李四",
-          businessScene: "用户激活",
-          strategyType: "用户激活",
-          strategySubtype: "通用客群激活策略",
           version: "0.1",
+          versionStatus: "draft",
+        },
+        taxonomy: {
+          schemaVersion: TAXONOMY_SCHEMA_VERSION,
+          tagSelections: [
+            { fieldCode: "lifecycle", values: [{ code: "existing" }] },
+            { fieldCode: "customerClass", values: [{ code: "generic" }] },
+            { fieldCode: "assetRange", values: [{ code: "unlimited", parentCode: "generic" }] },
+            { fieldCode: "riskLevel", values: [{ code: "unspecified" }] },
+            { fieldCode: "businessScene", values: [{ code: "user_activation" }] },
+            { fieldCode: "strategyType", values: [{ code: "tail_customer_operation", parentCode: "user_activation" }] },
+            { fieldCode: "touchScene", values: [{ code: "app" }] },
+            { fieldCode: "touchMethod", values: [{ code: "in_app_message", parentCode: "app" }] },
+          ],
+          freeTextTags: [{ fieldCode: "strategySubtype", value: "通用客群激活策略" }],
+          customTagProposals: [],
+        },
+        registrationMetadata: {
+          schemaVersion: METADATA_SCHEMA_VERSION,
+          businessUnit: "数字金融总部客群经营与服务团队",
+          submitDate: "2026-08-30",
+          coreHook: "通用权益",
+          effectiveFrom: "2026-08-30",
+          baselineVersion: "",
+          triggerScenes: [],
         },
         nodes: [
           { localId: "n1", nodeType: "entry", time: "启动日", executor: "系统", subject: { type: "customer", name: "通用目标客群", state: "未触达" }, layout: { x: 80, y: 150 } },

@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ebscn.local/strategy-agent/strategy-draft/0.1/schema.json",
+  "title": "Strategy Agent Strategy Draft",
+  "description": "Agent-produced draft with field-level provenance. The candidate is a standard strategy-flow-input/0.2 document plus its metadata companion, wrapped - never extended - by this envelope. Two-stage validation is mandatory: (1) this shape schema, (2) the unchanged strategy-flow-input/0.2 and registration-metadata/2.0 validators. A draft is never a fact source; confirmed fields enter the canonical editor state only through explicit human review.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "draftId",
+    "caseId",
+    "requestId",
+    "createdAt",
+    "evidenceCorpus",
+    "taxonomyVersion",
+    "candidate",
+    "registrationMetadataCandidate",
+    "provenance",
+    "openQuestions",
+    "reviewState"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "strategy-agent-strategy-draft/0.1"
+    },
+    "draftId": {
+      "type": "string",
+      "pattern": "^sd-[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "caseId": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}-[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "requestId": {
+      "type": "string",
+      "pattern": "^req-[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "createdAt": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "evidenceCorpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["corpusId", "sha256", "parserVersion"],
+      "properties": {
+        "corpusId": {
+          "type": "string",
+          "pattern": "^ec-[A-Za-z0-9][A-Za-z0-9_-]*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Fingerprint of the canonical corpus JSON: UTF-8, lexicographically sorted keys, no whitespace."
+        },
+        "parserVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "taxonomyVersion": {
+      "const": "strategy-taxonomy/2026-09"
+    },
+    "candidate": {
+      "type": "object",
+      "required": ["schemaVersion"],
+      "properties": {
+        "schemaVersion": {
+          "const": "strategy-flow-input/0.2"
+        }
+      },
+      "description": "Guard only. Full validation must run against the unchanged strategy-flow-input/0.2 schema and semantic validator."
+    },
+    "registrationMetadataCandidate": {
+      "type": "object",
+      "required": ["schemaVersion"],
+      "properties": {
+        "schemaVersion": {
+          "const": "strategy-flow-registration-metadata/2.0"
+        }
+      },
+      "description": "Guard only. Full validation must run against the unchanged metadata 2.0 validator."
+    },
+    "provenance": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pointer", "status", "evidenceRefs"],
+        "properties": {
+          "target": {
+            "enum": ["design", "metadata"],
+            "description": "Which wrapped document the pointer resolves against. Defaults to design when absent."
+          },
+          "pointer": {
+            "type": "string",
+            "pattern": "^(/[^/~]*(~0|~1)*)*$",
+            "description": "RFC 6901 JSON Pointer into candidate. Pointing at an object covers that subtree."
+          },
+          "status": {
+            "enum": ["supported", "missing", "conflict"],
+            "description": "supported: value is backed by cited evidence. missing: no evidence; candidate value must be 待确认 or empty. conflict: cited evidence disagrees; human must resolve."
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^ev-[A-Za-z0-9][A-Za-z0-9_-]*$"
+            }
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "supported"
+                }
+              }
+            },
+            "then": {
+              "required": ["evidenceRefs", "confidence"],
+              "properties": {
+                "evidenceRefs": {
+                  "minItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "missing"
+                }
+              }
+            },
+            "then": {
+              "required": ["evidenceRefs"],
+              "properties": {
+                "evidenceRefs": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "conflict"
+                }
+              }
+            },
+            "then": {
+              "required": ["evidenceRefs", "confidence", "note"],
+              "properties": {
+                "evidenceRefs": {
+                  "minItems": 2
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "openQuestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["questionId", "pointer", "question", "evidenceRefs"],
+        "properties": {
+          "target": {
+            "enum": ["design", "metadata"]
+          },
+          "questionId": {
+            "type": "string",
+            "pattern": "^q-[A-Za-z0-9][A-Za-z0-9_-]*$"
+          },
+          "pointer": {
+            "type": "string",
+            "pattern": "^(/[^/~]*(~0|~1)*)*$"
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^ev-[A-Za-z0-9][A-Za-z0-9_-]*$"
+            }
+          }
+        }
+      }
+    },
+    "reviewState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "enum": ["draft", "in_review", "confirmed", "discarded"]
+        },
+        "confirmedBy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "approvalTokenId": {
+          "type": "string",
+          "pattern": "^at-[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "description": "Reference to the one-time approval token consumed by confirmation. The token value itself must never be stored here."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "confirmed"
+              }
+            }
+          },
+          "then": {
+            "required": ["confirmedBy", "confirmedAt", "approvalTokenId"]
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    }
+  }
+}

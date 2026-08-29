@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "strategy-flow-registration-metadata/2.0",
+  "businessUnit": "数字金融总部客群经营与服务团队",
+  "submitDate": "2026-08-30",
+  "coreHook": "通用权益",
+  "effectiveFrom": "2026-08-30",
+  "baselineVersion": "",
+  "triggerScenes": []
+}

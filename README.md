@@ -1,6 +1,6 @@
 # EBSCN Strategy Flow Designer
 
-全项目通用的策略编排设计器，用于把“责任人 + 对象状态 + 双行为条件”画成可校验的 `strategy-flow-input/0.1` JSON，并导出 Mermaid 沟通图。页面内置示例只演示结构，不承载任何具体业务口径。
+全项目通用的策略编排设计器，用于把“责任人 + 对象状态 + 双行为条件”画成可校验的 `strategy-flow-input/0.2` JSON，并导出 Mermaid 沟通图。0.2 将策略标签收敛到 `taxonomy`，并配套导出 `strategy-flow-registration-metadata/2.0`；页面内置示例只演示结构，不承载额外业务口径。
 
 视觉层采用 Fluent Light：Acrylic 命令栏和流程卡片、Mica 侧栏、轻量光照画布、统一焦点环与动效曲线。业务交互色使用 Fluent Blue，EBSCN 红色仅保留品牌标识。
 
@@ -9,26 +9,26 @@
 项目版本：
 
 ```text
-1.1.0
+1.2.0
 ```
 
 一次性运行：
 
 ```bash
-npx github:zhengxiaonu-creator/strategy-flow-input#v1.1.0 --open
+npx github:zhengxiaonu-creator/strategy-flow-input#v1.2.0 --open
 ```
 
 全局安装：
 
 ```bash
-npm install -g github:zhengxiaonu-creator/strategy-flow-input#v1.1.0
+npm install -g github:zhengxiaonu-creator/strategy-flow-input#v1.2.0
 strategy-flow-input --open
 ```
 
 安装到当前项目：
 
 ```bash
-npm install --save-dev github:zhengxiaonu-creator/strategy-flow-input#v1.0.0
+npm install --save-dev github:zhengxiaonu-creator/strategy-flow-input#v1.2.0
 npx strategy-flow-input --open
 ```
 
@@ -85,6 +85,20 @@ ebscn-strategy-flow-designer/index.html
 10. 同源出边和同目标入边共用卡片锚点；拖拽流转规则标签可沿曲线法线方向调整平行线间距，布局偏移保存在 `edges[].layout.normalOffset`，范围为 -4800 ~ 4800。
 11. 双击流程卡片或流转规则标签会自动展开右侧属性栏并聚焦首个可编辑字段。
 
+### 编辑器信息架构
+
+- 顶栏常驻“导入 Design / 导入元数据 / 导出”；撤销、清空、自动布局等低频操作在“更多”菜单。
+- 右侧属性栏专用于高频“当前对象”编辑：流程卡片、流转规则、客户触达内容和执行跟进动作。
+- “基础信息 / 策略标签 / 元数据”属于低频全局配置，统一收进顶部“本策略注册信息”抽屉。
+- 策略标签按“客群识别 / 业务场景与策略类型 / 触达配置 / 自定义标签提案”分组。
+- 底部校验提供“提交准备度”，并按契约、基础信息、策略标签、元数据、流程图分组。
+- 校验项可点击“定位”，自动跳到对应 Tab、分组或流程对象。
+- 代码区分 Design 0.2、Metadata 2.0、Mermaid 三个子 Tab，避免三列互相挤压。
+- “导出”打开抽屉，同时展示双文件状态、复制 / 下载入口和 Workbench CLI 模板。
+- 左栏、右栏、底部栏支持拖拽和键盘拉伸，布局尺寸会保存在本机。
+- 校验面板提供进度、域级事实摘要、结果筛选、JSON Path、来源文件与修复建议。
+- 中英 UI 使用统一 Fluent 字体栈，代码与 ID 使用统一 mono 字体栈。
+
 ## 业务名称与技术字段对照
 
 | 页面名称 | 含义 | 导出字段 |
@@ -103,7 +117,7 @@ ebscn-strategy-flow-designer/index.html
 执行跟进动作：pa1、pa2
 ```
 
-业务人员不需要填写或修改内部编号。导入 JSON 缺少编号时会自动补齐；显式非法编号不会被静默改写，而会进入校验错误。门户策略编号是注册系统回填的外部编号，首次提交可以留空，设计器不随机生成。
+业务人员不需要填写或修改内部编号。0.1 导入缺少内部编号时会按兼容规则补齐；0.2 正式契约要求显式 ID。门户策略编号是外部注册事实，0.2 必填，设计器不随机生成。
 
 ### 对象与对象状态
 
@@ -115,20 +129,73 @@ ebscn-strategy-flow-designer/index.html
 
 ## 契约
 
-- Schema：`schema/strategy-flow-input.schema.json`
-- 示例：`examples/customer-strategy.json`
-- 版本：`strategy-flow-input/0.1`
+- Design Schema：`schema/strategy-flow-input.schema.json`（`strategy-flow-input/0.2`）
+- Metadata Schema：`schema/strategy-flow-registration-metadata-2.0.schema.json`
+- Taxonomy Schema：`schema/strategy-taxonomy-2026-09.schema.json`
+- Taxonomy 字典：`schema/strategy-taxonomy-2026-09.json`
+- 0.2 示例：`examples/contracts/strategy-flow-input-0.2.json`
+- Metadata 示例：`examples/contracts/strategy-flow-registration-metadata-2.0.json`
+- 0.1 历史 Schema：`schema/strategy-flow-input-0.1.schema.json`
+- 当前导出版本：`strategy-flow-input/0.2`
 
 核心结构：
 
 ```text
-strategy           策略基础信息
+strategy           策略基础信息，不承载业务场景 / 策略类型 / 策略子类
+taxonomy           策略标签唯一事实源
 nodes              编排节点：责任执行人 + 对象类型 / 名称 / 对象状态 + 时间阶段
 edges              流转边：执行人行为 + 对象行为
 strategyActions    策略动作气泡，挂接节点 / 流出边
 processActions     过程管理动作气泡，挂接节点 / 流出边
 validation         导出时计算；导入时忽略并重算
 ```
+
+### Taxonomy 规则
+
+- 契约版本：`strategy-taxonomy/2026-09`。
+- `code` 是唯一持久化稳定值；`label` 只用于展示，提交时可不带。
+- `lifecycle`、`customerClass`、`assetRange`、`riskLevel`、`touchScene`、`touchMethod` 为多选。
+- `businessScene` 为单选。
+- `strategyType` 是真正的二级策略类型，多选，不再等于业务场景。
+- `assetRange` 挂接 `customerClass`；每个已选客群至少有一个匹配资产区间。
+- `strategyType` 挂接 `businessScene`；每个已选业务场景至少有一个策略类型。
+- `touchMethod` 挂接 `touchScene`；每个已选触达场景至少有一个触达方式。
+- `strategySubtype` 是 `freeTextTags` 中的自由文本，不进入结构化标签字典。
+- `businessScene`、`strategyType`、`touchScene`、`touchMethod` 允许自定义提案；调用方只提供 `proposalId + label + reason + parentRef`，code 由 Workbench 审批后生成。未审批前会阻断后续 `templates` / `process`。
+
+### Metadata companion
+
+`strategy-flow-input/0.2` 需要单独导出：
+
+```text
+strategy-flow-registration-metadata/2.0
+```
+
+该文件只承载 `businessUnit`、`submitDate`、`coreHook`、`effectiveFrom`、`baselineVersion`、`triggerScenes`。标签字段禁止写入 metadata；标签唯一事实源在 design JSON 的 `taxonomy`。
+
+### Agent 工作台（M0–M4）
+
+Agent 通道协议见 `references/agent-protocol.md`，契约只新增、不改动上述输出 Schema。当前已实现本地解析（docx/xlsx/pptx/csv/md，零依赖）、离线 stub 草稿生成、页面草稿审查、一次性 token 审批与审计状态机：
+
+- Response envelope：`contracts/strategy-agent-response-0.1.schema.json`
+- Source manifest：`contracts/strategy-agent-source-manifest-0.1.schema.json`
+- Evidence corpus：`contracts/strategy-agent-evidence-corpus-0.1.schema.json`
+- Strategy draft：`contracts/strategy-agent-strategy-draft-0.1.schema.json`
+- 错误码注册表：`contracts/strategy-agent-errors-0.1.json`
+- 示例：`examples/contracts/agent/`
+
+硬规则：Agent 只产带证据引用的草稿；`missing` 字段保持“待确认”，不得编造；`request-approval` / `confirm-draft` 需要一次性审批 token；存在未确认字段或契约校验错误时整体拒绝。草稿确认后仍走现有导入 / 导出 / `manage_case.py import-flow` 路径。
+
+```bash
+# CLI 入口（状态默认落在 ./strategy-agent-store）
+npx strategy-agent parse-sources --case AG-demo-001 --file 需求.docx --file 流程.xlsx --request-id req-parse-1
+npx strategy-agent generate-draft --case AG-demo-001 --request-id req-draft-1
+npx strategy-agent resolve-draft --case AG-demo-001 --draft <sd-id> --resolved 'design:/strategy/strategyId=WB-...'
+npx strategy-agent request-approval --case AG-demo-001 --draft <sd-id> --approver Terry
+npx strategy-agent confirm-draft --case AG-demo-001 --draft <sd-id> --token at-... --confirmed-by Terry
+```
+
+页面顶栏「Agent 草稿」导入 draft JSON 与 corpus JSON 后逐项核对证据；blocked 清零才允许导入编辑器。Chrome E2E：`NODE_PATH=<playwright node_modules> CHROME_PATH=<chrome> npm run test:e2e`。
 
 ## 时间与状态
 
@@ -170,8 +237,29 @@ no_requirement   无行为要求
 
 | Code | 含义 |
 |---|---|
+| `SCHEMA_VERSION_REQUIRED` | 导入 JSON 缺少契约版本 |
+| `SCHEMA_VERSION_INVALID` | 契约版本格式或命名空间非法 |
 | `SCHEMA_VERSION_UNSUPPORTED` | 契约版本不支持 |
+| `SCHEMA_FIELD_REQUIRED` | 0.2 必填结构字段缺失 |
+| `SCHEMA_UNKNOWN_FIELD` | 契约禁止的未知字段 |
 | `STRATEGY_FIELD_REQUIRED` | 策略基础字段缺失 |
+| `TAXONOMY_VERSION_UNSUPPORTED` | taxonomy 契约版本不支持 |
+| `TAXONOMY_FIELD_REQUIRED` | taxonomy 必填字段缺失 |
+| `TAG_FIELD_REQUIRED` | 必填标签缺失 |
+| `TAG_FIELD_DUPLICATE` | taxonomy 字码重复 |
+| `TAG_CODE_INVALID` / `TAG_CODE_INACTIVE` / `TAG_CODE_DUPLICATE` | 标签 code 非法、停用或重复 |
+| `TAG_CARDINALITY_INVALID` | 标签单选 / 多选形态错误 |
+| `TAG_PARENT_REQUIRED` / `TAG_PARENT_MISMATCH` | 子标签缺少父标签或父子不匹配 |
+| `TAG_CHILD_REQUIRED` | 每个已选父标签缺少子标签 |
+| `TAG_EXCLUSIVE_INVALID` | 互斥标签同选 |
+| `TAG_LABEL_MISMATCH` | 标签展示名与字典不一致 |
+| `TAG_FREE_TEXT_INVALID` | 自由文本标签使用占位值 |
+| `TAG_PROPOSAL_FIELD_REQUIRED` / `TAG_PROPOSAL_FIELD_INVALID` | 自定义标签提案结构非法 |
+| `TAG_PROPOSAL_DUPLICATE` / `TAG_PROPOSAL_PARENT_INVALID` | 自定义标签提案重复或父引用无效 |
+| `METADATA_VERSION_UNSUPPORTED` | 注册元数据契约版本不支持 |
+| `METADATA_FIELD_REQUIRED` / `METADATA_DATE_INVALID` | 注册元数据缺失或日期格式错误 |
+| `METADATA_BASELINE_REQUIRED` | candidate 缺少基准版本 |
+| `METADATA_TRIGGER_SCENE_REQUIRED` | 场景策略缺少触发场景 |
 | `NODE_ID_INVALID` / `NODE_ID_DUPLICATE` | 节点 ID非法或重复 |
 | `EDGE_ID_INVALID` / `EDGE_ID_DUPLICATE` | 边 ID 非法或重复 |
 | `ACTION_ID_INVALID` / `ACTION_ID_DUPLICATE` | 动作 ID 非法或重复 |
@@ -197,6 +285,8 @@ no_requirement   无行为要求
 | Code | 含义 |
 |---|---|
 | `EDGE_NOT_CONFIRMED` | 流转边尚未业务确认 |
+| `SCHEMA_MIGRATED` | 0.1 已迁移到 0.2，缺失标签需补齐 |
+| `CUSTOM_TAG_APPROVAL_REQUIRED` | 自定义标签提案待审批 |
 | `STRATEGY_ACTION_MISSING` | 编排没有策略动作 |
 | `PROCESS_ACTION_MISSING` | 编排没有过程动作 |
 | `PROCESS_ACTION_UNMOUNTED` | 过程节点未挂接过程动作 |
@@ -205,15 +295,16 @@ no_requirement   无行为要求
 
 ## 导入规则
 
-1. 仅接受 `strategy-flow-input/0.1`。
-2. `validation` 会被忽略并重新计算。
-3. 未知字段会被丢弃。
-4. `layout` 缺失时自动补默认坐标。
-5. 导入后必须处理校验错误，再作为正式输入使用。
+1. 原生接受 `strategy-flow-input/0.2`。
+2. 兼容导入 `strategy-flow-input/0.1` 并导出 `0.2`；0.1 未承载的 taxonomy 与 metadata 字段必须补齐。
+3. `validation` 会被忽略并重新计算。
+4. 0.2 未知字段拒绝；0.1 兼容导入仍按旧 normalizer 处理。
+5. 注册元数据通过“导入元数据”单独加载。
+6. 导入后必须处理校验错误，再作为正式输入使用。
 
 ## 下一步
 
-1. 增加 JSON Schema 独立 validator。
+1. 为 0.2 增加独立 JSON Schema validator 执行器。
 2. 增加 Mermaid 草稿导入（仅生成待确认草稿）。
 3. 增加 `JSON -> 策略提交表 v1.2` 转换器。
 4. 通过 `manage_case.py import-flow` 接入 Agent 工作台。

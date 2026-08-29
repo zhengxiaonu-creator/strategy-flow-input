@@ -1,21 +1,21 @@
-# strategy-flow-input/0.1 Protocol
+# strategy-flow-input/0.2 Protocol
 
-## 目标
+## 版本策略
 
-定义跨策略范式的策略编排输入，统一表达：
+- 当前导出版本：`strategy-flow-input/0.2`
+- 兼容导入版本：`strategy-flow-input/0.1`
+- 拒绝版本：未知版本、`strategy-flow-input/1.0`、格式非法版本
+- 版本格式：`strategy-flow-input/<major>.<minor>`
 
-```text
-节点 = 责任执行人 + 对象类型 / 对象名称 / 对象状态 + 时间阶段
-边 = 责任执行人行为 + 对象行为条件
-动作 = 策略动作 / 过程动作，通过稳定 localId 挂接
-```
+解析器使用显式版本注册表，不把未来版本自动当作已知契约。后续版本必须先注册 adapter 和迁移规则。
 
 ## 顶层 envelope
 
 ```json
 {
-  "schemaVersion": "strategy-flow-input/0.1",
+  "schemaVersion": "strategy-flow-input/0.2",
   "strategy": {},
+  "taxonomy": {},
   "nodes": [],
   "edges": [],
   "strategyActions": [],
@@ -30,18 +30,82 @@
 
 `validation` 只在导出时由设计器计算；导入方必须重新计算，不得信任该字段。
 
+## strategy
+
+`strategy` 只承载策略事实：
+
+```text
+strategyName
+strategyId
+paradigm
+owner
+submitter
+version
+versionStatus
+```
+
+`businessScene`、`strategyType`、`strategySubtype` 禁止放在 `strategy` 下，必须分别进入 `taxonomy.tagSelections` 或 `taxonomy.freeTextTags`。
+
+## taxonomy
+
+契约版本：
+
+```text
+strategy-taxonomy/2026-09
+```
+
+```json
+{
+  "schemaVersion": "strategy-taxonomy/2026-09",
+  "tagSelections": [
+    {
+      "fieldCode": "strategyType",
+      "values": [
+        {
+          "code": "asset_upgrade_deposit",
+          "parentCode": "asset_promotion"
+        }
+      ]
+    }
+  ],
+  "freeTextTags": [
+    {
+      "fieldCode": "strategySubtype",
+      "value": "资产提升专项策略"
+    }
+  ],
+  "customTagProposals": []
+}
+```
+
+规则：
+
+1. `code` 是唯一持久化稳定值；`label` 仅展示，可省略。
+2. 未知 code 拒绝，不会自动转为自定义标签。
+3. 子标签必须携带字典要求的 `parentCode`。
+4. `assetRange -> customerClass`、`strategyType -> businessScene`、`touchMethod -> touchScene` 必须满足父子映射。
+5. 每个已选父标签至少要有一个对应子标签。
+6. `unlimited` 只能配 `generic`，且不能与具体资产区间同选。
+7. `unspecified` 风险等级不能与 C1-C5 同选。
+8. 自定义标签只允许提案，不允许调用方生成 code；审批前阻断后续处理。
+
+## metadata companion
+
+`strategy-flow-input/0.2` 必须搭配：
+
+```text
+strategy-flow-registration-metadata/2.0
+```
+
+metadata 不承载任何 taxonomy 标签。设计器将两份文件分开导出；`registrationMetadata` 只存在于内部编辑状态和 companion 输出，不会混入 design JSON。
+
 ## ID 规则
 
 ```text
 ^[A-Za-z][A-Za-z0-9_-]*$
 ```
 
-- 设计器自动生成节点 `n1`、`n2`。
-- 设计器自动生成边 `e1`、`e2`。
-- 设计器自动生成策略动作 `sa1`。
-- 设计器自动生成过程动作 `pa1`。
-- `outgoingEdgeId` 允许空字符串，表示动作只挂节点，不绑定流出边。
-- 外部导入缺少内部 ID 时由设计器补齐；显式非法 ID 保留给校验暴露，不做静默修复。
+0.2 要求节点、边、动作 ID 显式存在。设计器新增对象时自动生成；导入缺失 ID 会按结构校验暴露。0.1 兼容导入沿用旧规则，可在迁移时补齐内部 ID。
 
 ## 语义规则
 
@@ -50,22 +114,35 @@
 3. 源节点执行人与目标节点执行人不同，边必须标记 `handoff`。
 4. 不允许自环；回收和重入必须通过显式节点表达。
 5. 每个非孤立业务节点必须至少有一条边连接。
-6. 策略动作必须挂接节点，可选择挂接该节点的流出边。
-7. 过程动作必须挂接节点，可选择挂接该节点的流出边。
-8. 动作挂接流出边时，边源节点必须等于动作挂接节点。
-9. `no_requirement` 表示无动作 / 无行为要求，不等同于“未发生”；设计器两侧均可勾选“无动作”，导出动作固定为 `无动作`。
-10. 缺失业务事实填“待确认”，不得填 0 或由系统编造。
+6. 策略动作和过程动作必须挂接节点，可选择挂接该节点的流出边。
+7. 动作挂接流出边时，边源节点必须等于动作挂接节点。
+8. `no_requirement` 表示无动作 / 无行为要求，不等同于“未发生”。
+9. 缺失业务事实填“待确认”，不得填 0 或由系统编造。
+10. Workbench 当前 Schema 阶段不完整校验图语义；设计器仍执行上述图完整性硬门，避免把坏图交给后续加工。
 
-## 稳定错误码
+## 0.1 迁移
 
-错误码以大写蛇形命名，并携带 `message` 与 `path`。完整清单见 `../README.md`。
-
-## 与后续工单的边界
-
-本版本只输出文件，不操作工单。后续如接入 Agent 工作台，必须通过唯一 CLI 入口，例如：
+0.1 导入后会升级为 0.2 canonical model：
 
 ```text
-manage_case.py import-flow --case WB-... --file strategy-flow.json
+strategy.businessScene -> taxonomy.businessScene
+strategy.strategyType  -> taxonomy.strategyType（仅能识别 taxonomy 二级值）
+strategy.strategySubtype -> taxonomy.freeTextTags.strategySubtype
 ```
 
-在设计器内不得直接写 case artifact、registry 或 dist。
+0.1 没有承载 lifecycle、客群、资产、风险、触达标签，也没有 metadata 2.0；迁移后必须补齐。迁移会给出 `SCHEMA_MIGRATED` warning，不做静默编造。
+
+## 与 Workbench 的边界
+
+本设计器只输出 design JSON 与 metadata JSON，不写 case、registry、dist 或 workbook。导入 Workbench 必须走唯一 CLI：
+
+```text
+manage_case.py --json import-flow \
+  --case WB-... \
+  --design strategy-flow-0.2.json \
+  --metadata strategy-flow-registration-metadata-2.0.json \
+  --actor ... \
+  --request-id ...
+```
+
+稳定错误码见 `../README.md`。

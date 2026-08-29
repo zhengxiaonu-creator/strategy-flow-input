@@ -1,0 +1,216 @@
+{
+  "schemaVersion": "strategy-agent-errors/0.1",
+  "description": "Stable error code registry for the strategy agent protocol. Codes are part of the contract: message text may change, codes may not. New codes require a protocol revision.",
+  "errors": [
+    {
+      "code": "E_COMMAND_UNKNOWN",
+      "stage": "request",
+      "httpStatus": 400,
+      "retryable": false,
+      "description": "命令不在注册表内；未知命令不得产生副作用。"
+    },
+    {
+      "code": "E_INPUT_INVALID",
+      "stage": "request",
+      "httpStatus": 400,
+      "retryable": false,
+      "description": "命令输入负载缺失或格式非法。"
+    },
+    {
+      "code": "E_CASE_NOT_FOUND",
+      "stage": "request",
+      "httpStatus": 404,
+      "retryable": false,
+      "description": "caseId 不存在；恢复必须从持久化 case 状态开始。"
+    },
+    {
+      "code": "E_REQUEST_ID_INVALID",
+      "stage": "request",
+      "httpStatus": 400,
+      "retryable": false,
+      "description": "requestId 缺失或不符合命名规则。"
+    },
+    {
+      "code": "E_REQUEST_ID_CONFLICT",
+      "stage": "request",
+      "httpStatus": 409,
+      "retryable": false,
+      "description": "同一 requestId 携带了不同的输入指纹；幂等键已被占用，必须换新 requestId。"
+    },
+    {
+      "code": "E_CASE_ID_INVALID",
+      "stage": "request",
+      "httpStatus": 400,
+      "retryable": false,
+      "description": "caseId 缺失、格式非法，或与持久化状态中的 case 不一致。"
+    },
+    {
+      "code": "E_SOURCE_MANIFEST_INVALID",
+      "stage": "source",
+      "httpStatus": 400,
+      "retryable": false,
+      "description": "source manifest 不符合 strategy-agent-source-manifest/0.1 契约。"
+    },
+    {
+      "code": "E_SOURCE_FILE_UNREADABLE",
+      "stage": "source",
+      "httpStatus": 422,
+      "retryable": false,
+      "description": "文件读取失败或内容损坏，无法进入解析。"
+    },
+    {
+      "code": "E_SOURCE_FILE_UNSUPPORTED",
+      "stage": "source",
+      "httpStatus": 422,
+      "retryable": false,
+      "description": "文件类型暂不支持；manifest 中必须记录 failureCode，不得静默跳过。"
+    },
+    {
+      "code": "E_SOURCE_CHECKSUM_MISMATCH",
+      "stage": "source",
+      "httpStatus": 422,
+      "retryable": false,
+      "description": "文件 sha256 与 manifest 声明不一致，解析必须中止。"
+    },
+    {
+      "code": "E_CORPUS_INVALID",
+      "stage": "corpus",
+      "httpStatus": 500,
+      "retryable": false,
+      "description": "解析产物不符合 evidence corpus 契约，或引用完整性校验失败（evidenceId 重复、fileId 不在 manifest 内）。"
+    },
+    {
+      "code": "E_CORPUS_NOT_FOUND",
+      "stage": "corpus",
+      "httpStatus": 404,
+      "retryable": false,
+      "description": "corpusId 不存在或未归属该 case。"
+    },
+    {
+      "code": "E_EVIDENCE_REF_NOT_FOUND",
+      "stage": "draft",
+      "httpStatus": 422,
+      "retryable": false,
+      "description": "草稿引用的 evidenceId 在 corpus 中不存在；Agent 不得引用未生成的证据。"
+    },
+    {
+      "code": "E_DRAFT_INVALID",
+      "stage": "draft",
+      "httpStatus": 422,
+      "retryable": false,
+      "description": "草稿不符合 strategy-agent-strategy-draft/0.1 契约。"
+    },
+    {
+      "code": "E_DRAFT_NOT_FOUND",
+      "stage": "draft",
+      "httpStatus": 404,
+      "retryable": false,
+      "description": "draftId 不存在或未归属该 case。"
+    },
+    {
+      "code": "E_DRAFT_CANDIDATE_INVALID",
+      "stage": "draft",
+      "httpStatus": 422,
+      "retryable": false,
+      "description": "candidate 未通过既有的 strategy-flow-input/0.2 或 metadata 2.0 校验；输出契约不可被 Agent 绕过。"
+    },
+    {
+      "code": "E_DRAFT_PROVENANCE_POINTER_INVALID",
+      "stage": "draft",
+      "httpStatus": 422,
+      "retryable": false,
+      "description": "provenance / openQuestions 的 JSON Pointer 无法在 candidate 中解析。"
+    },
+    {
+      "code": "E_DRAFT_PROVENANCE_EVIDENCE_MISSING",
+      "stage": "draft",
+      "httpStatus": 422,
+      "retryable": false,
+      "description": "supported/conflict 字段缺少证据引用；无证据的值只能标记为 missing 并保持待确认。"
+    },
+    {
+      "code": "E_TAXONOMY_VERSION_MISMATCH",
+      "stage": "draft",
+      "httpStatus": 409,
+      "retryable": false,
+      "description": "草稿 taxonomyVersion 与 candidate.taxonomy.schemaVersion 或当前字典版本不一致。"
+    },
+    {
+      "code": "E_TAXONOMY_UNKNOWN_CODE",
+      "stage": "draft",
+      "httpStatus": 422,
+      "retryable": false,
+      "description": "candidate 使用了字典外 code；未知标签只能走 customTagProposals 审批通道。"
+    },
+    {
+      "code": "E_TAXONOMY_RULE_VIOLATION",
+      "stage": "draft",
+      "httpStatus": 422,
+      "retryable": false,
+      "description": "candidate 违反 taxonomy 父子映射、互斥或必选规则。"
+    },
+    {
+      "code": "E_DRAFT_STATE_INVALID",
+      "stage": "review",
+      "httpStatus": 409,
+      "retryable": false,
+      "description": "草稿当前 reviewState 不允许该操作；状态迁移必须显式且可审计。"
+    },
+    {
+      "code": "E_DRAFT_UNCONFIRMED_REQUIRED_FIELD",
+      "stage": "review",
+      "httpStatus": 422,
+      "retryable": false,
+      "description": "存在 missing/conflict 的必填字段，禁止批量确认或提交。"
+    },
+    {
+      "code": "E_APPROVAL_TOKEN_INVALID",
+      "stage": "approval",
+      "httpStatus": 401,
+      "retryable": false,
+      "description": "审批 token 不存在或不属于该草稿。"
+    },
+    {
+      "code": "E_APPROVAL_TOKEN_EXPIRED",
+      "stage": "approval",
+      "httpStatus": 401,
+      "retryable": false,
+      "description": "审批 token 已过期，需要重新发起显式审批。"
+    },
+    {
+      "code": "E_APPROVAL_TOKEN_REUSED",
+      "stage": "approval",
+      "httpStatus": 409,
+      "retryable": false,
+      "description": "一次性审批 token 已被消费；授权不得从自由对话推断或复用。"
+    },
+    {
+      "code": "E_MODEL_ADAPTER_UNAVAILABLE",
+      "stage": "model",
+      "httpStatus": 503,
+      "retryable": true,
+      "description": "模型后端不可用或未配置；默认离线 stub 缺失也归入此码。"
+    },
+    {
+      "code": "E_MODEL_ADAPTER_TIMEOUT",
+      "stage": "model",
+      "httpStatus": 504,
+      "retryable": true,
+      "description": "模型调用超时；重试必须复用同一 requestId 以命中幂等缓存。"
+    },
+    {
+      "code": "E_MODEL_OUTPUT_INVALID",
+      "stage": "model",
+      "httpStatus": 502,
+      "retryable": true,
+      "description": "模型输出未通过契约校验；有界重试后仍失败必须放弃，不得降级放行。"
+    },
+    {
+      "code": "E_INTERNAL",
+      "stage": "internal",
+      "httpStatus": 500,
+      "retryable": true,
+      "description": "未分类内部错误；必须携带审计记录 ID，不得泄露堆栈细节。"
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ebscn.local/strategy-flow-registration-metadata/2.0/schema.json",
+  "title": "EBSCN Strategy Flow Registration Metadata",
+  "description": "Non-taxonomy registration facts for strategy-flow-input/0.2. Taxonomy fields are owned by the design document and are intentionally forbidden here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "businessUnit",
+    "submitDate",
+    "coreHook",
+    "effectiveFrom"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "strategy-flow-registration-metadata/2.0"
+    },
+    "businessUnit": {
+      "type": "string",
+      "minLength": 1
+    },
+    "submitDate": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "coreHook": {
+      "type": "string",
+      "minLength": 1
+    },
+    "effectiveFrom": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "baselineVersion": {
+      "type": "string"
+    },
+    "triggerScenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "triggerSceneId",
+          "triggerScene",
+          "threshold",
+          "frequency",
+          "deduplication",
+          "cooldown",
+          "audienceScope",
+          "qualification",
+          "dataSource",
+          "confirmationStatus"
+        ],
+        "properties": {
+          "triggerSceneId": { "type": "string", "minLength": 1 },
+          "triggerScene": { "type": "string", "minLength": 1 },
+          "threshold": { "type": "string", "minLength": 1 },
+          "frequency": { "type": "string", "minLength": 1 },
+          "deduplication": { "type": "string", "minLength": 1 },
+          "cooldown": { "type": "string", "minLength": 1 },
+          "audienceScope": { "type": "string", "minLength": 1 },
+          "qualification": { "type": "string", "minLength": 1 },
+          "dataSource": { "type": "string", "minLength": 1 },
+          "confirmationStatus": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
