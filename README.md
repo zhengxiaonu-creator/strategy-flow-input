@@ -9,26 +9,26 @@
 项目版本：
 
 ```text
-1.2.0
+1.3.0
 ```
 
 一次性运行：
 
 ```bash
-npx github:zhengxiaonu-creator/strategy-flow-input#v1.2.0 --open
+npx github:zhengxiaonu-creator/strategy-flow-input#v1.3.0 --open
 ```
 
 全局安装：
 
 ```bash
-npm install -g github:zhengxiaonu-creator/strategy-flow-input#v1.2.0
+npm install -g github:zhengxiaonu-creator/strategy-flow-input#v1.3.0
 strategy-flow-input --open
 ```
 
 安装到当前项目：
 
 ```bash
-npm install --save-dev github:zhengxiaonu-creator/strategy-flow-input#v1.2.0
+npm install --save-dev github:zhengxiaonu-creator/strategy-flow-input#v1.3.0
 npx strategy-flow-input --open
 ```
 
@@ -175,7 +175,7 @@ strategy-flow-registration-metadata/2.0
 
 ### Agent 工作台（M0–M4）
 
-Agent 通道协议见 `references/agent-protocol.md`，契约只新增、不改动上述输出 Schema。当前已实现本地解析（docx/xlsx/pptx/csv/md，零依赖）、离线 stub 草稿生成、页面草稿审查、一次性 token 审批与审计状态机：
+Agent 通道协议见 `references/agent-protocol.md`，契约只新增、不改动上述输出 Schema。当前已实现本地解析（docx/xlsx/pptx/csv/md，零依赖）、离线 stub 草稿生成、页面草稿审查、可选一次性 token 审计与审计状态机：
 
 - Response envelope：`contracts/strategy-agent-response-0.1.schema.json`
 - Source manifest：`contracts/strategy-agent-source-manifest-0.1.schema.json`
@@ -184,18 +184,28 @@ Agent 通道协议见 `references/agent-protocol.md`，契约只新增、不改�
 - 错误码注册表：`contracts/strategy-agent-errors-0.1.json`
 - 示例：`examples/contracts/agent/`
 
-硬规则：Agent 只产带证据引用的草稿；`missing` 字段保持“待确认”，不得编造；`request-approval` / `confirm-draft` 需要一次性审批 token；存在未确认字段或契约校验错误时整体拒绝。草稿确认后仍走现有导入 / 导出 / `manage_case.py import-flow` 路径。
+#### Agent 接入 skill
+
+仓库内置可复制的接入指引：[`skills/strategy-flow-agent/SKILL.md`](skills/strategy-flow-agent/SKILL.md)。该 skill 面向 Hermes、openclaw、Codex 等 Agent，覆盖材料拆解、证据引用、业务人员提问、状态恢复、编辑器交接和可选审计路径。
+
+- 在本仓库内运行时，可直接让 Agent 读取上述 skill 路径。
+- 接入外部 Agent 时，复制整个 `skills/strategy-flow-agent/` 目录到目标 Agent 约定的 skill 目录。
+- 该 skill 只是操作指引，不改变 `strategy-agent/0.1` 命令协议，也不改变 Design 0.2 / Metadata 2.0 输出契约。
+
+硬规则：Agent 只产带证据引用的草稿；`missing` 字段保持“待确认”，不得编造。默认轻量 human-in-loop：`missing` / `conflict` / `openQuestions` 只作为待办，草稿可直接导入编辑器，人工修正后在导出边界校验 Design 0.2 与 Metadata 2.0。`request-approval` / `confirm-draft` 是可选审计路径，仍需要一次性 token。
 
 ```bash
 # CLI 入口（状态默认落在 ./strategy-agent-store）
 npx strategy-agent parse-sources --case AG-demo-001 --file 需求.docx --file 流程.xlsx --request-id req-parse-1
 npx strategy-agent generate-draft --case AG-demo-001 --request-id req-draft-1
+
+# 可选审计路径；默认路径是导入编辑器、人工修正后导出双 JSON
 npx strategy-agent resolve-draft --case AG-demo-001 --draft <sd-id> --resolved 'design:/strategy/strategyId=WB-...'
 npx strategy-agent request-approval --case AG-demo-001 --draft <sd-id> --approver Terry
 npx strategy-agent confirm-draft --case AG-demo-001 --draft <sd-id> --token at-... --confirmed-by Terry
 ```
 
-页面顶栏「Agent 草稿」导入 draft JSON 与 corpus JSON 后逐项核对证据；blocked 清零才允许导入编辑器。Chrome E2E：`NODE_PATH=<playwright node_modules> CHROME_PATH=<chrome> npm run test:e2e`。
+页面顶栏「Agent 草稿」导入 draft JSON 与 corpus JSON 后逐项核对证据；证据待办不阻断编辑器导入，人工修正后由导出边界保证双 JSON 契约。Chrome E2E：`NODE_PATH=<playwright node_modules> CHROME_PATH=<chrome> npm run test:e2e`。
 
 ## 时间与状态
 

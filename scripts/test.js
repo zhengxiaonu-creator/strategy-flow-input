@@ -26,6 +26,11 @@ const required = [
   "examples/contracts/agent/response-confirm-draft-error.example.json",
   "index.html",
   "package.json",
+  "skills/strategy-flow-agent/SKILL.md",
+  "skills/strategy-flow-agent/agents/openai.yaml",
+  "skills/strategy-flow-agent/references/workbench-protocol.md",
+  "skills/strategy-flow-agent/references/material-decomposition.md",
+  "skills/strategy-flow-agent/references/human-collaboration.md",
   "schema/strategy-flow-input.schema.json",
   "styles.css",
 ];
@@ -44,9 +49,29 @@ for (const relativePath of required) {
 
 const packageJson = readJson("package.json");
 assert(packageJson.name === "strategy-flow-input", "Unexpected package name");
-assert(packageJson.version === "1.2.0", "Package version must be 1.2.0");
+assert(packageJson.version === "1.3.0", "Package version must be 1.3.0");
 assert(packageJson.files.includes("contracts"), "Package must include authority contracts");
 assert(packageJson.bin?.["strategy-flow-input"] === "./bin/strategy-flow-input.js", "Missing CLI bin entry");
+
+const skillEntry = fs.readFileSync(path.join(root, "skills/strategy-flow-agent/SKILL.md"), "utf8");
+const skillFrontmatter = skillEntry.match(/^---\n([\s\S]*?)\n---\n/);
+assert(skillFrontmatter, "Agent skill frontmatter is missing");
+assert(/^name: strategy-flow-agent$/m.test(skillFrontmatter[1]), "Agent skill name is invalid");
+assert(/^description: .+\S$/m.test(skillFrontmatter[1]), "Agent skill description is missing");
+for (const reference of [
+  "references/workbench-protocol.md",
+  "references/material-decomposition.md",
+  "references/human-collaboration.md",
+]) {
+  assert(skillEntry.includes(reference), `Agent skill reference is not linked: ${reference}`);
+}
+const openAiSkillPolicy = fs.readFileSync(path.join(root, "skills/strategy-flow-agent/agents/openai.yaml"), "utf8");
+assert(openAiSkillPolicy.includes("allow_implicit_invocation: true"), "Agent skill must allow implicit invocation");
+const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
+assert(readme.includes("[`skills/strategy-flow-agent/SKILL.md`](skills/strategy-flow-agent/SKILL.md)"), "README must link the agent skill");
+for (const relativePath of required.filter(item => item.startsWith("skills/"))) {
+  assert(!/\b(TODO|FIXME|PLACEHOLDER)\b/.test(fs.readFileSync(path.join(root, relativePath), "utf8")), `Agent skill contains unfinished marker: ${relativePath}`);
+}
 
 for (const script of ["app.js", "bin/strategy-flow-input.js", "contracts/strategy-taxonomy-2026-09.js", "scripts/test.js"]) {
   const result = spawnSync(process.execPath, ["--check", path.join(root, script)], {stdio: "inherit"});
@@ -165,8 +190,8 @@ assert(exportedNoAction.edges[0].actorBehavior.action === "无动作"
   && exportedNoAction.edges[0].subjectBehavior.action === "无动作"
   && exportedNoAction.edges[0].subjectBehavior.status === "no_requirement", "No-action round-trip contract failed");
 
-// strategy-agent/0.1 M0 contracts: shape, referential integrity, provenance hard gates,
-// and the no-fabrication round-trip from draft candidate to canonical 0.2 export.
+// strategy-agent/0.1 M0 contracts: shape, referential integrity, provenance
+// review semantics, and the no-fabrication path from editable draft to 0.2 export.
 const agentManifest = readJson("examples/contracts/agent/source-manifest.example.json");
 const agentCorpus = readJson("examples/contracts/agent/evidence-corpus.example.json");
 const agentDraft = readJson("examples/contracts/agent/strategy-draft.example.json");
@@ -345,12 +370,76 @@ for (const [fieldCode, codes] of [["lifecycle", "existing"], ["customerClass", "
 }
 assert(generatedDraft.candidate.nodes.length === 3 && generatedDraft.candidate.edges.length === 2, "Stub must build graph from flow table");
 assert(generatedDraft.provenance.some(item => item.pointer === "/nodes" && item.status === "supported"), "Graph provenance missing");
-const pageGateBlocked = designer.agentDraftGate(generatedDraft);
-assert(!pageGateBlocked.ready && pageGateBlocked.blocked.some(item => item.pointer === "/strategy/strategyId"), "Page gate must block unresolved portal id");
+const pageGate = designer.agentDraftGate(generatedDraft);
+assert(pageGate.ready && pageGate.blocked.length === 0, "Draft layer must allow incomplete candidates into the editor");
+assert(pageGate.warnings.some(item => item.pointer === "/strategy/strategyId" && item.reason === "missing"), "Draft layer must preserve missing provenance as a todo");
+assert(pageGate.warnings.some(item => item.reason === "open_question"), "Draft layer must preserve openQuestions as todos");
+const outputGate = designer.outputContractGate({
+  ...generatedDraft.candidate,
+  registrationMetadata: generatedDraft.registrationMetadataCandidate,
+});
+assert(!outputGate.ready && outputGate.blocking.some(item => item.code === "STRATEGY_FIELD_REQUIRED"), "Export gate must block schema-invalid portal id");
+const schemaCleanDraft = JSON.parse(JSON.stringify(generatedDraft));
+schemaCleanDraft.candidate.strategy.strategyId = "WB-AGENT-SCHEMA-001";
+schemaCleanDraft.registrationMetadataCandidate.submitDate = "2026-08-30";
+schemaCleanDraft.registrationMetadataCandidate.effectiveFrom = "2026-08-30";
+const schemaCleanGate = designer.outputContractGate({
+  ...schemaCleanDraft.candidate,
+  registrationMetadata: schemaCleanDraft.registrationMetadataCandidate,
+});
+assert(schemaCleanGate.ready, `Schema-clean candidate must pass the light export gate: ${JSON.stringify(schemaCleanGate.blocking)}`);
+const danglingEdgeDraft = JSON.parse(JSON.stringify(schemaCleanDraft));
+danglingEdgeDraft.candidate.edges[0].to = "node-does-not-exist";
+const danglingEdgeGate = designer.outputContractGate({
+  ...danglingEdgeDraft.candidate,
+  registrationMetadata: danglingEdgeDraft.registrationMetadataCandidate,
+});
+assert(!danglingEdgeGate.ready && danglingEdgeGate.blocking.some(item => item.code === "EDGE_ENDPOINT_MISSING"), "Export gate must block dangling edge references");
+const unknownTagDraft = JSON.parse(JSON.stringify(schemaCleanDraft));
+unknownTagDraft.candidate.taxonomy.tagSelections[0].values[0].code = "custom_unknown_code";
+const unknownTagGate = designer.outputContractGate({
+  ...unknownTagDraft.candidate,
+  registrationMetadata: unknownTagDraft.registrationMetadataCandidate,
+});
+assert(unknownTagGate.ready && unknownTagGate.warnings.some(item => item.code === "TAG_CODE_INVALID"), "Unknown taxonomy code should remain a review warning, not a schema hard gate");
 assert(designer.parseAgentDraft({...generatedDraft, schemaVersion: "strategy-agent-strategy-draft/0.2"}).ok === false, "Draft parser must reject unknown versions");
 
 const earlyApproval = executeCommand({command: "request-approval", requestId: "req-test-early-approval", input: {caseId: agentCaseId, draftId: generatedDraft.draftId, approver: "Terry"}, store: agentStore});
 assert(earlyApproval.error?.code === "E_DRAFT_UNCONFIRMED_REQUIRED_FIELD", "Approval must be blocked while fields are unresolved");
+
+// Evidence conflict is review material, not an audit-path gate. Once the output
+// contract is schema/reference-clean, token issue and confirmation must succeed.
+const auditDraft = JSON.parse(JSON.stringify(generatedDraft));
+auditDraft.draftId = "sd-light-hitl-001";
+auditDraft.candidate.strategy.strategyId = "WB-AGENT-LIGHT-001";
+auditDraft.registrationMetadataCandidate.submitDate = "2026-08-30";
+auditDraft.registrationMetadataCandidate.effectiveFrom = "2026-08-30";
+auditDraft.provenance = auditDraft.provenance
+  .filter(item => ![
+    "design:/strategy/strategyId",
+    "metadata:/submitDate",
+    "metadata:/effectiveFrom",
+  ].includes(`${item.target ?? "design"}:${item.pointer}`))
+  .map(item => item.pointer === "/strategy/strategyName" ? {
+  target: "design",
+  pointer: "/strategy/strategyName",
+  status: "conflict",
+  evidenceRefs: [parsedCorpus.fragments[0].evidenceId, parsedCorpus.fragments[1].evidenceId],
+  confidence: 0.7,
+  note: "轻量工作流测试：冲突保留给人工裁决。",
+} : item);
+auditDraft.openQuestions.push({
+  questionId: "q-light-conflict",
+  target: "design",
+  pointer: "/strategy/strategyName",
+  question: "轻量工作流测试：openQuestion 不阻断可选审计路径。",
+  evidenceRefs: [parsedCorpus.fragments[0].evidenceId],
+});
+agentStore.writeDraft(agentCaseId, auditDraft);
+const conflictApproval = executeCommand({command: "request-approval", requestId: "req-test-light-approval", input: {caseId: agentCaseId, draftId: auditDraft.draftId, approver: "Terry"}, store: agentStore});
+assert(conflictApproval.status === "ok", `Conflict/openQuestion must not block audit approval: ${JSON.stringify(conflictApproval.error ?? null)}`);
+const conflictConfirm = executeCommand({command: "confirm-draft", requestId: "req-test-light-confirm", input: {caseId: agentCaseId, draftId: auditDraft.draftId, approvalToken: conflictApproval.data.approvalToken, confirmedBy: "Terry"}, store: agentStore});
+assert(conflictConfirm.status === "ok" && conflictConfirm.data.draft.reviewState.status === "confirmed", `Conflict/openQuestion must not block audit confirmation: ${JSON.stringify(conflictConfirm.error ?? null)}`);
 const resolvedFields = [
   {target: "design", pointer: "/strategy/strategyId", value: "WB-AGENT-TEST-001"},
   {target: "metadata", pointer: "/submitDate", value: "2026-08-30"},

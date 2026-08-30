@@ -1,3 +1,13 @@
+# Version 1.3.0 — 2026-08-30
+
+Release tag: `v1.3.0`
+
+- Agent 草稿导入改为轻量 human-in-loop：`missing` / `conflict` / `openQuestions` 保留为待办，不再阻断编辑器导入。
+- Design JSON 与 Metadata JSON 的复制 / 下载统一走导出契约闸门，避免未达输出契约的候选稿流出。
+- 可选审计路径只按输出契约与引用完整性拦截；证据待办交由人工裁决。
+- 新增 `strategy-flow-agent` 接入 skill，指导 Hermes / openclaw / Codex 拆解材料、引用证据、协助业务人员并恢复持久化状态。
+- 新增 Agent issue tracker、triage 标签与 single-context domain docs 配置。
+
 # Version 1.2.0 — 2026-08-30
 
 Release tag: `v1.2.0`
