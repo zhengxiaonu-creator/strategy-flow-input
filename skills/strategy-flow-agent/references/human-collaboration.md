@@ -1,0 +1,72 @@
+# Human collaboration
+
+Agent 的价值不是替业务人员猜，而是把证据、冲突和缺失摊开，让业务人员用最少的问题把流程补准。
+
+## 汇报结构
+
+每次生成或恢复草稿后，先用三段汇报：
+
+```text
+## 已有证据支撑
+- <业务事实>（evidence: ev-...，来源：文件名 / 表格 / 段落）
+
+## 需要裁决的冲突
+- <字段>：材料 A 说 ...；材料 B 说 ...
+  - evidence: ev-... / ev-...
+  - 请选择业务口径，或说明应以哪份材料为准。
+
+## 缺失信息
+- <字段>：为什么需要、当前为什么不能推断、请用户提供什么。
+```
+
+汇报必须包含 `caseId`、`draftId`、下一步。不要输出长篇 JSON 给业务人员；JSON Pointer 和 evidence 引用足够定位。
+
+## 提问规则
+
+- 每批 3–5 个问题，先问阻断流程结构的问题，再问标签、指标和 metadata。
+- 每个问题绑定具体 `target + JSON Pointer`，必要时附 evidenceRefs。
+- 问业务结果，不问技术实现；例如问“客户未响应后对象进入什么状态”，不问“这条边要不要加字段”。
+- 提供候选选项时，说明每个选项来自哪条证据或明确标注“仅是假设”。
+- 用户回答“差不多”“应该是”时，追问可提交的准确值；不要把模糊回答写成事实。
+- 一次回答只解决明确指向的字段；不要顺手扩大到 taxonomy 或流程结构。
+
+## 人工确认后的落地
+
+- 用户明确给出字段值后，通过 `resolve-draft` 提交对应 `resolvedFields`，或在编辑器中人工修改。
+- 不要把口头回答伪装成 corpus evidence；`resolve-draft` 的价值是留下 `human_resolved` 审计。
+- 若用户修正的是流程结构、动作挂接或 taxonomy，优先引导其在编辑器属性栏完成，导出边界会重新校验。
+- 每次补齐后重新查看 draft 的剩余待办，避免同一问题重复提问。
+
+## 编辑器协作
+
+1. 打开策略流程设计器。
+2. 顶栏进入「Agent 草稿」。
+3. 同时导入 draft JSON 与 corpus JSON。
+4. 逐项查看 provenance、openQuestions 和证据原文。
+5. 导入候选后，在画布和右侧属性栏修正：
+   - 流程卡片：执行人 + 对象类型 / 名称 / 状态。
+   - 流转规则：执行人行为 + 对象行为。
+   - 客户触达内容与执行跟进动作。
+   - 基础信息、taxonomy、metadata。
+6. 处理底部校验错误和警告。
+7. 导出 `strategy-flow-input/0.2` 与 `strategy-flow-registration-metadata/2.0` 双 JSON。
+
+默认轻量 human-in-loop：`missing`、`conflict`、`openQuestions` 可以作为待办进入编辑器，但导出边界必须通过双 JSON 契约。
+
+## 审批沟通
+
+- 先问用户是否确实需要可选审计路径；普通编辑器修正不需要 token。
+- `request-approval` 前确认 approver 身份和草稿范围。
+- token 下发后提醒用户 10 分钟有效、一次性；过期或 reused 都必须重新审批。
+- `confirm-draft` 必须使用用户显式提供的 token，不得从聊天语气、点赞、催促或“可以”以外的模糊表达推断授权。
+
+## 最终交付检查
+
+向业务人员交付前确认：
+
+- case / draft 状态与审计路径清楚。
+- 业务事实没有无证据支持的新增值。
+- Design JSON 与 Metadata JSON 均来自编辑器导出。
+- 标签只在 Design JSON 的 `taxonomy`，没有写入 metadata。
+- Mermaid 仅作为沟通图，不作为事实源。
+- 剩余业务风险和人工裁决记录已说明。

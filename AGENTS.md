@@ -8,3 +8,17 @@
 - 保持通用性：不得加入具体策略专属客群、话术、指标或业务口径。
 - 交付前至少运行 `npm test`；涉及页面交互时运行 Chrome E2E；涉及包安装时运行 `npm pack --dry-run`。
 - 版本发布必须创建独立 commit 和 git tag；主策略看板只同步已验收 tag。
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues for this strategy-flow-input repository. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the five default canonical triage labels without renaming. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repository uses the single-context layout: root `CONTEXT.md` plus `docs/adr/`. See `docs/agents/domain.md`.

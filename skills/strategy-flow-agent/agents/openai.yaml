@@ -1,0 +1,5 @@
+interface:
+  display_name: "Strategy Flow Agent"
+  short_description: "解析策略材料并协助设计策略流程"
+policy:
+  allow_implicit_invocation: true
