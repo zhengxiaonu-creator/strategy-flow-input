@@ -26,6 +26,51 @@ let browser;
 
   assert.equal(await page.locator(".node-card").count(), 3);
   assert.equal(await page.locator('[data-bind$=".localId"]').count(), 0);
+  await page.click("#moreActionsBtn");
+  await page.click("#autoLayoutBtn");
+  const autoLayoutGeometry = await page.evaluate(() => {
+    const canvas = document.getElementById("canvas");
+    const base = canvas.getBoundingClientRect();
+    const zoom = Number(canvas.dataset.zoom || 1);
+    const logicalBox = element => {
+      const rect = element.getBoundingClientRect();
+      return {
+        left: (rect.left - base.left) / zoom,
+        right: (rect.right - base.left) / zoom,
+        top: (rect.top - base.top) / zoom,
+        bottom: (rect.bottom - base.top) / zoom,
+      };
+    };
+    const intersects = (a, b) => a.left < b.right && a.right > b.left
+      && a.top < b.bottom && a.bottom > b.top;
+    const nodes = [...document.querySelectorAll(".node-card")].map(logicalBox);
+    const labels = [...document.querySelectorAll(".edge-label")].map(logicalBox);
+    const blockLabelOverlaps = [];
+    nodes.forEach((node, nodeIndex) => labels.forEach((label, labelIndex) => {
+      if (intersects(node, label)) blockLabelOverlaps.push(`${nodeIndex}:${labelIndex}`);
+    }));
+    const labelLabelOverlaps = [];
+    labels.forEach((label, index) => labels.slice(index + 1).forEach((other, otherIndex) => {
+      if (intersects(label, other)) labelLabelOverlaps.push(`${index}:${index + otherIndex + 1}`);
+    }));
+    const edges = JSON.parse(document.getElementById("jsonOutput").value).edges;
+    return {
+      nodeCount: nodes.length,
+      labelCount: labels.length,
+      blockLabelOverlaps,
+      labelLabelOverlaps,
+      normalOffsets: edges.map(edge => edge.layout.normalOffset),
+    };
+  });
+  assert.equal(autoLayoutGeometry.nodeCount, 3);
+  assert.equal(autoLayoutGeometry.labelCount, 2);
+  assert.deepEqual(autoLayoutGeometry.blockLabelOverlaps, []);
+  assert.deepEqual(autoLayoutGeometry.labelLabelOverlaps, []);
+  assert.deepEqual(autoLayoutGeometry.normalOffsets, [0, 0]);
+  // Restore the compact fixture before the later drag scenarios; auto-layout
+  // intentionally expands rank pitch and would change their seeded positions.
+  await page.click("#moreActionsBtn");
+  await page.click("#undoBtn");
   await page.locator(".edge-label").first().click();
   await page.fill(
     '[data-bind="edges.e1.actorBehavior.action"]',

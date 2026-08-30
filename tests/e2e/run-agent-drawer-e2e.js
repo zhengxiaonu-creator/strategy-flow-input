@@ -34,21 +34,9 @@ const {buildDocx, buildXlsx, buildPptx} = require(path.join(root, "tests/fixture
   assert.equal(parsed.status, "ok", JSON.stringify(parsed.error ?? null));
   const generated = executeCommand({command: "generate-draft", requestId: "req-e2e-draft", input: {caseId}, store});
   assert.equal(generated.status, "ok", JSON.stringify(generated.error ?? null));
-  const resolved = executeCommand({command: "resolve-draft", requestId: "req-e2e-resolve", input: {
-    caseId,
-    draftId: generated.data.draft.draftId,
-    resolvedFields: [
-      {target: "design", pointer: "/strategy/strategyId", value: "WB-AGENT-E2E-001"},
-      {target: "metadata", pointer: "/submitDate", value: "2026-08-30"},
-      {target: "metadata", pointer: "/effectiveFrom", value: "2026-08-30"},
-    ],
-  }, store});
-  assert.equal(resolved.status, "ok", JSON.stringify(resolved.error ?? null));
   const draftPath = path.join(workDir, "draft.json");
-  const resolvedDraftPath = path.join(workDir, "resolved-draft.json");
   const corpusPath = path.join(workDir, "corpus.json");
   fs.writeFileSync(draftPath, JSON.stringify(generated.data.draft));
-  fs.writeFileSync(resolvedDraftPath, JSON.stringify(resolved.data.draft));
   fs.writeFileSync(corpusPath, JSON.stringify(parsed.data.corpus));
 
   const browser = await chromium.launch({headless: true, ...(process.env.CHROME_PATH ? {executablePath: process.env.CHROME_PATH} : {})});
@@ -68,24 +56,33 @@ const {buildDocx, buildXlsx, buildPptx} = require(path.join(root, "tests/fixture
   assert.equal(await page.locator("#agentImportCandidateBtn").isDisabled(), true);
 
   await page.setInputFiles("#agentDraftFile", draftPath);
-  await page.waitForFunction(() => document.getElementById("agentDraftMeta").textContent.includes("blocked"));
-  assert.equal(await page.locator("#agentImportCandidateBtn").isDisabled(), true);
+  await page.waitForFunction(() => document.getElementById("agentDraftMeta").textContent.includes("待办 ×"));
+  assert.equal(await page.locator("#agentImportCandidateBtn").isDisabled(), false);
   assert.equal((await page.locator("#agentProvenanceList .agent-item").count()) > 0, true);
+  assert.equal((await page.locator("#agentQuestionList .agent-item").count()) > 0, true);
 
   await page.setInputFiles("#agentCorpusFile", corpusPath);
   await page.click("#agentProvenanceList .agent-ref");
   await page.waitForFunction(() => document.getElementById("agentEvidenceView").textContent.includes("ev-"));
 
-  await page.setInputFiles("#agentDraftFile", resolvedDraftPath);
-  await page.waitForFunction(() => !document.getElementById("agentImportCandidateBtn").disabled);
   await page.click("#agentImportCandidateBtn");
   await page.waitForFunction(() => document.getElementById("agentDrawer").hidden);
   const imported = await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value));
-  assert.equal(imported.strategy.strategyId, "WB-AGENT-E2E-001");
+  assert.equal(imported.strategy.strategyId, "");
   assert.equal(imported.strategy.strategyName, "通用客群激活策略");
   assert.equal(imported.nodes.length, 2);
   assert.equal(imported.taxonomy.tagSelections.some(selection => selection.fieldCode === "strategyType" && selection.values[0].code === "tail_customer_operation"), true);
   assert.equal("provenance" in imported, false);
+
+  await page.click("#openAgentDrawerBtn");
+  assert.equal((await page.locator("#agentQuestionList .agent-item").count()) > 0, true);
+  const exportGate = await page.evaluate(() => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    const metadata = JSON.parse(document.getElementById("metadataOutput").value);
+    return window.StrategyFlowDesigner.outputContractGate({...design, registrationMetadata: metadata});
+  });
+  assert.equal(exportGate.ready, false);
+  assert.equal(exportGate.blocking.some(item => item.code === "STRATEGY_FIELD_REQUIRED"), true);
 
   assert.deepEqual(issues, []);
   await browser.close();

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ebscn.local/strategy-agent/strategy-draft/0.1/schema.json",
   "title": "Strategy Agent Strategy Draft",
-  "description": "Agent-produced draft with field-level provenance. The candidate is a standard strategy-flow-input/0.2 document plus its metadata companion, wrapped - never extended - by this envelope. Two-stage validation is mandatory: (1) this shape schema, (2) the unchanged strategy-flow-input/0.2 and registration-metadata/2.0 validators. A draft is never a fact source; confirmed fields enter the canonical editor state only through explicit human review.",
+  "description": "Agent-produced draft with field-level provenance. The candidate is a standard strategy-flow-input/0.2 document plus its metadata companion, wrapped - never extended - by this envelope. Draft shape, pointers, and evidence references are validated immediately; output contract and reference integrity are enforced at the export boundary. A draft is never a fact source; humans refine it in the canonical editor.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -69,7 +69,7 @@
           "const": "strategy-flow-input/0.2"
         }
       },
-      "description": "Guard only. Full validation must run against the unchanged strategy-flow-input/0.2 schema and semantic validator."
+      "description": "Guard only. The draft layer may remain human-reviewable; final output must pass the unchanged strategy-flow-input/0.2 contract and reference-integrity checks."
     },
     "registrationMetadataCandidate": {
       "type": "object",
@@ -79,7 +79,7 @@
           "const": "strategy-flow-registration-metadata/2.0"
         }
       },
-      "description": "Guard only. Full validation must run against the unchanged metadata 2.0 validator."
+      "description": "Guard only. The draft layer may remain human-reviewable; final output must pass the unchanged metadata 2.0 contract."
     },
     "provenance": {
       "type": "array",

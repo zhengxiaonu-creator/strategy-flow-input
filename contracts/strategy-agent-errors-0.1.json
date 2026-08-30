@@ -161,7 +161,7 @@
       "stage": "review",
       "httpStatus": 422,
       "retryable": false,
-      "description": "存在 missing/conflict 的必填字段，禁止批量确认或提交。"
+      "description": "candidate/metadata 未达到导出契约或引用完整性，禁止可选审计确认。"
     },
     {
       "code": "E_APPROVAL_TOKEN_INVALID",

@@ -26,8 +26,8 @@ Commands:
   generate-draft    Generate a provenance-backed strategy draft (offline stub)
   get-draft         Read one draft
   resolve-draft     Fill missing facts as a human (no token needed)
-  request-approval  Issue a one-time approval token for a resolved draft
-  confirm-draft     Confirm a draft with a one-time token
+  request-approval  Issue an optional audit token for a schema-clean draft
+  confirm-draft     Record an optional audit confirmation with a one-time token
   discard-draft     Discard a draft
   get-case          Read case state, drafts and audit tail
 

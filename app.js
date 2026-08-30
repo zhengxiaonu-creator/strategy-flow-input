@@ -16,6 +16,45 @@
   const STORAGE_KEY = "ebscn.strategy-flow-designer.draft.v0";
   const LAYOUT_STORAGE_KEY = "ebscn.strategy-flow-designer.layout.v0";
   const NORMAL_OFFSET_LIMIT = 4800;
+  // Keep enough room for a 220px rule label between 262px cards. The old 370px
+  // rank pitch left only 108px, so every midpoint label covered both cards.
+  const AUTO_LAYOUT_RANK_GAP = 580;
+  // Card min-height is 188px; 320px leaves usable space for vertical labels.
+  const AUTO_LAYOUT_LEVEL_GAP = 320;
+  // The export boundary owns contract correctness. Review-level rules stay
+  // warnings so a dirty real-world draft can still reach the human editor.
+  const OUTPUT_CONTRACT_ERROR_CODES = new Set([
+    "SCHEMA_VERSION_REQUIRED",
+    "SCHEMA_VERSION_INVALID",
+    "SCHEMA_VERSION_UNSUPPORTED",
+    "SCHEMA_FIELD_REQUIRED",
+    "SCHEMA_UNKNOWN_FIELD",
+    "STRATEGY_FIELD_REQUIRED",
+    "ENUM_INVALID",
+    "TAXONOMY_VERSION_UNSUPPORTED",
+    "TAXONOMY_FIELD_REQUIRED",
+    "TAG_FIELD_REQUIRED",
+    "TAG_CODE_INVALID",
+    "TAG_PROPOSAL_FIELD_REQUIRED",
+    "TAG_PROPOSAL_FIELD_INVALID",
+    "TIME_REQUIRED",
+    "EXECUTOR_REQUIRED",
+    "SUBJECT_NAME_REQUIRED",
+    "SUBJECT_STATE_REQUIRED",
+    "LAYOUT_INVALID",
+    "ACTOR_TIME_REQUIRED",
+    "ACTOR_ACTION_REQUIRED",
+    "ACTOR_STATUS_REQUIRED",
+    "SUBJECT_TIME_REQUIRED",
+    "SUBJECT_ACTION_REQUIRED",
+    "SUBJECT_STATUS_REQUIRED",
+    "EDGE_ENDPOINT_MISSING",
+    "ACTION_FIELD_REQUIRED",
+    "METADATA_VERSION_UNSUPPORTED",
+    "METADATA_FIELD_REQUIRED",
+    "METADATA_DATE_INVALID",
+    "METADATA_TRIGGER_SCENE_FIELD_REQUIRED",
+  ]);
   const NODE_TYPES = ["entry", "process", "wait", "outcome", "recycle", "reentry", "terminal"];
   const EDGE_TYPES = ["state_transition", "handoff", "outcome", "recycle", "reentry", "exception"];
   const SUBJECT_TYPES = ["customer", "scene", "event", "activity"];
@@ -860,6 +899,53 @@
     return { status: errors.length ? "draft" : "ready_to_submit", errors, warnings: [] };
   }
 
+  function isOutputContractIssue(item) {
+    // Unknown dictionary values are review warnings, not JSON Schema failures;
+    // new labels belong in customTagProposals rather than blocking export shape.
+    if (item.code === "TAG_CODE_INVALID" && item.message.includes("未知标签")) return false;
+    // The same TAG_FIELD_REQUIRED code has two meanings: empty array/value is a
+    // schema failure; a missing optional dictionary field is editorial advice.
+    if (item.code === "TAG_FIELD_REQUIRED" && item.message.startsWith("标签字段缺失")) return false;
+    if (OUTPUT_CONTRACT_ERROR_CODES.has(item.code)) return true;
+    return /_(ID_INVALID|ID_DUPLICATE|NODE_MISSING|EDGE_MISSING|EDGE_SOURCE_MISMATCH)$/.test(item.code);
+  }
+
+  function outputContractGate(input) {
+    const exportDocument = toExportDocument(input);
+    const designReview = validateDocument(exportDocument);
+    const metadataDocument = toRegistrationMetadataDocument(input);
+    const metadataReview = validateRegistrationMetadata(metadataDocument);
+    const issues = [
+      ...designReview.errors.filter(item => !item.path.startsWith("registrationMetadata.")),
+      ...metadataReview.errors,
+    ];
+    if (!exportDocument.taxonomy.tagSelections.length) {
+      issues.push({
+        code: "TAXONOMY_FIELD_REQUIRED",
+        message: "taxonomy.tagSelections 至少需要一个值",
+        path: "taxonomy.tagSelections",
+      });
+    }
+
+    const seen = new Set();
+    const blocking = [];
+    const warnings = [...designReview.warnings];
+    for (const item of issues) {
+      const key = `${item.code}:${item.path}:${item.message}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (isOutputContractIssue(item)) blocking.push(item);
+      else warnings.push(item);
+    }
+    return {
+      ready: blocking.length === 0,
+      blocking,
+      warnings,
+      designStatus: blocking.length ? "draft" : "ready_to_submit",
+      metadataStatus: metadataReview.errors.length ? "draft" : "ready_to_submit",
+    };
+  }
+
   function escapeMermaid(value) {
     return clean(value)
       .replace(/\\/g, "\\\\")
@@ -982,8 +1068,16 @@
     rankKeys.forEach((rank, rankIndex) => {
       levels.get(rank).forEach((id, index) => {
         const node = doc.nodes.find(item => item.localId === id);
-        if (node) node.layout = { x: 100 + rankIndex * 370, y: 100 + index * 215 };
+        if (node) node.layout = {
+          x: 100 + rankIndex * AUTO_LAYOUT_RANK_GAP,
+          y: 100 + index * AUTO_LAYOUT_LEVEL_GAP,
+        };
       });
+    });
+    // Automatic layout owns geometry. Keeping old manual normal offsets would
+    // let a previous drag push the regenerated curve/label back into a card.
+    doc.edges.forEach(edge => {
+      edge.layout = {...edge.layout, normalOffset: 0};
     });
     return doc;
   }
@@ -1002,33 +1096,35 @@
   }
 
   function agentDraftGate(draft) {
-    const blocked = [];
+    // A draft is deliberately allowed to be incomplete. The editor is the
+    // human-in-loop workspace; contract correctness is enforced at export.
+    const warnings = [];
     const seen = new Set();
-    const push = (target, pointer, reason) => {
+    const push = (target, pointer, reason, questionId) => {
       const key = `${target}:${pointer}:${reason}`;
       if (seen.has(key)) return;
       seen.add(key);
-      blocked.push({target, pointer, reason});
+      warnings.push({target, pointer, reason, ...(questionId ? {questionId} : {})});
     };
     for (const item of draft?.provenance ?? []) {
       if (item.status === "missing" || item.status === "conflict") {
         push(item.target ?? "design", item.pointer, item.status);
       }
     }
-    const design = validateDocument(normalizeDocument(draft.candidate));
-    for (const issue of design.errors) {
-      if (issue.path?.startsWith("registrationMetadata.")) continue;
-      push("design", issue.path || "schemaVersion", issue.code);
+    for (const question of draft?.openQuestions ?? []) {
+      push(question.target ?? "design", question.pointer, "open_question", question.questionId);
     }
-    const metadata = validateRegistrationMetadata(draft.registrationMetadataCandidate);
-    for (const issue of metadata.errors) {
-      push("metadata", issue.path?.replace(/^registrationMetadata\./, "") || "schemaVersion", issue.code);
-    }
+    const contract = outputContractGate({
+      ...draft.candidate,
+      registrationMetadata: draft.registrationMetadataCandidate,
+    });
+    warnings.push(...contract.blocking.map(item => ({target: "design", pointer: item.path, reason: item.code})));
     return {
-      blocked,
-      ready: blocked.length === 0,
-      designStatus: design.status,
-      metadataStatus: metadata.status,
+      blocked: [],
+      warnings,
+      ready: true,
+      designStatus: contract.designStatus,
+      metadataStatus: contract.metadataStatus,
     };
   }
 
@@ -1055,6 +1151,7 @@
     normalizeDocument,
     validateDocument,
     validateRegistrationMetadata,
+    outputContractGate,
     toExportDocument,
     toJSON,
     toRegistrationMetadataDocument,
@@ -1997,9 +2094,17 @@
         });
       });
 
-      // Labels follow their own curve normal. If deterministic fan positions
-      // still collide, push the later label further along that normal.
-      const placedBoxes = [];
+      // Labels follow their own curve normal. Cards are obstacles too: long
+      // cross-rank edges can otherwise place a midpoint label on top of a block.
+      const placedBoxes = documentState.nodes
+        .map(node => nodeBox(node.localId))
+        .filter(Boolean)
+        .map(box => ({
+          left: box.x - 8,
+          right: box.x + box.w + 8,
+          top: box.y - 8,
+          bottom: box.y + box.h + 8,
+        }));
       const overlaps = (box) => placedBoxes.some(placed =>
         box.left < placed.right + 4
         && box.right > placed.left - 4
@@ -2011,7 +2116,7 @@
         const height = entry.div.offsetHeight || 58;
         const candidates = [];
         for (const sign of [entry.direction, -entry.direction]) {
-          for (let distance = entry.preferredDistance; distance <= 300; distance += 22) {
+          for (let distance = entry.preferredDistance; distance <= 360; distance += 18) {
             const x = entry.point.x + entry.normalX * distance * sign;
             const y = entry.point.y + entry.normalY * distance * sign;
             const box = { left: x - width / 2, right: x + width / 2, top: y - height / 2, bottom: y + height / 2 };
@@ -2656,6 +2761,14 @@
         textarea.remove();
         toast(message);
       }
+    }
+
+    function ensureExportContract() {
+      const gate = outputContractGate(documentState);
+      if (gate.ready) return true;
+      const first = gate.blocking[0];
+      toast(`导出未达输出契约：${first.code} ${first.path}`, true);
+      return false;
     }
 
     function download(filename, content, type) {
@@ -3316,7 +3429,7 @@
       }
       const gate = agentDraftGate(agentDraft);
       meta.innerHTML = `草稿 <b>${escapeHtml(agentDraft.draftId)}</b> · case <b>${escapeHtml(agentDraft.caseId)}</b> · ${agentCorpus ? "证据库已导入" : "证据库未导入"}`
-        + `<br>校验：${gate.ready ? "可以导入" : `blocked × ${gate.blocked.length}`}`;
+        + `<br>轻量审查：可导入编辑器 · 待办 × ${gate.warnings.length}`;
       provenanceList.innerHTML = (agentDraft.provenance ?? []).map(item => `
         <div class="agent-item">
           <span class="agent-badge ${item.status}">${item.status}</span>
@@ -3329,7 +3442,7 @@
           <code>${escapeHtml(question.target ?? "design")}${escapeHtml(question.pointer)}</code>
           <span>${escapeHtml(question.question)}</span>
         </div>`).join("") || "<p>无待确认问题。</p>";
-      el("agentImportCandidateBtn").disabled = !gate.ready;
+      el("agentImportCandidateBtn").disabled = false;
     };
     el("openAgentDrawerBtn").addEventListener("click", () => {
       el("agentDrawer").hidden = false;
@@ -3375,15 +3488,9 @@
     });
     el("agentImportCandidateBtn").addEventListener("click", () => {
       if (!agentDraft) return;
-      const gate = agentDraftGate(agentDraft);
-      if (!gate.ready) {
-        toast(`E_DRAFT_UNCONFIRMED_REQUIRED_FIELD：blocked × ${gate.blocked.length}`, true);
-        renderAgentDrawer();
-        return;
-      }
       applyImport(JSON.stringify(agentDraft.candidate), true);
       applyMetadataImport(JSON.stringify(agentDraft.registrationMetadataCandidate), true);
-      toast("Agent 草稿已确认并导入编辑器；导出后走 import-flow 提交");
+      toast(`Agent 草稿已导入编辑器；待办 × ${agentDraftGate(agentDraft).warnings.length}，请人工裁决`);
       el("agentDrawer").hidden = true;
     });
     document.addEventListener("keydown", event => {
@@ -3423,14 +3530,26 @@
       registrationDrawer.hidden = false;
       renderRegistrationInspector();
     });
-    el("copyJsonBtn").addEventListener("click", () => copyText(toJSON(documentState), "JSON 已复制"));
-    el("copyJsonBottomBtn").addEventListener("click", () => copyText(toJSON(documentState), "JSON 已复制"));
-    el("copyMetadataBtn").addEventListener("click", () => copyText(toRegistrationMetadataJSON(documentState), "注册元数据已复制"));
-    el("copyMetadataBottomBtn").addEventListener("click", () => copyText(toRegistrationMetadataJSON(documentState), "注册元数据已复制"));
+    el("copyJsonBtn").addEventListener("click", () => {
+      if (ensureExportContract()) copyText(toJSON(documentState), "JSON 已复制");
+    });
+    el("copyJsonBottomBtn").addEventListener("click", () => {
+      if (ensureExportContract()) copyText(toJSON(documentState), "JSON 已复制");
+    });
+    el("copyMetadataBtn").addEventListener("click", () => {
+      if (ensureExportContract()) copyText(toRegistrationMetadataJSON(documentState), "注册元数据已复制");
+    });
+    el("copyMetadataBottomBtn").addEventListener("click", () => {
+      if (ensureExportContract()) copyText(toRegistrationMetadataJSON(documentState), "注册元数据已复制");
+    });
     el("copyMermaidBtn").addEventListener("click", () => copyText(toMermaid(documentState), "Mermaid 已复制"));
     const exportName = extension => `${clean(documentState.strategy.strategyName) || "strategy-flow"}-${SCHEMA_VERSION.split("/").pop()}.${extension}`;
-    el("downloadJsonBtn").addEventListener("click", () => download(exportName("json"), toJSON(documentState), "application/json"));
-    el("downloadMetadataBtn").addEventListener("click", () => download(`${clean(documentState.strategy.strategyName) || "strategy-flow"}-registration-metadata-2.0.json`, toRegistrationMetadataJSON(documentState), "application/json"));
+    el("downloadJsonBtn").addEventListener("click", () => {
+      if (ensureExportContract()) download(exportName("json"), toJSON(documentState), "application/json");
+    });
+    el("downloadMetadataBtn").addEventListener("click", () => {
+      if (ensureExportContract()) download(`${clean(documentState.strategy.strategyName) || "strategy-flow"}-registration-metadata-2.0.json`, toRegistrationMetadataJSON(documentState), "application/json");
+    });
     el("downloadMermaidBtn").addEventListener("click", () => download(exportName("mmd"), toMermaid(documentState), "text/plain"));
     document.querySelector(".panel-tabs").addEventListener("click", event => {
       const button = event.target.closest("[data-panel]");

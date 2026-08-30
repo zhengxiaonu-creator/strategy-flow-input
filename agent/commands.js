@@ -50,16 +50,16 @@ function listTokens(store, caseId) {
 }
 
 function designerChecks(designer, draft) {
-  const canonical = designer.normalizeDocument(draft.candidate);
-  const design = designer.validateDocument(canonical);
-  const metadata = designer.validateRegistrationMetadata(draft.registrationMetadataCandidate);
-  const issues = [];
-  for (const error of design.errors) {
-    if (error.path?.startsWith("registrationMetadata.")) continue;
-    issues.push({target: "design", pointer: anchorPointer(draft.candidate, error.path), code: error.code, message: error.message});
-  }
-  for (const error of metadata.errors) issues.push({target: "metadata", pointer: anchorPointer(draft.registrationMetadataCandidate, error.path.replace(/^registrationMetadata\./, "")), code: error.code, message: error.message});
-  return {ready: design.status === "ready_to_submit" && metadata.status === "ready_to_submit", issues};
+  const gate = designer.outputContractGate({
+    ...draft.candidate,
+    registrationMetadata: draft.registrationMetadataCandidate,
+  });
+  const issues = gate.blocking.map(error => {
+    const target = error.code.startsWith("METADATA_") ? "metadata" : "design";
+    const root = target === "metadata" ? draft.registrationMetadataCandidate : draft.candidate;
+    return {target, pointer: anchorPointer(root, error.path), code: error.code, message: error.message};
+  });
+  return {ready: gate.ready, issues};
 }
 
 // Designer paths live in the canonical model; draft pointers live in the
@@ -87,16 +87,18 @@ function mergeValidationQuestions(draft, checks) {
       target: issue.target,
       questionId: `q-v${String(index).padStart(3, "0")}`,
       pointer: issue.pointer,
-      question: `候选稿未通过既有契约校验：${issue.code} ${issue.message}`,
+      question: `输出契约待办：${issue.code} ${issue.message}`,
       evidenceRefs: [],
     });
   }
 }
 
-function blockingDetails(validation, checks) {
+function blockingDetails(checks) {
   const seen = new Set();
   const details = [];
-  for (const item of [...validation.blocking.map(entry => ({target: entry.target, pointer: entry.pointer, status: entry.status})), ...checks.issues.map(issue => ({target: issue.target, pointer: issue.pointer, status: "invalid"}))]) {
+  // Provenance blocking is intentionally excluded: evidence state is review
+  // material, while the optional audit path gates only output contract issues.
+  for (const item of checks.issues.map(issue => ({target: issue.target, pointer: issue.pointer, status: "invalid", code: issue.code}))) {
     const key = `${item.target}:${item.pointer}:${item.status}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -252,9 +254,12 @@ function requestApproval({requestId, input, store, now, designer}) {
   const {fingerprint, ...corpus} = corpusRecord ?? {fingerprint: draft.evidenceCorpus.sha256};
   const validation = validateDraft(draft, corpus);
   const checks = designerChecks(designer, draft);
-  const blocking = blockingDetails(validation, checks);
+  const blocking = blockingDetails(checks);
+  if (!validation.valid) {
+    return fail("request-approval", requestId, "E_DRAFT_INVALID", "草稿 envelope / corpus 校验失败，禁止发起审计审批。", validation.errors.map(message => ({field: message})));
+  }
   if (blocking.length) {
-    return fail("request-approval", requestId, "E_DRAFT_UNCONFIRMED_REQUIRED_FIELD", "存在未确认或未通过校验的字段，禁止发起审批。", blocking);
+    return fail("request-approval", requestId, "E_DRAFT_UNCONFIRMED_REQUIRED_FIELD", "候选稿未达到导出契约，禁止发起审计审批。", blocking);
   }
   const tokenValue = `at-${crypto.randomBytes(24).toString("hex")}`;
   const approvalTokenId = `at-${crypto.createHash("sha256").update(tokenValue).digest("hex").slice(0, 12)}`;
@@ -331,10 +336,10 @@ function confirmDraft({requestId, input, store, now, designer}) {
   const {fingerprint, ...corpus} = corpusRecord ?? {fingerprint: draft.evidenceCorpus.sha256};
   const validation = validateDraft(draft, corpus);
   const checks = designerChecks(designer, draft);
-  const blocking = blockingDetails(validation, checks);
+  const blocking = blockingDetails(checks);
   if (!validation.valid || blocking.length) {
     store.appendAudit(input.caseId, {at: now, command: "confirm-draft", requestId, outcome: "blocked", draftId: input.draftId, blocking});
-    return fail("confirm-draft", requestId, "E_DRAFT_UNCONFIRMED_REQUIRED_FIELD", "存在未确认或未通过校验的字段，禁止确认。", blocking);
+    return fail("confirm-draft", requestId, "E_DRAFT_UNCONFIRMED_REQUIRED_FIELD", "候选稿未达到导出契约，禁止审计确认。", blocking);
   }
   token.consumedAt = now;
   store.saveToken(input.caseId, token);
