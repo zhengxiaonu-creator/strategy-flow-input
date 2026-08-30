@@ -2,8 +2,8 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const { chromium } = require("playwright");
 
-const root = path.resolve(__dirname, "../../..");
-const pagePath = path.join(root, "ebscn-strategy-flow-designer", "index.html");
+const root = path.resolve(__dirname, "../..");
+const pagePath = path.join(root, "index.html");
 const chromePath = process.env.CHROME_PATH;
 let browser;
 
@@ -44,20 +44,26 @@ let browser;
   const nodeFieldHelp = await page.evaluate(() => ({
     objectHelp: [...document.querySelectorAll(".field-help")].some(node => node.textContent.includes("先选择对象类型，再填写该类型下的具体对象名称")),
     stateHelp: [...document.querySelectorAll(".field-help")].some(node => node.textContent.includes("对象进入这张卡片时的业务状态")),
-    cardObject: document.querySelector("#node-n1 .node-subject")?.textContent,
-    cardStateLabel: document.querySelector("#node-n1 .node-state-label")?.textContent,
+    cardFacts: [...document.querySelectorAll("#node-n1 .node-fact")].map(node => node.textContent.trim()),
     hasNameField: Boolean(document.querySelector('[data-bind="nodes.n1.subject.name"]')),
   }));
   assert.equal(nodeFieldHelp.objectHelp, true);
   assert.equal(nodeFieldHelp.stateHelp, true);
   assert.equal(nodeFieldHelp.hasNameField, true);
-  assert.equal(nodeFieldHelp.cardObject, "对象：客群｜通用目标客群");
-  assert.equal(nodeFieldHelp.cardStateLabel, "对象状态");
+  assert.equal(
+    true,
+    nodeFieldHelp.cardFacts.some(text => text.includes("对象") && text.includes("客群｜通用目标客群"))
+  );
+  assert.equal(
+    true,
+    nodeFieldHelp.cardFacts.some(text => text.includes("对象状态"))
+  );
   await page.fill('[data-bind="nodes.n1.subject.name"]', "测试对象名称");
   await page.fill(
     '[data-bind="nodes.n1.subject.state"]',
     "测试对象状态"
   );
+  await page.click("#moreActionsBtn");
   await page.click("#saveDraftBtn");
   const explicitlySaved = await page.evaluate(() => ({
     status: document.getElementById("saveStatus").textContent,
@@ -299,7 +305,7 @@ let browser;
   });
 
   const exported = await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value));
-  assert.equal(exported.schemaVersion, "strategy-flow-input/0.1");
+  assert.equal(exported.schemaVersion, "strategy-flow-input/0.2");
   assert.equal(exported.nodes.length, 4);
   assert.equal(exported.edges.length, 4);
   assert.equal(exported.strategyActions.length, 2);

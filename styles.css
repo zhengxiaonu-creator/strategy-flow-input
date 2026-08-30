@@ -134,8 +134,21 @@ button:active { transform:scale(.97); }
 
 .workbench {
   display:grid;
-  grid-template-columns:var(--left-col,238px) 6px minmax(480px,1fr) 6px var(--right-col,340px);
+  grid-row:2;
+  grid-template-columns:var(--left-col,238px) var(--left-gutter,6px) minmax(480px,1fr) var(--right-gutter,6px) var(--right-col,340px);
   min-height:0; transition:grid-template-columns 160ms var(--motion);
+}
+.topbar { grid-row:1; }
+[data-panel-resizer="bottom"] { grid-row:3; }
+.bottom-panel { grid-row:4; }
+@media (min-width:851px) {
+  /* 五列全部显式钉住：resizer display:none 后不再参与自动摆放，
+     否则 canvas / inspector 会整体左移一格轨道。 */
+  .side-panel { grid-column:1; }
+  [data-panel-resizer="left"] { grid-column:2; }
+  .canvas-shell { grid-column:3; }
+  [data-panel-resizer="right"] { grid-column:4; }
+  .inspector { grid-column:5; }
 }
 .side-panel {
   min-height:0; overflow:auto; padding:12px;
@@ -143,10 +156,9 @@ button:active { transform:scale(.97); }
   border-right:1px solid rgba(210,208,206,.76); backdrop-filter:blur(18px) saturate(140%);
 }
 .inspector { border-right:0; border-left:1px solid rgba(210,208,206,.76); }
-.app.left-collapsed { --left-col:0px; }
-.app.right-collapsed { --right-col:0px; }
-.app.left-collapsed { grid-template-columns:0 0 minmax(480px,1fr) 6px var(--right-col,340px); }
-.app.right-collapsed { grid-template-columns:var(--left-col,238px) 6px minmax(480px,1fr) 0 0; }
+/* 折叠态只归零自己的两条轨道（列宽 + 间隔），左右状态可自由组合。 */
+.app.left-collapsed { --left-gutter:0px; }
+.app.right-collapsed { --right-gutter:0px; }
 .app.left-collapsed .side-panel:not(.inspector),.app.right-collapsed .inspector {
   overflow:hidden; padding:0; border-color:transparent; opacity:0; pointer-events:none; transition:opacity 120ms ease-out;
 }
@@ -537,7 +549,7 @@ body.resizing-bottom { cursor:row-resize; }
 ::-webkit-scrollbar-thumb:hover { background:rgba(96,94,92,.7); background-clip:padding-box; }
 
 @media (max-width:1100px) {
-  .workbench { grid-template-columns:var(--left-col,198px) 6px minmax(0,1fr) 6px var(--right-col,300px); }
+  .workbench { grid-template-columns:var(--left-col,198px) var(--left-gutter,6px) minmax(0,1fr) var(--right-gutter,6px) var(--right-col,300px); }
   .field-grid { grid-template-columns:1fr; }
   .brand { min-width:0; }
   .brand span { display:none; }

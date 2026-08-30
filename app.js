@@ -1222,9 +1222,11 @@
         button?.classList.toggle("on", layoutState[name]);
         if (button) button.setAttribute("aria-pressed", String(layoutState[name]));
       });
-      root.style.setProperty("--left-col", `${Math.round(layoutState.leftWidth)}px`);
-      root.style.setProperty("--right-col", `${Math.round(layoutState.rightWidth)}px`);
-      root.style.setProperty("--bottom-row", `${Math.round(layoutState.bottomHeight)}px`);
+      // 折叠时把轨道变量一并归零；内联变量优先级高于类规则，
+      // 只改 class 不归零变量会让面板继续占住原宽度。
+      root.style.setProperty("--left-col", layoutState.left ? `${Math.round(layoutState.leftWidth)}px` : "0px");
+      root.style.setProperty("--right-col", layoutState.right ? `${Math.round(layoutState.rightWidth)}px` : "0px");
+      root.style.setProperty("--bottom-row", layoutState.bottom ? `${Math.round(layoutState.bottomHeight)}px` : "0px");
       if (redrawEdges) {
         requestAnimationFrame(() => {
           // Grid track transition changes the visible canvas area; redraw once
