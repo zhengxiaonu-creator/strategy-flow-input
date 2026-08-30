@@ -1,3 +1,14 @@
+# Version 1.4.0 — 2026-08-30
+
+Release tag: `v1.4.0`
+
+- Upgrade the design contract to `strategy-flow-input/0.3`.
+- Add the `classification` card type for generic object classification and layering.
+- Separate Agent-local workspace IDs from board-issued `registrationCaseId` and `strategyId`.
+- Allow new 0.3 strategies to omit board IDs until submission and formal registration return them.
+- Keep 0.1 / 0.2 import compatibility and preserve 0.2 contract semantics.
+- Update Agent draft boundaries, examples, built-in skill guidance, validation, E2E coverage, and protocol documentation.
+
 # Version 1.3.0 — 2026-08-30
 
 Release tag: `v1.3.0`

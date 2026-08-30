@@ -1,6 +1,6 @@
 {
   "name": "strategy-flow-input",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "EBSCN strategy flow orchestration designer for strategy-flow-input JSON and Mermaid",
   "private": true,
   "license": "UNLICENSED",
