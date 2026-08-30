@@ -175,10 +175,9 @@ function generateDraft({corpus, corpusFingerprint, taxonomy, draftId, caseId, re
   }
 
   const candidate = {
-    schemaVersion: "strategy-flow-input/0.2",
+    schemaVersion: "strategy-flow-input/0.3",
     strategy: {
       strategyName,
-      strategyId: "",
       paradigm: "customer",
       owner: owner?.value ?? PENDING,
       submitter: submitter?.value ?? PENDING,
@@ -202,8 +201,6 @@ function generateDraft({corpus, corpusFingerprint, taxonomy, draftId, caseId, re
     mark("design", "/strategy/strategyName", "missing");
     question("design", "/strategy/strategyName", "材料中没有可作为策略名称的标题，请人工命名。");
   }
-  mark("design", "/strategy/strategyId", "missing");
-  question("design", "/strategy/strategyId", "门户策略编号是注册事实，必须由业务人员显式填写。");
   for (const [field, matched] of [["owner", owner], ["submitter", submitter]]) {
     if (matched) mark("design", `/strategy/${field}`, "supported", [matched.fragment.evidenceId], 0.85);
     else {

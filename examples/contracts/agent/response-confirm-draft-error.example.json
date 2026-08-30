@@ -8,7 +8,7 @@
     "code": "E_DRAFT_UNCONFIRMED_REQUIRED_FIELD",
     "message": "存在未确认的必填字段，禁止批量确认或提交。",
     "details": [
-      { "target": "design", "pointer": "/strategy/strategyId" },
+      { "target": "metadata", "pointer": "/submitDate" },
       { "target": "design", "pointer": "/processActions/0/hook" }
     ]
   }

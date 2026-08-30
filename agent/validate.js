@@ -34,7 +34,7 @@ function resolvePointer(root, pointer) {
 function validateManifest(manifest) {
   const errors = [];
   if (manifest?.schemaVersion !== "strategy-agent-source-manifest/0.1") errors.push("schemaVersion must be strategy-agent-source-manifest/0.1");
-  if (!/^[A-Z]{2}-[A-Za-z0-9][A-Za-z0-9_-]*$/.test(manifest?.caseId ?? "")) errors.push("caseId format invalid");
+  if (!/^AG-[A-Za-z0-9][A-Za-z0-9_-]*$/.test(manifest?.caseId ?? "")) errors.push("caseId format invalid");
   if (!Array.isArray(manifest?.files) || !manifest.files.length) errors.push("files must be a non-empty array");
   const fileIds = new Set();
   for (const file of manifest?.files ?? []) {
@@ -78,7 +78,7 @@ function draftTargets(draft) {
 function validateDraft(draft, corpus) {
   const errors = [];
   if (draft?.schemaVersion !== "strategy-agent-strategy-draft/0.1") errors.push("schemaVersion must be strategy-agent-strategy-draft/0.1");
-  if (draft?.candidate?.schemaVersion !== "strategy-flow-input/0.2") errors.push("candidate must be strategy-flow-input/0.2");
+  if (!["strategy-flow-input/0.2", "strategy-flow-input/0.3"].includes(draft?.candidate?.schemaVersion)) errors.push("candidate must be strategy-flow-input/0.2 or 0.3");
   if (draft?.registrationMetadataCandidate?.schemaVersion !== "strategy-flow-registration-metadata/2.0") errors.push("metadata candidate must be 2.0");
   if (draft?.taxonomyVersion !== draft?.candidate?.taxonomy?.schemaVersion) errors.push("taxonomyVersion mismatch");
   const evidenceIds = new Set((corpus?.fragments ?? []).map(fragment => fragment.evidenceId));

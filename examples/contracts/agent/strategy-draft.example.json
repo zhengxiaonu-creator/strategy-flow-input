@@ -11,10 +11,9 @@
   },
   "taxonomyVersion": "strategy-taxonomy/2026-09",
   "candidate": {
-    "schemaVersion": "strategy-flow-input/0.2",
+    "schemaVersion": "strategy-flow-input/0.3",
     "strategy": {
       "strategyName": "通用客群激活策略",
-      "strategyId": "",
       "paradigm": "customer",
       "owner": "张三",
       "submitter": "李四",
@@ -24,16 +23,88 @@
     "taxonomy": {
       "schemaVersion": "strategy-taxonomy/2026-09",
       "tagSelections": [
-        { "fieldCode": "lifecycle", "values": [{ "code": "existing", "label": "存量" }] },
-        { "fieldCode": "customerClass", "values": [{ "code": "generic", "label": "通用客群" }] },
-        { "fieldCode": "assetRange", "values": [{ "code": "unlimited", "parentCode": "generic", "label": "不限资产" }] },
-        { "fieldCode": "riskLevel", "values": [{ "code": "unspecified", "label": "不设分风险等级" }] },
-        { "fieldCode": "businessScene", "values": [{ "code": "user_activation", "label": "用户激活" }] },
-        { "fieldCode": "strategyType", "values": [{ "code": "tail_customer_operation", "parentCode": "user_activation", "label": "长尾客户运营策略" }] },
-        { "fieldCode": "touchScene", "values": [{ "code": "app", "label": "APP触达" }] },
-        { "fieldCode": "touchMethod", "values": [{ "code": "in_app_message", "parentCode": "app", "label": "站内信" }] }
+        {
+          "fieldCode": "lifecycle",
+          "values": [
+            {
+              "code": "existing",
+              "label": "存量"
+            }
+          ]
+        },
+        {
+          "fieldCode": "customerClass",
+          "values": [
+            {
+              "code": "generic",
+              "label": "通用客群"
+            }
+          ]
+        },
+        {
+          "fieldCode": "assetRange",
+          "values": [
+            {
+              "code": "unlimited",
+              "parentCode": "generic",
+              "label": "不限资产"
+            }
+          ]
+        },
+        {
+          "fieldCode": "riskLevel",
+          "values": [
+            {
+              "code": "unspecified",
+              "label": "不设分风险等级"
+            }
+          ]
+        },
+        {
+          "fieldCode": "businessScene",
+          "values": [
+            {
+              "code": "user_activation",
+              "label": "用户激活"
+            }
+          ]
+        },
+        {
+          "fieldCode": "strategyType",
+          "values": [
+            {
+              "code": "tail_customer_operation",
+              "parentCode": "user_activation",
+              "label": "长尾客户运营策略"
+            }
+          ]
+        },
+        {
+          "fieldCode": "touchScene",
+          "values": [
+            {
+              "code": "app",
+              "label": "APP触达"
+            }
+          ]
+        },
+        {
+          "fieldCode": "touchMethod",
+          "values": [
+            {
+              "code": "in_app_message",
+              "parentCode": "app",
+              "label": "站内信"
+            }
+          ]
+        }
       ],
-      "freeTextTags": [{ "fieldCode": "strategySubtype", "value": "通用客群激活策略" }],
+      "freeTextTags": [
+        {
+          "fieldCode": "strategySubtype",
+          "value": "通用客群激活策略"
+        }
+      ],
       "customTagProposals": []
     },
     "nodes": [
@@ -42,27 +113,48 @@
         "nodeType": "entry",
         "time": "启动日",
         "executor": "系统",
-        "subject": { "type": "customer", "name": "通用目标客群", "state": "未触达" },
+        "subject": {
+          "type": "customer",
+          "name": "通用目标客群",
+          "state": "未触达"
+        },
         "displayName": "系统·客群未触达",
-        "layout": { "x": 80, "y": 160 }
+        "layout": {
+          "x": 80,
+          "y": 160
+        }
       },
       {
         "localId": "n2",
         "nodeType": "process",
         "time": "启动后1日",
         "executor": "系统",
-        "subject": { "type": "customer", "name": "通用目标客群", "state": "已触达" },
+        "subject": {
+          "type": "customer",
+          "name": "通用目标客群",
+          "state": "已触达"
+        },
         "displayName": "系统·客群已触达",
-        "layout": { "x": 430, "y": 160 }
+        "layout": {
+          "x": 430,
+          "y": 160
+        }
       },
       {
         "localId": "n3",
         "nodeType": "outcome",
         "time": "观察期结束前",
         "executor": "责任执行人",
-        "subject": { "type": "customer", "name": "通用目标客群", "state": "已转化" },
+        "subject": {
+          "type": "customer",
+          "name": "通用目标客群",
+          "state": "已转化"
+        },
         "displayName": "责任人·客群已转化",
-        "layout": { "x": 790, "y": 160 }
+        "layout": {
+          "x": 790,
+          "y": 160
+        }
       }
     ],
     "edges": [
@@ -71,8 +163,16 @@
         "from": "n1",
         "to": "n2",
         "edgeType": "state_transition",
-        "actorBehavior": { "time": "启动日", "action": "多渠道触达", "status": "executed" },
-        "subjectBehavior": { "time": "启动日", "action": "点击链接", "status": "happened" },
+        "actorBehavior": {
+          "time": "启动日",
+          "action": "多渠道触达",
+          "status": "executed"
+        },
+        "subjectBehavior": {
+          "time": "启动日",
+          "action": "点击链接",
+          "status": "happened"
+        },
         "confirmed": true,
         "mutexGroup": "g1",
         "overwriteSource": false,
@@ -83,8 +183,16 @@
         "from": "n2",
         "to": "n3",
         "edgeType": "handoff",
-        "actorBehavior": { "time": "观察期结束前", "action": "人工跟进", "status": "executed" },
-        "subjectBehavior": { "time": "观察期结束前", "action": "完成转化", "status": "happened" },
+        "actorBehavior": {
+          "time": "观察期结束前",
+          "action": "人工跟进",
+          "status": "executed"
+        },
+        "subjectBehavior": {
+          "time": "观察期结束前",
+          "action": "完成转化",
+          "status": "happened"
+        },
         "confirmed": true,
         "mutexGroup": "g2",
         "overwriteSource": false,
@@ -106,7 +214,11 @@
         "hook": "通用权益",
         "copy": "【通用示例文案】请按实际策略替换。",
         "hasLink": true,
-        "metrics": ["触达数", "点击数", "点击率"]
+        "metrics": [
+          "触达数",
+          "点击数",
+          "点击率"
+        ]
       }
     ],
     "processActions": [
@@ -121,7 +233,9 @@
         "action": "转交线索给责任执行人",
         "hook": "待确认",
         "recipient": "责任执行人",
-        "metrics": ["任务数"]
+        "metrics": [
+          "任务数"
+        ]
       }
     ]
   },
@@ -135,33 +249,94 @@
     "triggerScenes": []
   },
   "provenance": [
-    { "target": "design", "pointer": "/strategy/strategyName", "status": "supported", "evidenceRefs": ["ev-001"], "confidence": 0.92 },
-    { "target": "design", "pointer": "/strategy/owner", "status": "supported", "evidenceRefs": ["ev-002"], "confidence": 0.85 },
-    { "target": "design", "pointer": "/strategy/strategyId", "status": "missing", "evidenceRefs": [] },
-    { "target": "design", "pointer": "/taxonomy/tagSelections/5", "status": "supported", "evidenceRefs": ["ev-002"], "confidence": 0.78 },
-    { "target": "design", "pointer": "/nodes/0", "status": "supported", "evidenceRefs": ["ev-002"], "confidence": 0.8 },
-    { "target": "design", "pointer": "/nodes/1", "status": "supported", "evidenceRefs": ["ev-003"], "confidence": 0.88 },
-    { "target": "design", "pointer": "/nodes/2", "status": "supported", "evidenceRefs": ["ev-004"], "confidence": 0.86 },
+    {
+      "target": "design",
+      "pointer": "/strategy/strategyName",
+      "status": "supported",
+      "evidenceRefs": [
+        "ev-001"
+      ],
+      "confidence": 0.92
+    },
+    {
+      "target": "design",
+      "pointer": "/strategy/owner",
+      "status": "supported",
+      "evidenceRefs": [
+        "ev-002"
+      ],
+      "confidence": 0.85
+    },
+    {
+      "target": "design",
+      "pointer": "/taxonomy/tagSelections/5",
+      "status": "supported",
+      "evidenceRefs": [
+        "ev-002"
+      ],
+      "confidence": 0.78
+    },
+    {
+      "target": "design",
+      "pointer": "/nodes/0",
+      "status": "supported",
+      "evidenceRefs": [
+        "ev-002"
+      ],
+      "confidence": 0.8
+    },
+    {
+      "target": "design",
+      "pointer": "/nodes/1",
+      "status": "supported",
+      "evidenceRefs": [
+        "ev-003"
+      ],
+      "confidence": 0.88
+    },
+    {
+      "target": "design",
+      "pointer": "/nodes/2",
+      "status": "supported",
+      "evidenceRefs": [
+        "ev-004"
+      ],
+      "confidence": 0.86
+    },
     {
       "target": "design",
       "pointer": "/strategyActions/0/copy",
       "status": "conflict",
-      "evidenceRefs": ["ev-001", "ev-005"],
+      "evidenceRefs": [
+        "ev-001",
+        "ev-005"
+      ],
       "confidence": 0.55,
       "note": "需求文档给出文案方向，但合规段落要求二次确认后定稿；需人工裁决。"
     },
-    { "target": "design", "pointer": "/processActions/0/hook", "status": "missing", "evidenceRefs": [] },
-    { "target": "metadata", "pointer": "/businessUnit", "status": "supported", "evidenceRefs": ["ev-002"], "confidence": 0.7 },
-    { "target": "metadata", "pointer": "/triggerScenes", "status": "missing", "evidenceRefs": [] }
-  ],
-  "openQuestions": [
     {
       "target": "design",
-      "questionId": "q-001",
-      "pointer": "/strategy/strategyId",
-      "question": "门户策略编号是注册事实，材料中不存在，必须由业务人员显式填写。",
+      "pointer": "/processActions/0/hook",
+      "status": "missing",
       "evidenceRefs": []
     },
+    {
+      "target": "metadata",
+      "pointer": "/businessUnit",
+      "status": "supported",
+      "evidenceRefs": [
+        "ev-002"
+      ],
+      "confidence": 0.7
+    },
+    {
+      "target": "metadata",
+      "pointer": "/triggerScenes",
+      "status": "missing",
+      "evidenceRefs": []
+    }
+  ],
+  "openQuestions": [
     {
       "target": "design",
       "questionId": "q-002",
@@ -177,5 +352,7 @@
       "evidenceRefs": []
     }
   ],
-  "reviewState": { "status": "draft" }
+  "reviewState": {
+    "status": "draft"
+  }
 }

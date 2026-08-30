@@ -6,7 +6,7 @@
 
 | 场景 | 命令 | 关键输入 |
 |---|---|---|
-| 解析材料 | `parse-sources` | `caseId`、一个或多个 `file`、`requestId` |
+| 解析材料 | `parse-sources` | 一个或多个 `file`、`requestId`；可省略 `caseId` |
 | 生成草稿 | `generate-draft` | `caseId`、可选 `corpusId`、`requestId` |
 | 读取草稿 | `get-draft` | `caseId`、`draftId`、`requestId` |
 | 人工补齐 | `resolve-draft` | `caseId`、`draftId`、`resolvedFields`、`requestId` |
@@ -21,7 +21,7 @@
 
 1. 确认能调用 `strategy-agent --help`。不能调用时，向用户说明缺入口，并请求提供仓库 checkout 或安装授权。
 2. 确认本次输入文件都存在且用户明确允许读取。
-3. 确认 `caseId` 形如 `AG-<slug>`，不要复用语义不同的旧 case。
+3. 不向业务人员询问本地工作区 ID；`parse-sources` 缺省时自动生成，并从响应的 `caseId` 继续传递。
 4. 确认 store 路径。推荐使用用户提供的绝对路径；同一 case 后续命令不得换路径。
 5. 预检扩展名。遇到 `.pdf`、图片、音频、压缩包等不支持类型，先说明 `E_SOURCE_FILE_UNSUPPORTED` 的可能结果，并请用户转成支持格式；不要伪造 corpus。
 
@@ -30,7 +30,6 @@
 ```bash
 strategy-agent parse-sources \
   --store "$STRATEGY_AGENT_STORE" \
-  --case AG-new-customer-001 \
   --file requirement.docx \
   --file flow.xlsx \
   --request-id req-ag-new-customer-001-parse-001
@@ -41,12 +40,14 @@ strategy-agent parse-sources \
 ```bash
 strategy-agent generate-draft \
   --store "$STRATEGY_AGENT_STORE" \
-  --case AG-new-customer-001 \
+  --case <local-workspace-id> \
   --corpus ec-... \
   --request-id req-ag-new-customer-001-draft-001
 ```
 
 成功后从 `data.draft` 记录 `draftId`、`candidate`、`registrationMetadataCandidate`、`provenance`、`openQuestions`、`reviewState`。当前默认模型是离线 stub；Agent 不得因为模型输出简陋而手改内部 artifact 或补造业务事实。
+
+当前离线 stub 生成 Design 0.3，但不会自动生成 `classification`。若材料显示存在对象分类 / 分层意图，Agent 只能在审查汇报或 openQuestions 中提示；业务人员确认后在编辑器里显式添加或修改卡片。不要直接编辑 store 内部 draft。
 
 ## 幂等与错误处理
 
@@ -63,7 +64,7 @@ strategy-agent generate-draft \
 ```bash
 strategy-agent get-case \
   --store "$STRATEGY_AGENT_STORE" \
-  --case AG-new-customer-001 \
+  --case <local-workspace-id> \
   --request-id req-ag-new-customer-001-case-001
 ```
 
@@ -75,7 +76,10 @@ strategy-agent get-case \
 - `resolvedFields` 的 pointer 必须指向 draft candidate 或 metadata 的真实字段；一次只提交已确认的字段。
 - 口头确认不能被 Agent 改写成带证据的 `supported`。通过 `resolve-draft` 会形成 `human_resolved` 审计；编辑器修正则进入 canonical 编辑状态。
 - 页面顶栏「Agent 草稿」同时导入 draft JSON 与 corpus JSON，逐项核对 provenance / openQuestions / evidence 后导入候选。
-- 默认路径是：待办可见 → 人工修正 → 导出边界校验 → 导出 Design 0.2 与 Metadata 2.0。证据待办本身不阻断编辑器导入。
+- 默认路径是：待办可见 → 人工修正 → 导出边界校验 → 导出 Design 0.3 与 Metadata 2.0。证据待办本身不阻断编辑器导入。
+- 新建策略导出时省略 `registrationCaseId` 与 `strategyId`。看板提交注册后返回 CaseID，正式注册后返回策略编号；只有用户明确要继续已有提交或更新已有正式策略时才询问对应看板返回值。
+- 对象分类卡片导出前必须满足：至少一个 `processActions`、无 `strategyActions`、有出边、所有出边对象行为为 `no_requirement`；对应阻断码为 `CLASSIFICATION_PROCESS_ACTION_REQUIRED`、`CLASSIFICATION_STRATEGY_ACTION_FORBIDDEN`、`CLASSIFICATION_OUTGOING_EDGE_REQUIRED`、`CLASSIFICATION_SUBJECT_BEHAVIOR_INVALID`。
+- 0.2 candidate 导入编辑器后仍保持原有 `process`；只有业务人员显式选择“对象分类”后，导出才使用 `classification`。
 
 ## 可选审计路径
 
@@ -84,14 +88,14 @@ strategy-agent get-case \
 ```bash
 strategy-agent request-approval \
   --store "$STRATEGY_AGENT_STORE" \
-  --case AG-new-customer-001 \
+  --case <local-workspace-id> \
   --draft sd-... \
   --approver Terry \
   --request-id req-ag-new-customer-001-approval-001
 
 strategy-agent confirm-draft \
   --store "$STRATEGY_AGENT_STORE" \
-  --case AG-new-customer-001 \
+  --case <local-workspace-id> \
   --draft sd-... \
   --token at-... \
   --confirmed-by Terry \

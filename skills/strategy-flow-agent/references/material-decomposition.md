@@ -39,20 +39,45 @@
 - 条件、阈值、等待时长、失败分支、回收和重入必须引用具体 fragment。
 - 材料只有线性顺序而没有条件时，生成待确认问题，不要编 `if/else`。
 
-### 4. 策略动作与过程动作
+### 4. 对象分类信号
+
+Design 0.3 用 `nodes[].nodeType = "classification"` 表达“对象分类”卡片。它可作用于客群、场景、事件或活动，表示执行人对对象做分类、分层或重新分层；对象本身无行为要求，也不因此被触达。
+
+**显式信号**：材料同时出现分类 / 分层 / 分群 / 打标 / 按行为划分 / 产出细分对象等意图，并能定位到被分类对象、执行人或分类结果之一。此时可以把“存在对象分类需求”记录为证据支撑的候选意图，并引用具体 `evidenceId`。
+
+**弱信号**：材料只出现“高潜 / 低潜 / 核心 / 长尾”等层级词、多个细分对象名，或只描述差异化策略而没有说明先分类。这些只能形成 openQuestion，请业务人员确认是否存在前置或中间分类动作，不得直接认定为 `classification`。
+
+需要人工确认的缺口：
+
+- 被分类的对象类型和名称：客群、场景、事件或活动。
+- 分类执行人 / 角色。
+- 分类依据：行为特征、状态差异、阈值、优先级和兜底规则。
+- 输出结果：互斥分类 / 分层清单和未分类处理方式。
+- 后续承接：统一入口、分支策略或再次分类。
+- 过程指标：分类覆盖率、细分重叠率、未分类率、规则命中率等。
+
+落地边界：
+
+- `classification` 是 Design 0.3 能力；0.2 只有 `process`，不得把 0.2 的展示名或动作描述自动猜成新类型。
+- 当前离线 stub 生成 Design 0.3，但不会自动生成 `classification`。Agent 发现信号后只能在审查汇报 / openQuestions 中提示，待业务人员确认后在编辑器显式添加或修改卡片。
+- 不要直接修改 `strategy-agent-store` 里的 draft 来补 `classification`。
+- 分类依据、动作、结果和指标继续挂在 `processActions`；`classification` 禁止挂接 `strategyActions`。
+- 所有出边的对象行为必须是 `no_requirement`；执行人变化仍需 `handoff`。
+
+### 5. 策略动作与过程动作
 
 - 客户触达内容：触达场景、触达方式、话术、权益、客户指标。
 - 执行跟进动作：跟进执行人、执行内容、过程指标、检查节奏。
 - 动作必须挂接到真实节点或边；没有挂接点就列为问题，不要创建空壳节点。
 
-### 5. Taxonomy
+### 6. Taxonomy
 
 - `code` 是唯一持久化稳定值；展示可用 label。
 - 多选、单选和父子关系以 `strategy-taxonomy/2026-09` 为准，不要凭材料文案自造 code。
 - 新业务场景、策略类型、触达场景或触达方式只能走 `customTagProposals`，包含 `proposalId + label + reason + parentRef`；未审批不得伪装成既有 code。
 - 自由文本策略子类放 `strategySubtype`，不要塞进结构化标签。
 
-### 6. Metadata companion
+### 7. Metadata companion
 
 `businessUnit`、`submitDate`、`coreHook`、`effectiveFrom`、`baselineVersion`、`triggerScenes` 属于 Metadata 2.0。标签字段禁止写入 metadata；标签唯一事实源在 Design JSON 的 `taxonomy`。
 
@@ -90,5 +115,6 @@
 - 不要把 Mermaid 当输入事实源，也不要承诺从 Mermaid 无损恢复 JSON。
 - 不要把画布坐标、间距、颜色等布局字段写入业务语义。
 - 不要为了凑完整流程添加入口、终态、回收或重入节点。
+- 不要把“高潜 / 低潜 / 核心 / 长尾”等层级词直接当成对象分类事实；先确认这些是输入对象、分类结果还是策略命名。
 - 不要把通用行业常识当成业务证据。
 - 不要把 PDF OCR / 截图文字等未经 parser 的内容伪装成 corpus evidence。

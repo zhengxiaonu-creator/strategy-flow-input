@@ -32,14 +32,14 @@ Commands:
   get-case          Read case state, drafts and audit tail
 
 Options:
-  --case <id>             Case id, e.g. AG-demo-001
+  --case <id>             Local workspace id; optional for parse-sources and required by other commands
   --file <path>           Input file for parse-sources (repeatable)
   --corpus <id>           Corpus id for generate-draft
   --draft <id>            Draft id
   --token <token>         Approval token value
   --approver <name>       Approver display name
   --confirmed-by <name>   Confirmer identity
-  --resolved <p=v>        resolvedFields entry, e.g. design:/strategy/strategyId=WB-1 (repeatable)
+  --resolved <p=v>        resolvedFields entry, e.g. metadata:/submitDate=2026-08-30 (repeatable)
   --request-id <id>       Idempotency key (req-<slug>); auto-generated when omitted
   --store <dir>           State directory (default ./strategy-agent-store)
   --help                  Show this help

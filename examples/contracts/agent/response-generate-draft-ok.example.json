@@ -18,10 +18,9 @@
       },
       "taxonomyVersion": "strategy-taxonomy/2026-09",
       "candidate": {
-        "schemaVersion": "strategy-flow-input/0.2",
+        "schemaVersion": "strategy-flow-input/0.3",
         "strategy": {
           "strategyName": "通用客群激活策略",
-          "strategyId": "",
           "paradigm": "customer",
           "owner": "张三",
           "submitter": "李四",
@@ -277,12 +276,6 @@
         },
         {
           "target": "design",
-          "pointer": "/strategy/strategyId",
-          "status": "missing",
-          "evidenceRefs": []
-        },
-        {
-          "target": "design",
           "pointer": "/taxonomy/tagSelections/5",
           "status": "supported",
           "evidenceRefs": [
@@ -351,13 +344,6 @@
         }
       ],
       "openQuestions": [
-        {
-          "target": "design",
-          "questionId": "q-001",
-          "pointer": "/strategy/strategyId",
-          "question": "门户策略编号是注册事实，材料中不存在，必须由业务人员显式填写。",
-          "evidenceRefs": []
-        },
         {
           "target": "design",
           "questionId": "q-002",

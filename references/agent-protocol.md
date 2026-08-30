@@ -4,8 +4,8 @@
 
 本协议定义“非结构化材料 → 证据 → 草稿 → 人工编辑 → 既有输出”的 Agent 通道。默认是轻量 human-in-loop 工作流：Agent 尽早把可编辑草稿交给画布，证据问题以待办呈现，最终只在导出边界检查输出契约。四条不变量：
 
-1. **输出契约零改动。** `strategy-flow-input/0.2`、`strategy-flow-registration-metadata/2.0`、`strategy-taxonomy/2026-09` 保持原样；草稿在外层包装 candidate 与 provenance，不向输出 JSON 增加任何字段。
-2. **草稿不是事实源。** Agent 产物永远是 draft；人工在 canonical 编辑状态中修改，最终仍以导出的 0.2 双文件为准。
+1. **输出契约零改动。** candidate 可使用 `strategy-flow-input/0.2` 或 `0.3`，`strategy-flow-registration-metadata/2.0`、`strategy-taxonomy/2026-09` 保持原样；草稿在外层包装 candidate 与 provenance，不向输出 JSON 增加任何字段。
+2. **草稿不是事实源。** Agent 产物永远是 draft；人工在 canonical 编辑状态中修改，最终仍以导出的 Design 0.3 与 Metadata 2.0 双文件为准。
 3. **无证据不得冒充事实。** `supported`/`conflict` 字段必须引用 corpus 中存在的 `evidenceId`；无证据的值只能 `missing` 并保持“待确认”或空值。`missing`/`conflict`/`openQuestions` 是审查待办，不是导入编辑器的硬门。
 4. **Mermaid 不参与 round-trip。** 全链路只走 JSON 契约；Mermaid 仍是展示投影。
 
@@ -20,7 +20,7 @@
 
 | 命令 | 输入 | 输出 data |
 |---|---|---|
-| `parse-sources` | source manifest | `{ manifest, corpus }` |
+| `parse-sources` | source manifest（可省略 `caseId`） | `{ caseId, manifest, corpus }` |
 | `generate-draft` | `{ caseId, corpusId, corpusSha256, taxonomyVersion }` | `{ draft }` |
 | `get-draft` | `{ caseId, draftId }` | `{ draft }` |
 | `resolve-draft` | `{ caseId, draftId, resolvedFields }` | `{ draft }`（人工补齐事实，无需 token） |
@@ -62,7 +62,7 @@
 
 ## source manifest 语义
 
-- `caseId` 是 Agent 会话内的本地编号（`AG-...`），与门户 `strategyId` 无关。
+- `caseId` 是 Agent 会话内的本地工作区 ID（`AG-...`），与看板 `registrationCaseId` / `strategyId` 均无关。`parse-sources` 缺省时自动生成并在响应中返回；业务人员不需要填写或理解它。
 - 每个文件必须记录 `sha256`；解析前校验指纹，不一致即 `E_SOURCE_CHECKSUM_MISMATCH`。
 - `parserStatus` 是唯一的状态口径：`pending`/`parsed`/`unsupported`/`failed`；`parsed` 必须带 `parsedAt` 和 `corpusIds`，`unsupported`/`failed` 必须带 `failureCode`，禁止静默跳过。
 
@@ -79,7 +79,7 @@
 ### 两段式校验
 
 1. 草稿边界硬校验：`strategy-agent-strategy-draft/0.1` Schema、corpus 指纹、pointer 可解析、evidence 引用完整。
-2. 导出边界硬校验：candidate 必须符合 `strategy-flow-input/0.2` 输出契约，metadata candidate 必须符合 `strategy-flow-registration-metadata/2.0`，并保持节点 / 边 / 动作引用完整。业务建议和证据待办在导出前以 warning 呈现。
+2. 导出边界硬校验：candidate 必须符合 `strategy-flow-input/0.2` 或 `0.3` 输出契约，metadata candidate 必须符合 `strategy-flow-registration-metadata/2.0`，并保持节点 / 边 / 动作引用完整。业务建议和证据待办在导出前以 warning 呈现。
 
 ### provenance 规则
 
@@ -122,7 +122,7 @@
   → strategy-draft（candidate + provenance + openQuestions）
   → canonical 编辑状态（missing / conflict / openQuestions 保留为待办）
   → 人工在画布 / 属性栏修改
-  → 导出 design 0.2 + metadata 2.0（现有导出，不变）
+  → 导出 design 0.3 + metadata 2.0
   → manage_case.py --json import-flow（现有唯一提交入口，不变）
 ```
 
@@ -132,7 +132,7 @@
 2. corpus 引用完整：evidenceId 唯一，fileId ⊆ manifest。
 3. draft 的 provenance/openQuestions 指针全部可解析；status 硬约束成立；evidenceRefs ⊆ corpus。
 4. corpus 指纹与声明一致。
-5. `strategyId` 为空的草稿可以导入编辑器，但页面必须显示待办且导出被输出契约阻断——证明“缺事实不得编造、不得前置硬门”。
+5. 新建策略草稿省略 `registrationCaseId` 与 `strategyId`，可以导入编辑器并导出；只有看板返回对应 ID 后才携带。
 6. 带 `conflict` provenance 与 `openQuestion` 的 schema 合规草稿可以进入编辑器和可选审计路径。
 7. 人工修正后的 candidate 走现有 normalize/export round-trip，不丢失 strategy/nodes/edges/actions/taxonomy。
 
@@ -147,12 +147,12 @@
 CLI 快速路径：
 
 ```bash
-npx strategy-agent parse-sources --case AG-demo-001 --file 需求.docx --file 流程.xlsx --request-id req-parse-1
-npx strategy-agent generate-draft --case AG-demo-001 --request-id req-draft-1
+npx strategy-agent parse-sources --file 需求.docx --file 流程.xlsx --request-id req-parse-1
+# Agent 从 parse-sources 响应读取本地工作区 ID，并在后续命令中内部传递。
+npx strategy-agent generate-draft --case <local-workspace-id> --request-id req-draft-1
 # 可选审计路径；默认路径是导入编辑器、人工修正后导出双 JSON
-npx strategy-agent resolve-draft --case AG-demo-001 --draft sd-... \
-  --resolved 'design:/strategy/strategyId=WB-...' \
+npx strategy-agent resolve-draft --case <local-workspace-id> --draft sd-... \
   --resolved 'metadata:/submitDate=2026-08-30'
-npx strategy-agent request-approval --case AG-demo-001 --draft sd-... --approver Terry
-npx strategy-agent confirm-draft --case AG-demo-001 --draft sd-... --token at-... --confirmed-by Terry
+npx strategy-agent request-approval --case <local-workspace-id> --draft sd-... --approver Terry
+npx strategy-agent confirm-draft --case <local-workspace-id> --draft sd-... --token at-... --confirmed-by Terry
 ```

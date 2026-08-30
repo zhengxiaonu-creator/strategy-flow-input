@@ -21,7 +21,7 @@
       "stage": "request",
       "httpStatus": 404,
       "retryable": false,
-      "description": "caseId 不存在；恢复必须从持久化 case 状态开始。"
+      "description": "本地工作区 ID 不存在；恢复必须从持久化工作区状态开始。"
     },
     {
       "code": "E_REQUEST_ID_INVALID",
@@ -42,7 +42,7 @@
       "stage": "request",
       "httpStatus": 400,
       "retryable": false,
-      "description": "caseId 缺失、格式非法，或与持久化状态中的 case 不一致。"
+      "description": "本地工作区 ID 缺失、格式非法，或与持久化状态不一致。"
     },
     {
       "code": "E_SOURCE_MANIFEST_INVALID",
@@ -112,7 +112,7 @@
       "stage": "draft",
       "httpStatus": 422,
       "retryable": false,
-      "description": "candidate 未通过既有的 strategy-flow-input/0.2 或 metadata 2.0 校验；输出契约不可被 Agent 绕过。"
+      "description": "candidate 未通过既有的 strategy-flow-input/0.2 / 0.3 或 metadata 2.0 校验；输出契约不可被 Agent 绕过。"
     },
     {
       "code": "E_DRAFT_PROVENANCE_POINTER_INVALID",

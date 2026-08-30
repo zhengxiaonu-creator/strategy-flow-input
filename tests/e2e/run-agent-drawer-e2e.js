@@ -16,7 +16,6 @@ const {buildDocx, buildXlsx, buildPptx} = require(path.join(root, "tests/fixture
 (async () => {
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "strategy-agent-e2e-"));
   const store = new Store(path.join(workDir, "store"));
-  const caseId = "AG-E2E-001";
   const files = [
     {fileName: "brief.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", contentBase64: buildDocx({paragraphs: [
       {text: "通用客群激活策略", style: "Heading1"},
@@ -30,8 +29,9 @@ const {buildDocx, buildXlsx, buildPptx} = require(path.join(root, "tests/fixture
     }]}).toString("base64")},
     {fileName: "deck.pptx", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", contentBase64: buildPptx({slides: [["存量客群激活方案"]]}).toString("base64")},
   ];
-  const parsed = executeCommand({command: "parse-sources", requestId: "req-e2e-parse", input: {caseId, files}, store});
+  const parsed = executeCommand({command: "parse-sources", requestId: "req-e2e-parse", input: {files}, store});
   assert.equal(parsed.status, "ok", JSON.stringify(parsed.error ?? null));
+  const caseId = parsed.data.caseId;
   const generated = executeCommand({command: "generate-draft", requestId: "req-e2e-draft", input: {caseId}, store});
   assert.equal(generated.status, "ok", JSON.stringify(generated.error ?? null));
   const draftPath = path.join(workDir, "draft.json");
@@ -57,6 +57,7 @@ const {buildDocx, buildXlsx, buildPptx} = require(path.join(root, "tests/fixture
 
   await page.setInputFiles("#agentDraftFile", draftPath);
   await page.waitForFunction(() => document.getElementById("agentDraftMeta").textContent.includes("待办 ×"));
+  assert.equal((await page.locator("#agentDraftMeta").innerText()).includes(caseId), false);
   assert.equal(await page.locator("#agentImportCandidateBtn").isDisabled(), false);
   assert.equal((await page.locator("#agentProvenanceList .agent-item").count()) > 0, true);
   assert.equal((await page.locator("#agentQuestionList .agent-item").count()) > 0, true);
@@ -68,7 +69,8 @@ const {buildDocx, buildXlsx, buildPptx} = require(path.join(root, "tests/fixture
   await page.click("#agentImportCandidateBtn");
   await page.waitForFunction(() => document.getElementById("agentDrawer").hidden);
   const imported = await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value));
-  assert.equal(imported.strategy.strategyId, "");
+  assert.equal("strategyId" in imported.strategy, false);
+  assert.equal("registrationCaseId" in imported.strategy, false);
   assert.equal(imported.strategy.strategyName, "通用客群激活策略");
   assert.equal(imported.nodes.length, 2);
   assert.equal(imported.taxonomy.tagSelections.some(selection => selection.fieldCode === "strategyType" && selection.values[0].code === "tail_customer_operation"), true);
@@ -82,7 +84,7 @@ const {buildDocx, buildXlsx, buildPptx} = require(path.join(root, "tests/fixture
     return window.StrategyFlowDesigner.outputContractGate({...design, registrationMetadata: metadata});
   });
   assert.equal(exportGate.ready, false);
-  assert.equal(exportGate.blocking.some(item => item.code === "STRATEGY_FIELD_REQUIRED"), true);
+  assert.equal(exportGate.blocking.some(item => item.path === "strategy.strategyId"), false);
 
   assert.deepEqual(issues, []);
   await browser.close();

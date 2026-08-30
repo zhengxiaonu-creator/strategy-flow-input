@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ebscn.local/strategy-flow-registration-metadata/2.0/schema.json",
   "title": "EBSCN Strategy Flow Registration Metadata",
-  "description": "Non-taxonomy registration facts for strategy-flow-input/0.2. Taxonomy fields are owned by the design document and are intentionally forbidden here.",
+  "description": "Non-taxonomy registration facts for strategy-flow-input/0.2 or 0.3. Taxonomy fields are owned by the design document and are intentionally forbidden here.",
   "type": "object",
   "additionalProperties": false,
   "required": [

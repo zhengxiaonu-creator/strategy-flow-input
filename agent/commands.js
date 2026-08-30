@@ -176,14 +176,25 @@ function runCommand({command, requestId, input, store, now, designer, taxonomy})
 }
 
 function requireCase(input, store, now) {
-  if (!/^[A-Z]{2}-[A-Za-z0-9][A-Za-z0-9_-]*$/.test(input.caseId ?? "")) {
+  if (!/^AG-[A-Za-z0-9][A-Za-z0-9_-]*$/.test(input.caseId ?? "")) {
     throw new Error("AGENT_INPUT:caseId 必须形如 AG-<slug>。");
   }
   return store.ensureCase(input.caseId, now);
 }
 
+function createWorkspaceId(store) {
+  let caseId;
+  do {
+    caseId = `AG-w${crypto.randomBytes(9).toString("hex")}`;
+  } while (store.getCase(caseId));
+  return caseId;
+}
+
 function parseSources({requestId, input, store, now}) {
-  const caseRecord = requireCase(input, store, now);
+  const caseId = input.caseId === undefined
+    ? createWorkspaceId(store)
+    : requireCase(input, store, now).caseId;
+  const caseRecord = store.ensureCase(caseId, now);
   if (!Array.isArray(input.files) || !input.files.length) throw new Error("AGENT_INPUT:files 不能为空。");
   const files = input.files.map((file, index) => {
     if (!file?.fileName?.trim()) throw new Error(`AGENT_INPUT:files[${index}].fileName 缺失。`);
@@ -192,22 +203,22 @@ function parseSources({requestId, input, store, now}) {
     return {fileName: file.fileName, mimeType: file.mimeType ?? "", buffer};
   });
   const {manifest, corpus, fingerprint} = buildCorpus({files, now});
-  manifest.caseId = input.caseId;
+  manifest.caseId = caseId;
   manifest.requestId = requestId;
   const manifestCheck = validateManifest(manifest);
   const corpusCheck = validateCorpus(corpus, manifest);
   if (!manifestCheck.valid || !corpusCheck.valid) {
     return fail("parse-sources", requestId, "E_CORPUS_INVALID", "解析产物未通过契约校验。", [...manifestCheck.errors, ...corpusCheck.errors].map(message => ({field: message})));
   }
-  store.writeManifest(input.caseId, manifest);
-  store.writeCorpus(input.caseId, {...corpus, fingerprint});
+  store.writeManifest(caseId, manifest);
+  store.writeCorpus(caseId, {...corpus, fingerprint});
   if (!caseRecord.manifestIds.includes(manifest.manifestId)) caseRecord.manifestIds.push(manifest.manifestId);
   if (!caseRecord.corpusIds.includes(corpus.corpusId)) caseRecord.corpusIds.push(corpus.corpusId);
   caseRecord.status = "sources_parsed";
   caseRecord.nextAction = "generate_draft";
-  store.saveCase(input.caseId, caseRecord, now);
-  store.appendAudit(input.caseId, {at: now, command: "parse-sources", requestId, outcome: "ok", manifestId: manifest.manifestId, corpusId: corpus.corpusId});
-  return ok("parse-sources", requestId, {manifest, corpus});
+  store.saveCase(caseId, caseRecord, now);
+  store.appendAudit(caseId, {at: now, command: "parse-sources", requestId, outcome: "ok", manifestId: manifest.manifestId, corpusId: corpus.corpusId});
+  return ok("parse-sources", requestId, {caseId, manifest, corpus});
 }
 
 function generateDraftCommand({requestId, input, store, now, designer, taxonomy}) {
@@ -350,13 +361,19 @@ function confirmDraft({requestId, input, store, now, designer}) {
   caseRecord.confirmedDraftId = input.draftId;
   store.saveCase(input.caseId, caseRecord, now);
   store.appendAudit(input.caseId, {at: now, command: "confirm-draft", requestId, outcome: "ok", draftId: input.draftId, approvalTokenId: token.approvalTokenId, actions: auditActions});
+  const registrationCaseId = cleanOptionalId(draft.candidate?.strategy?.registrationCaseId);
   return ok("confirm-draft", requestId, {
     draft,
     nextAction: "export_and_import_flow",
-    submissionCommand: "python manage_case.py --json import-flow --case <WB-CASE> "
-      + `--design strategy-flow-0.2.json --metadata strategy-flow-registration-metadata-2.0.json `
+    submissionCommand: "python manage_case.py --json import-flow "
+      + (registrationCaseId ? `--case ${registrationCaseId} ` : "")
+      + `--design strategy-flow-0.3.json --metadata strategy-flow-registration-metadata-2.0.json `
       + `--actor ${input.confirmedBy ?? "<actor>"} --request-id ${requestId}`,
   });
+}
+
+function cleanOptionalId(value) {
+  return String(value ?? "").trim();
 }
 
 function discardDraft({requestId, input, store, now}) {

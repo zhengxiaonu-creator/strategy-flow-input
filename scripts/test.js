@@ -9,6 +9,7 @@ const required = [
   "app.js",
   "bin/strategy-flow-input.js",
   "contracts/strategy-flow-input-0.2.schema.json",
+  "contracts/strategy-flow-input-0.3.schema.json",
   "contracts/strategy-flow-registration-metadata-2.0.schema.json",
   "contracts/strategy-taxonomy-2026-09.json",
   "contracts/strategy-taxonomy-2026-09.js",
@@ -18,6 +19,7 @@ const required = [
   "contracts/strategy-agent-strategy-draft-0.1.schema.json",
   "contracts/strategy-agent-errors-0.1.json",
   "examples/contracts/strategy-flow-input-0.2.json",
+  "examples/contracts/strategy-flow-input-0.3.json",
   "examples/contracts/strategy-flow-registration-metadata-2.0.json",
   "examples/contracts/agent/source-manifest.example.json",
   "examples/contracts/agent/evidence-corpus.example.json",
@@ -32,6 +34,7 @@ const required = [
   "skills/strategy-flow-agent/references/material-decomposition.md",
   "skills/strategy-flow-agent/references/human-collaboration.md",
   "schema/strategy-flow-input.schema.json",
+  "schema/strategy-flow-input-0.2.schema.json",
   "styles.css",
 ];
 
@@ -67,6 +70,25 @@ for (const reference of [
 }
 const openAiSkillPolicy = fs.readFileSync(path.join(root, "skills/strategy-flow-agent/agents/openai.yaml"), "utf8");
 assert(openAiSkillPolicy.includes("allow_implicit_invocation: true"), "Agent skill must allow implicit invocation");
+const skillDocumentation = {
+  entry: fs.readFileSync(path.join(root, "skills/strategy-flow-agent/SKILL.md"), "utf8"),
+  material: fs.readFileSync(path.join(root, "skills/strategy-flow-agent/references/material-decomposition.md"), "utf8"),
+  human: fs.readFileSync(path.join(root, "skills/strategy-flow-agent/references/human-collaboration.md"), "utf8"),
+  workbench: fs.readFileSync(path.join(root, "skills/strategy-flow-agent/references/workbench-protocol.md"), "utf8"),
+};
+for (const [text, phrase] of [
+  [skillDocumentation.entry, "对象分类使用 Design 0.3 的 `classification` 卡片表达"],
+  [skillDocumentation.material, "显式信号"],
+  [skillDocumentation.material, "弱信号"],
+  [skillDocumentation.material, "当前离线 stub 生成 Design 0.3，但不会自动生成 `classification`"],
+  [skillDocumentation.human, "对象分类确认"],
+  [skillDocumentation.entry, "不向业务人员询问本地工作区 `caseId`"],
+  [skillDocumentation.workbench, "CLASSIFICATION_PROCESS_ACTION_REQUIRED"],
+  [skillDocumentation.workbench, "新建策略导出时省略 `registrationCaseId` 与 `strategyId`"],
+  [skillDocumentation.workbench, "0.2 candidate 导入编辑器后仍保持原有 `process`"],
+]) {
+  assert(text.includes(phrase), `Agent skill must document object classification guidance: ${phrase}`);
+}
 const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
 assert(readme.includes("[`skills/strategy-flow-agent/SKILL.md`](skills/strategy-flow-agent/SKILL.md)"), "README must link the agent skill");
 for (const relativePath of required.filter(item => item.startsWith("skills/"))) {
@@ -89,10 +111,12 @@ assert(agentHelp.status === 0 && agentHelp.stdout.includes("Usage: strategy-agen
 
 for (const relativePath of [
   "contracts/strategy-flow-input-0.2.schema.json",
+  "contracts/strategy-flow-input-0.3.schema.json",
   "contracts/strategy-flow-registration-metadata-2.0.schema.json",
   "contracts/strategy-taxonomy-2026-09.schema.json",
   "contracts/strategy-taxonomy-2026-09.json",
   "examples/contracts/strategy-flow-input-0.2.json",
+  "examples/contracts/strategy-flow-input-0.3.json",
   "examples/contracts/strategy-flow-registration-metadata-2.0.json",
   "contracts/strategy-agent-response-0.1.schema.json",
   "contracts/strategy-agent-source-manifest-0.1.schema.json",
@@ -105,14 +129,16 @@ for (const relativePath of [
   "examples/contracts/agent/response-generate-draft-ok.example.json",
   "examples/contracts/agent/response-confirm-draft-error.example.json",
   "schema/strategy-flow-input.schema.json",
+  "schema/strategy-flow-input-0.2.schema.json",
   "schema/strategy-flow-input-0.1.schema.json",
 ]) {
   readJson(relativePath);
 }
 
 const designer = require(path.join(root, "app.js"));
-assert(designer.SUPPORTED_SCHEMA_VERSIONS.join(",") === "strategy-flow-input/0.1,strategy-flow-input/0.2", "Version registry contract failed");
+assert(designer.SUPPORTED_SCHEMA_VERSIONS.join(",") === "strategy-flow-input/0.1,strategy-flow-input/0.2,strategy-flow-input/0.3", "Version registry contract failed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.2").key === "0.2", "Valid version was not parsed");
+assert(designer.parseSchemaVersion("strategy-flow-input/0.3").key === "0.3", "Valid 0.3 version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/v0.2").valid === false, "Invalid version suffix must fail");
 assert(designer.parseSchemaVersion("other-flow/0.2").valid === false, "Invalid version namespace must fail");
 
@@ -124,7 +150,7 @@ const validResult = designer.validateDocument(canonical);
 assert(validResult.status === "ready_to_submit", `Authority example unexpectedly invalid: ${JSON.stringify(validResult)}`);
 
 const exported = designer.toExportDocument(canonical);
-assert(exported.schemaVersion === "strategy-flow-input/0.2", "Designer must export 0.2");
+assert(exported.schemaVersion === "strategy-flow-input/0.3", "Designer must export 0.3");
 assert(exported.validation.status === "ready_to_submit", "Exported authority example must remain valid");
 assert(!("registrationMetadata" in exported), "Companion metadata must not leak into design JSON");
 assert(designer.validateRegistrationMetadata(metadata).status === "ready_to_submit", "Metadata authority example unexpectedly invalid");
@@ -132,12 +158,91 @@ assert(designer.toRegistrationMetadataDocument(canonical).schemaVersion === "str
 
 const roundTripped = designer.normalizeDocument(exported);
 for (const key of ["strategy", "nodes", "edges", "strategyActions", "processActions"]) {
-  assert(JSON.stringify(roundTripped[key]) === JSON.stringify(canonical[key]), `0.2 round-trip changed ${key}`);
+  assert(JSON.stringify(roundTripped[key]) === JSON.stringify(canonical[key]), `0.2 -> 0.3 round-trip changed ${key}`);
 }
-assert(JSON.stringify(roundTripped.taxonomy.selections) === JSON.stringify(canonical.taxonomy.selections), "0.2 taxonomy round-trip failed");
-assert(roundTripped.taxonomy.strategySubtype === canonical.taxonomy.strategySubtype, "0.2 free-text round-trip failed");
+assert(JSON.stringify(roundTripped.taxonomy.selections) === JSON.stringify(canonical.taxonomy.selections), "0.2 -> 0.3 taxonomy round-trip failed");
+assert(roundTripped.taxonomy.strategySubtype === canonical.taxonomy.strategySubtype, "0.2 -> 0.3 free-text round-trip failed");
 
-const unsupported = designer.validateDocument({...externalDesign, schemaVersion: "strategy-flow-input/0.3"});
+const classificationDesign = readJson("examples/contracts/strategy-flow-input-0.3.json");
+const classificationCanonical = designer.normalizeDocument(classificationDesign);
+classificationCanonical.registrationMetadata = metadata;
+const classificationResult = designer.validateDocument(classificationCanonical);
+assert(classificationResult.status === "ready_to_submit", `Classification example unexpectedly invalid: ${JSON.stringify(classificationResult)}`);
+assert(classificationResult.errors.length === 0 && classificationResult.warnings.length === 0, "Classification example must be a clean 0.3 contract sample");
+const classificationExport = designer.toExportDocument(classificationCanonical);
+assert(classificationExport.schemaVersion === "strategy-flow-input/0.3", "Classification example must export 0.3");
+assert(classificationExport.nodes[0].nodeType === "classification", "Classification example must use the classification node type");
+assert(!("strategyId" in classificationExport.strategy), "New 0.3 strategy must omit board-assigned strategyId");
+assert(!("registrationCaseId" in classificationExport.strategy), "New 0.3 strategy must omit board-assigned registration case id");
+const classificationRoundTrip = designer.normalizeDocument(classificationExport);
+for (const key of ["strategy", "nodes", "edges", "strategyActions", "processActions"]) {
+  assert(JSON.stringify(classificationRoundTrip[key]) === JSON.stringify(classificationCanonical[key]), `0.3 classification round-trip changed ${key}`);
+}
+for (const subjectType of ["customer", "scene", "event", "activity"]) {
+  const variant = JSON.parse(JSON.stringify(classificationCanonical));
+  variant.nodes[0].subject.type = subjectType;
+  assert(designer.validateDocument(variant).status === "ready_to_submit", `Classification must support subject type ${subjectType}`);
+}
+
+const clone = value => JSON.parse(JSON.stringify(value));
+const missingProcessAction = clone(classificationCanonical);
+missingProcessAction.processActions = missingProcessAction.processActions.filter(action => action.nodeId !== "n0");
+assert(designer.validateDocument(missingProcessAction).errors.some(error => error.code === "CLASSIFICATION_PROCESS_ACTION_REQUIRED"), "Classification without process action must be blocked");
+const withStrategyAction = clone(classificationCanonical);
+withStrategyAction.strategyActions.push({...clone(withStrategyAction.strategyActions[0]), localId: "sa-classification", nodeId: "n0", outgoingEdgeId: "e0"});
+assert(designer.validateDocument(withStrategyAction).errors.some(error => error.code === "CLASSIFICATION_STRATEGY_ACTION_FORBIDDEN"), "Classification with strategy action must be blocked");
+const noOutgoingEdge = clone(classificationCanonical);
+noOutgoingEdge.edges = noOutgoingEdge.edges.filter(edge => edge.from !== "n0");
+assert(designer.validateDocument(noOutgoingEdge).errors.some(error => error.code === "CLASSIFICATION_OUTGOING_EDGE_REQUIRED"), "Classification without outgoing edge must be blocked");
+const invalidSubjectBehavior = clone(classificationCanonical);
+invalidSubjectBehavior.edges.find(edge => edge.localId === "e0").subjectBehavior = {
+  time: "策略启动前", action: "点击链接", status: "happened",
+};
+assert(designer.validateDocument(invalidSubjectBehavior).errors.some(error => error.code === "CLASSIFICATION_SUBJECT_BEHAVIOR_INVALID"), "Classification must not require subject behavior");
+
+const classificationIn02 = clone(externalDesign);
+classificationIn02.nodes[0].nodeType = "classification";
+assert(designer.validateDocument(classificationIn02).errors.some(error => error.code === "ENUM_INVALID" && error.path === "nodes[0].nodeType"), "classification must not be accepted by the 0.2 contract");
+const processPattern = clone(externalDesign);
+processPattern.nodes.find(node => node.nodeType === "process").displayName = "客群分类（前置准备）";
+const processPatternCanonical = designer.normalizeDocument(processPattern);
+assert(processPatternCanonical.nodes.find(node => node.displayName === "客群分类（前置准备）").nodeType === "process", "0.2 classification wording must not be inferred as classification");
+assert(designer.validateDocument(processPatternCanonical).warnings.some(error => error.code === "SCHEMA_MIGRATED"), "0.2 import must expose migration");
+const boardIdClassification = clone(classificationCanonical);
+boardIdClassification.strategy.registrationCaseId = "CASE-BOARD-ASSIGNED-001";
+boardIdClassification.strategy.strategyId = "WB-BOARD-ASSIGNED-001";
+const boardIdExport = designer.toExportDocument(boardIdClassification);
+assert(boardIdExport.strategy.registrationCaseId === "CASE-BOARD-ASSIGNED-001", "Existing submission must retain its board-assigned case id");
+assert(boardIdExport.strategy.strategyId === "WB-BOARD-ASSIGNED-001", "Existing strategy must retain its board-assigned id");
+assert(designer.normalizeDocument(boardIdExport).strategy.registrationCaseId === "CASE-BOARD-ASSIGNED-001", "Board-assigned case id must round-trip");
+assert(designer.normalizeDocument(boardIdExport).strategy.strategyId === "WB-BOARD-ASSIGNED-001", "Board-assigned id must round-trip");
+const invalidLocalId = clone(classificationCanonical);
+invalidLocalId.strategy.strategyId = "AG-LOCAL-001";
+assert(designer.validateDocument(invalidLocalId).errors.some(error => error.code === "STRATEGY_ID_INVALID"), "Agent workspace id must never be used as strategyId");
+const invalidLocalRegistrationCase = clone(classificationCanonical);
+invalidLocalRegistrationCase.strategy.registrationCaseId = "AG-LOCAL-001";
+assert(designer.validateDocument(invalidLocalRegistrationCase).errors.some(error => error.code === "REGISTRATION_CASE_ID_INVALID"), "Agent workspace id must never be used as registrationCaseId");
+const sameBoardIds = clone(boardIdClassification);
+sameBoardIds.strategy.registrationCaseId = sameBoardIds.strategy.strategyId;
+assert(designer.validateDocument(sameBoardIds).errors.some(error => error.code === "REGISTRATION_CASE_ID_INVALID"), "Registration case id and strategy id must remain distinct");
+const empty03Id = clone(classificationDesign);
+empty03Id.strategy.strategyId = "";
+assert(designer.validateDocument(empty03Id).errors.some(error => error.code === "STRATEGY_ID_INVALID"), "0.3 must reject an explicitly empty strategyId");
+const empty03RegistrationCase = clone(classificationDesign);
+empty03RegistrationCase.strategy.registrationCaseId = "";
+assert(designer.validateDocument(empty03RegistrationCase).errors.some(error => error.code === "REGISTRATION_CASE_ID_INVALID"), "0.3 must reject an explicitly empty registrationCaseId");
+const missing02Id = clone(externalDesign);
+delete missing02Id.strategy.strategyId;
+assert(designer.validateDocument(missing02Id).errors.some(error => error.code === "STRATEGY_FIELD_REQUIRED" && error.path === "strategy.strategyId"), "0.2 must still require strategyId");
+const registrationCaseIn02 = clone(externalDesign);
+registrationCaseIn02.strategy.registrationCaseId = "CASE-BOARD-ASSIGNED-001";
+assert(designer.validateDocument(registrationCaseIn02).errors.some(error => error.code === "SCHEMA_UNKNOWN_FIELD" && error.path === "strategy.registrationCaseId"), "0.2 must not accept registrationCaseId");
+const editable02NewStrategy = designer.normalizeDocument(missing02Id);
+editable02NewStrategy.registrationMetadata = metadata;
+assert(designer.validateDocument(editable02NewStrategy).status === "ready_to_submit", "An imported 0.2 draft with an empty id must be editable as a new 0.3 strategy");
+assert(!("strategyId" in designer.toExportDocument(editable02NewStrategy).strategy), "An imported 0.2 draft with an empty id must export as a new 0.3 strategy");
+
+const unsupported = designer.validateDocument({...externalDesign, schemaVersion: "strategy-flow-input/0.4"});
 assert(unsupported.errors.some(error => error.code === "SCHEMA_VERSION_UNSUPPORTED"), "Unknown future version must be rejected explicitly");
 const malformed = designer.validateDocument({...externalDesign, schemaVersion: "strategy-flow-input/v0.2"});
 assert(malformed.errors.some(error => error.code === "SCHEMA_VERSION_INVALID"), "Malformed version must be rejected");
@@ -260,7 +365,9 @@ for (const error of agentErrors.errors) {
 }
 
 assert(agentDraft.schemaVersion === "strategy-agent-strategy-draft/0.1", "Agent draft version contract failed");
-assert(agentDraft.candidate.schemaVersion === "strategy-flow-input/0.2", "Draft candidate must stay on 0.2");
+assert(agentDraft.candidate.schemaVersion === "strategy-flow-input/0.3", "Draft candidate must use 0.3 create semantics");
+assert(!("strategyId" in agentDraft.candidate.strategy), "New agent draft must omit strategyId");
+assert(!("registrationCaseId" in agentDraft.candidate.strategy), "New agent draft must omit registrationCaseId");
 assert(agentDraft.registrationMetadataCandidate.schemaVersion === "strategy-flow-registration-metadata/2.0", "Draft metadata candidate must stay on 2.0");
 assert(agentDraft.taxonomyVersion === agentDraft.candidate.taxonomy.schemaVersion, "Draft taxonomy version must match candidate");
 assert(agentDraft.evidenceCorpus.corpusId === agentCorpus.corpusId, "Draft corpus id must match example corpus");
@@ -289,11 +396,11 @@ assert(new Set(agentDraft.openQuestions.map(item => item.questionId)).size === a
 
 const draftCanonical = designer.normalizeDocument(agentDraft.candidate);
 const draftValidation = designer.validateDocument(draftCanonical);
-assert(draftValidation.errors.some(error => error.code === "STRATEGY_FIELD_REQUIRED" && error.path === "strategy.strategyId"), "Draft must expose missing portal id instead of fabricating it");
+assert(!draftValidation.errors.some(error => error.path === "strategy.strategyId"), "New strategy draft must not require a board id");
 assert(designer.validateRegistrationMetadata(agentDraft.registrationMetadataCandidate).status === "ready_to_submit", "Draft metadata candidate unexpectedly invalid");
 
-// Human fills the registration fact, then the draft must flow through the
-// unchanged normalize/validate/export round-trip without any agent extension.
+// A board-returned id turns the same draft into an update candidate; the
+// normalize/validate/export round-trip must not introduce agent extensions.
 const confirmedCandidate = JSON.parse(JSON.stringify(agentDraft.candidate));
 confirmedCandidate.strategy.strategyId = "WB-CONTRACT-020-001";
 const confirmedCanonical = designer.normalizeDocument(confirmedCandidate);
@@ -305,7 +412,7 @@ for (const key of ["strategy", "nodes", "edges", "strategyActions", "processActi
   assert(JSON.stringify(confirmedRoundTrip[key]) === JSON.stringify(confirmedCanonical[key]), `Agent draft round-trip changed ${key}`);
 }
 assert(JSON.stringify(confirmedRoundTrip.taxonomy.selections) === JSON.stringify(confirmedCanonical.taxonomy.selections), "Agent draft taxonomy round-trip failed");
-assert(!("provenance" in confirmedExport) && !("evidenceCorpus" in confirmedExport), "Agent envelope must not leak into 0.2 export");
+assert(!("provenance" in confirmedExport) && !("evidenceCorpus" in confirmedExport), "Agent envelope must not leak into 0.3 export");
 
 assert(agentOkResponse.schemaVersion === "strategy-agent-response/0.1" && agentOkResponse.status === "ok", "Agent ok envelope contract failed");
 assert(agentOkResponse.data && agentOkResponse.error === undefined, "Ok response must carry data and no error");
@@ -346,8 +453,19 @@ const agentFiles = [
   {fileName: "deck.pptx", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", contentBase64: fixturePptx.toString("base64")},
   {fileName: "notes.md", mimeType: "text/markdown", contentBase64: fs.readFileSync(path.join(root, "tests/fixtures/agent/notes.md")).toString("base64")},
 ];
+const autoParseEnvelope = executeCommand({command: "parse-sources", requestId: "req-test-auto-parse", input: {files: agentFiles}, store: agentStore});
+assert(autoParseEnvelope.status === "ok" && /^AG-w[A-Za-z0-9_-]+$/.test(autoParseEnvelope.data.caseId), `Auto workspace id failed: ${JSON.stringify(autoParseEnvelope.error ?? null)}`);
+const autoParseReplay = executeCommand({command: "parse-sources", requestId: "req-test-auto-parse", input: {files: agentFiles}, store: agentStore});
+assert(autoParseReplay.replayed && autoParseReplay.data.caseId === autoParseEnvelope.data.caseId, "Auto workspace id must be stable across request replay");
+const autoDraftEnvelope = executeCommand({command: "generate-draft", requestId: "req-test-auto-draft", input: {caseId: autoParseEnvelope.data.caseId}, store: agentStore});
+assert(autoDraftEnvelope.status === "ok", `Generated draft must accept the auto workspace id: ${JSON.stringify(autoDraftEnvelope.error ?? null)}`);
+const invalidWorkspaceEnvelope = executeCommand({command: "parse-sources", requestId: "req-test-invalid-workspace", input: {caseId: "WB-INVALID", files: agentFiles.slice(0, 1)}, store: agentStore});
+assert(invalidWorkspaceEnvelope.error?.code === "E_INPUT_INVALID", "Explicit invalid workspace ids must be rejected");
+const missingWorkspaceDraft = executeCommand({command: "generate-draft", requestId: "req-test-missing-workspace", input: {}, store: agentStore});
+assert(missingWorkspaceDraft.error?.code === "E_INPUT_INVALID", "Non-parse commands must still require a workspace id");
 const parseEnvelope = executeCommand({command: "parse-sources", requestId: "req-test-parse", input: {caseId: agentCaseId, files: agentFiles}, store: agentStore});
 assert(parseEnvelope.status === "ok" && !parseEnvelope.replayed, `Agent parse failed: ${JSON.stringify(parseEnvelope.error ?? null)}`);
+assert(parseEnvelope.data.caseId === agentCaseId, "Explicit workspace id must be echoed in parse response");
 assert(parseEnvelope.data.manifest.files.every(file => file.parserStatus === "parsed"), "All fixture formats must parse");
 const parsedCorpus = parseEnvelope.data.corpus;
 assert(parsedCorpus.fragments.some(fragment => fragment.fragmentType === "heading" && fragment.text === "通用客群激活策略"), "docx heading not parsed");
@@ -372,15 +490,13 @@ assert(generatedDraft.candidate.nodes.length === 3 && generatedDraft.candidate.e
 assert(generatedDraft.provenance.some(item => item.pointer === "/nodes" && item.status === "supported"), "Graph provenance missing");
 const pageGate = designer.agentDraftGate(generatedDraft);
 assert(pageGate.ready && pageGate.blocked.length === 0, "Draft layer must allow incomplete candidates into the editor");
-assert(pageGate.warnings.some(item => item.pointer === "/strategy/strategyId" && item.reason === "missing"), "Draft layer must preserve missing provenance as a todo");
 assert(pageGate.warnings.some(item => item.reason === "open_question"), "Draft layer must preserve openQuestions as todos");
 const outputGate = designer.outputContractGate({
   ...generatedDraft.candidate,
   registrationMetadata: generatedDraft.registrationMetadataCandidate,
 });
-assert(!outputGate.ready && outputGate.blocking.some(item => item.code === "STRATEGY_FIELD_REQUIRED"), "Export gate must block schema-invalid portal id");
+assert(!outputGate.ready && !outputGate.blocking.some(item => item.path === "strategy.strategyId"), "Missing strategyId must not block a new 0.3 strategy");
 const schemaCleanDraft = JSON.parse(JSON.stringify(generatedDraft));
-schemaCleanDraft.candidate.strategy.strategyId = "WB-AGENT-SCHEMA-001";
 schemaCleanDraft.registrationMetadataCandidate.submitDate = "2026-08-30";
 schemaCleanDraft.registrationMetadataCandidate.effectiveFrom = "2026-08-30";
 const schemaCleanGate = designer.outputContractGate({
@@ -388,6 +504,11 @@ const schemaCleanGate = designer.outputContractGate({
   registrationMetadata: schemaCleanDraft.registrationMetadataCandidate,
 });
 assert(schemaCleanGate.ready, `Schema-clean candidate must pass the light export gate: ${JSON.stringify(schemaCleanGate.blocking)}`);
+const schemaCleanExport = designer.toExportDocument({
+  ...schemaCleanDraft.candidate,
+  registrationMetadata: schemaCleanDraft.registrationMetadataCandidate,
+});
+assert(!("strategyId" in schemaCleanExport.strategy), "New agent strategy export must omit strategyId");
 const danglingEdgeDraft = JSON.parse(JSON.stringify(schemaCleanDraft));
 danglingEdgeDraft.candidate.edges[0].to = "node-does-not-exist";
 const danglingEdgeGate = designer.outputContractGate({
@@ -402,6 +523,10 @@ const unknownTagGate = designer.outputContractGate({
   registrationMetadata: unknownTagDraft.registrationMetadataCandidate,
 });
 assert(unknownTagGate.ready && unknownTagGate.warnings.some(item => item.code === "TAG_CODE_INVALID"), "Unknown taxonomy code should remain a review warning, not a schema hard gate");
+const draftWith03Candidate = JSON.parse(JSON.stringify(generatedDraft));
+assert(designer.parseAgentDraft(draftWith03Candidate).ok, "Draft parser must accept Design 0.3 candidates");
+const {validateDraft} = require(path.join(root, "agent/validate"));
+assert(validateDraft(draftWith03Candidate, parsedCorpus).valid, "Agent cross-file validator must accept Design 0.3 candidates");
 assert(designer.parseAgentDraft({...generatedDraft, schemaVersion: "strategy-agent-strategy-draft/0.2"}).ok === false, "Draft parser must reject unknown versions");
 
 const earlyApproval = executeCommand({command: "request-approval", requestId: "req-test-early-approval", input: {caseId: agentCaseId, draftId: generatedDraft.draftId, approver: "Terry"}, store: agentStore});
@@ -441,7 +566,6 @@ assert(conflictApproval.status === "ok", `Conflict/openQuestion must not block a
 const conflictConfirm = executeCommand({command: "confirm-draft", requestId: "req-test-light-confirm", input: {caseId: agentCaseId, draftId: auditDraft.draftId, approvalToken: conflictApproval.data.approvalToken, confirmedBy: "Terry"}, store: agentStore});
 assert(conflictConfirm.status === "ok" && conflictConfirm.data.draft.reviewState.status === "confirmed", `Conflict/openQuestion must not block audit confirmation: ${JSON.stringify(conflictConfirm.error ?? null)}`);
 const resolvedFields = [
-  {target: "design", pointer: "/strategy/strategyId", value: "WB-AGENT-TEST-001"},
   {target: "metadata", pointer: "/submitDate", value: "2026-08-30"},
   {target: "metadata", pointer: "/effectiveFrom", value: "2026-08-30"},
 ];
@@ -454,6 +578,7 @@ assert(badToken.error?.code === "E_APPROVAL_TOKEN_INVALID", "Bad token must be r
 const confirmEnvelope = executeCommand({command: "confirm-draft", requestId: "req-test-confirm", input: {caseId: agentCaseId, draftId: generatedDraft.draftId, approvalToken: approvalEnvelope.data.approvalToken, confirmedBy: "Terry"}, store: agentStore});
 assert(confirmEnvelope.status === "ok" && confirmEnvelope.data.draft.reviewState.status === "confirmed", `Confirm failed: ${JSON.stringify(confirmEnvelope.error ?? null)}`);
 assert(confirmEnvelope.data.submissionCommand.includes("manage_case.py --json import-flow"), "Confirm must return the workbench import template");
+assert(!confirmEnvelope.data.submissionCommand.includes("--case "), "New strategy import template must not pretend to know a board case id");
 const confirmReplay = executeCommand({command: "confirm-draft", requestId: "req-test-confirm", input: {caseId: agentCaseId, draftId: generatedDraft.draftId, approvalToken: approvalEnvelope.data.approvalToken, confirmedBy: "Terry"}, store: agentStore});
 assert(confirmReplay.status === "ok" && confirmReplay.replayed, "Confirm idempotency failed");
 const tokenReuse = executeCommand({command: "confirm-draft", requestId: "req-test-confirm-reuse", input: {caseId: agentCaseId, draftId: generatedDraft.draftId, approvalToken: approvalEnvelope.data.approvalToken, confirmedBy: "Terry"}, store: agentStore});

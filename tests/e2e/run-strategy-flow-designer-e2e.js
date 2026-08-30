@@ -350,7 +350,9 @@ let browser;
   });
 
   const exported = await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value));
-  assert.equal(exported.schemaVersion, "strategy-flow-input/0.2");
+  assert.equal(exported.schemaVersion, "strategy-flow-input/0.3");
+  assert.equal("strategyId" in exported.strategy, false);
+  assert.equal("registrationCaseId" in exported.strategy, false);
   assert.equal(exported.nodes.length, 4);
   assert.equal(exported.edges.length, 4);
   assert.equal(exported.strategyActions.length, 2);
@@ -373,12 +375,56 @@ let browser;
     exported.nodes.map(node => node.localId)
   );
 
+  await page.click('[data-node-type="classification"]');
+  await page.waitForFunction(() => document.querySelectorAll(".node-card").length === 5);
+  await page.dblclick("#node-n5");
+  assert.equal(
+    true,
+    (await page.locator("#inspector").innerText()).includes("对象分类")
+  );
+  await page.click('[data-action="add-process"]');
+  await page.waitForFunction(() => JSON.parse(document.getElementById("jsonOutput").value).processActions.length === 3);
+  const classificationPort = await page.locator("#node-n5 .node-port.output").boundingBox();
+  const classificationTarget = await page.locator("#node-n1").boundingBox();
+  assert.ok(classificationPort && classificationTarget);
+  await page.mouse.move(
+    classificationPort.x + classificationPort.width / 2,
+    classificationPort.y + classificationPort.height / 2
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    classificationTarget.x + classificationTarget.width / 2,
+    classificationTarget.y + classificationTarget.height / 2,
+    { steps: 8 }
+  );
+  await page.mouse.up();
+  await page.waitForFunction(() => JSON.parse(document.getElementById("jsonOutput").value).edges.length === 5);
+  await page.check('[data-bind="edges.e5.subjectBehavior.noAction"]');
+  await page.check('[data-bind="edges.e5.confirmed"]');
+  const classificationExport = await page.evaluate(() => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    return {
+      schemaVersion: design.schemaVersion,
+      nodeType: design.nodes.find(node => node.localId === "n5").nodeType,
+      subjectStatus: design.edges.find(edge => edge.localId === "e5").subjectBehavior.status,
+      processActionCount: design.processActions.filter(action => action.nodeId === "n5").length,
+      strategyActionCount: design.strategyActions.filter(action => action.nodeId === "n5").length,
+      errors: design.validation.errors,
+    };
+  });
+  assert.equal(classificationExport.schemaVersion, "strategy-flow-input/0.3");
+  assert.equal(classificationExport.nodeType, "classification");
+  assert.equal(classificationExport.subjectStatus, "no_requirement");
+  assert.equal(classificationExport.processActionCount, 1);
+  assert.equal(classificationExport.strategyActionCount, 0);
+  assert.deepEqual(classificationExport.errors, []);
+
   assert.deepEqual(issues, []);
   await browser.close();
   console.log(JSON.stringify({
     ok: true,
-    nodes: exported.nodes.length,
-    edges: exported.edges.length,
+    nodes: exported.nodes.length + 1,
+    edges: exported.edges.length + 1,
     strategyActions: exported.strategyActions.length,
     processActions: exported.processActions.length,
   }));
