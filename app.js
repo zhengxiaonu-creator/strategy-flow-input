@@ -1248,6 +1248,21 @@
     if (!root) return;
 
     const el = id => document.getElementById(id);
+    // Fluent Reveal: track cursor as CSS vars so cards can paint a radial highlight
+    // without re-triggering layout. rAF-throttled to coalesce pointer storms.
+    let revealQueued = false;
+    document.addEventListener("mousemove", event => {
+      if (revealQueued) return;
+      revealQueued = true;
+      requestAnimationFrame(() => {
+        revealQueued = false;
+        const target = event.target instanceof Element ? event.target.closest(".side-block,.taxonomy-group") : null;
+        if (!target) return;
+        const rect = target.getBoundingClientRect();
+        target.style.setProperty("--mx", `${event.clientX - rect.left}px`);
+        target.style.setProperty("--my", `${event.clientY - rect.top}px`);
+      });
+    }, { passive: true });
     const canvasShell = el("canvasShell");
     const canvasSize = el("canvasSize");
     const canvas = el("canvas");
@@ -2155,10 +2170,25 @@
         div.title = "拖拽标签可沿法线方向调整曲线间距";
         const actorStatus = labelOf(edge.actorBehavior.status, ACTOR_STATUSES);
         const objectStatus = labelOf(edge.subjectBehavior.status, SUBJECT_STATUSES);
+        const statusClass = status => {
+          if (status === "executed" || status === "happened") return "done";
+          if (status === "not_executed" || status === "not_happened") return "pending";
+          return "none";
+        };
         div.innerHTML = `
-          <b>${escapeHtml(edge.label || EDGE_TYPE_LABELS.get(edge.edgeType) || edge.edgeType)}${edge.confirmed ? " · 已确认" : " · 待确认"}</b>
-          <span>执行人：${escapeHtml(edge.actorBehavior.time || "时间待确认")} ${escapeHtml(actorStatus)}${edge.actorBehavior.status === "no_requirement" ? "" : ` ${escapeHtml(edge.actorBehavior.action || "动作待确认")}`}</span>
-          <span>对象：${escapeHtml(edge.subjectBehavior.time || "时间待确认")} ${escapeHtml(objectStatus)}${edge.subjectBehavior.status === "no_requirement" ? "" : ` ${escapeHtml(edge.subjectBehavior.action || "行为待确认")}`}</span>`;
+          <b>${escapeHtml(edge.label || EDGE_TYPE_LABELS.get(edge.edgeType) || edge.edgeType)}<i class="confirm ${edge.confirmed ? "yes" : "no"}">${edge.confirmed ? "已确认" : "待确认"}</i></b>
+          <div class="edge-behavior actor">
+            <em>执行人</em>
+            <i class="status ${statusClass(edge.actorBehavior.status)}">${escapeHtml(actorStatus)}</i>
+            <time>${escapeHtml(edge.actorBehavior.time || "时间待确认")}</time>
+            <span class="action">${edge.actorBehavior.status === "no_requirement" ? "—" : escapeHtml(edge.actorBehavior.action || "动作待确认")}</span>
+          </div>
+          <div class="edge-behavior object">
+            <em>对象</em>
+            <i class="status ${statusClass(edge.subjectBehavior.status)}">${escapeHtml(objectStatus)}</i>
+            <time>${escapeHtml(edge.subjectBehavior.time || "时间待确认")}</time>
+            <span class="action">${edge.subjectBehavior.status === "no_requirement" ? "—" : escapeHtml(edge.subjectBehavior.action || "行为待确认")}</span>
+          </div>`;
         edgeLabelLayer.appendChild(div);
         labelEntries.push({
           div,
@@ -2368,7 +2398,7 @@
 
     function renderBasicInspector() {
       const strategy = documentState.strategy;
-      inspectorContent.innerHTML = `<div class="side-block">
+      inspectorContent.innerHTML = `<div class="side-block primary">
         <div class="inspector-head"><div><b>策略基础信息</b><small>strategy-flow-input/0.3 · 标签由 taxonomy 统一承载</small></div></div>
         <div class="inspector-form field-grid">
           ${inputField("策略名称", "strategy.strategyName", strategy.strategyName)}
@@ -2384,7 +2414,7 @@
 
     function renderTaxonomyInspector() {
       const taxonomyBlock = document.createElement("div");
-      taxonomyBlock.className = "side-block";
+      taxonomyBlock.className = "side-block primary";
       taxonomyBlock.innerHTML = `<h2 class="side-title">策略标签</h2>
         <details class="taxonomy-group" data-taxonomy-group="customer" open>
           <summary>客群识别<span>生命周期 / 客群 / 资产 / 风险</span></summary>
@@ -2420,7 +2450,7 @@
     function renderMetadataInspector() {
       const metadata = documentState.registrationMetadata;
       const metadataBlock = document.createElement("div");
-      metadataBlock.className = "side-block";
+      metadataBlock.className = "side-block primary";
       metadataBlock.innerHTML = `<h2 class="side-title">注册元数据 Companion</h2>
         <div class="inspector-form field-grid">
           ${inputField("业务归属", "registrationMetadata.businessUnit", metadata.businessUnit)}
@@ -2435,7 +2465,7 @@
 
 
     function renderNodeInspector(node) {
-      inspectorContent.innerHTML = `<div class="side-block">
+      inspectorContent.innerHTML = `<div class="side-block primary">
         <div class="inspector-head">
           <div><b>流程卡片</b><small>系统编号自动生成</small></div>
           <button class="btn danger small" data-action="delete" type="button">删除</button>
@@ -2469,7 +2499,7 @@
     }
 
     function renderEdgeInspector(edge) {
-      inspectorContent.innerHTML = `<div class="side-block">
+      inspectorContent.innerHTML = `<div class="side-block primary">
         <div class="inspector-head">
           <div><b>流转规则</b><small>从一张卡片进入下一张卡片的业务条件</small></div>
           <button class="btn danger small" data-action="delete" type="button">删除</button>
@@ -2488,15 +2518,15 @@
         <div class="inspector-form field-grid">
           ${inputField("时间", `edges.${edge.localId}.actorBehavior.time`, edge.actorBehavior.time, "text", "填写业务时间表达式")}
           ${selectField("执行状态", `edges.${edge.localId}.actorBehavior.status`, edge.actorBehavior.status, ACTOR_STATUSES, edge.actorBehavior.status === "no_requirement")}
-          <div class="wide">${checkboxField("无动作", `edges.${edge.localId}.actorBehavior.noAction`, edge.actorBehavior.status === "no_requirement", "toggle-no-action")}</div>
           <div class="field-grid wide">${inputField("执行动作", `edges.${edge.localId}.actorBehavior.action`, edge.actorBehavior.action, "text", "", edge.actorBehavior.status === "no_requirement")}</div>
+          <div class="wide">${checkboxField("无动作", `edges.${edge.localId}.actorBehavior.noAction`, edge.actorBehavior.status === "no_requirement", "toggle-no-action")}</div>
         </div>
         <h2 class="side-title" style="margin-top:14px">对象发生了什么</h2>
         <div class="inspector-form field-grid">
           ${inputField("时间", `edges.${edge.localId}.subjectBehavior.time`, edge.subjectBehavior.time, "text", "填写业务时间表达式")}
           ${selectField("发生状态", `edges.${edge.localId}.subjectBehavior.status`, edge.subjectBehavior.status, SUBJECT_STATUSES, edge.subjectBehavior.status === "no_requirement")}
-          <div class="wide">${checkboxField("无动作", `edges.${edge.localId}.subjectBehavior.noAction`, edge.subjectBehavior.status === "no_requirement", "toggle-no-action")}</div>
           <div class="field-grid wide">${inputField("发生的行为", `edges.${edge.localId}.subjectBehavior.action`, edge.subjectBehavior.action, "text", "", edge.subjectBehavior.status === "no_requirement")}</div>
+          <div class="wide">${checkboxField("无动作", `edges.${edge.localId}.subjectBehavior.noAction`, edge.subjectBehavior.status === "no_requirement", "toggle-no-action")}</div>
         </div>
       </div>`;
     }
@@ -2505,7 +2535,7 @@
       const nodeOptions = documentState.nodes.map(node => [node.localId, `${node.executor || "执行人待确认"}｜${node.subject.name || "对象待确认"}｜${node.subject.state || "状态待确认"}`]);
       const edgeOptions = [["", "暂不绑定流转规则"], ...documentState.edges.filter(edge => edge.from === action.nodeId).map(edge => [edge.localId, `规则｜${edge.actorBehavior.action || "待确认"}`])];
       if (kind === "strategyAction") {
-        inspectorContent.innerHTML = `<div class="side-block">
+        inspectorContent.innerHTML = `<div class="side-block primary">
           <div class="inspector-head"><div><b>客户触达内容</b><small>对客户说什么、用什么权益</small></div><button class="btn danger small" data-action="delete" type="button">删除</button></div>
           <div class="inspector-form field-grid">
             <div class="wide">${systemIdField("内容系统编号", action.localId, "系统自动维护，不需要业务填写。")}</div>
@@ -2526,7 +2556,7 @@
           </div>
         </div>`;
       } else {
-        inspectorContent.innerHTML = `<div class="side-block">
+        inspectorContent.innerHTML = `<div class="side-block primary">
           <div class="inspector-head"><div><b>执行跟进动作</b><small>谁执行、执行什么、交给谁</small></div><button class="btn danger small" data-action="delete" type="button">删除</button></div>
           <div class="inspector-form field-grid">
             <div class="wide">${systemIdField("动作系统编号", action.localId, "系统自动维护，不需要业务填写。")}</div>
@@ -3022,6 +3052,14 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
     nodeLayer.addEventListener("click", event => {
       const chip = event.target.closest("[data-select-kind]");
       if (chip) {
+        // Detect double-click via detail count, not the dblclick event:
+        // the first click's renderAll() replaces nodeLayer.innerHTML,
+        // detaching the original target before dblclick can dispatch.
+        if (event.detail >= 2) {
+          event.preventDefault();
+          openInspectorFor(chip.dataset.selectKind, chip.dataset.selectId);
+          return;
+        }
         if (event.ctrlKey || event.metaKey) toggleSelection(chip.dataset.selectKind, chip.dataset.selectId);
         else setSelection([{ kind: chip.dataset.selectKind, id: chip.dataset.selectId }], { kind: chip.dataset.selectKind, id: chip.dataset.selectId });
         renderAll();
@@ -3029,6 +3067,11 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
       }
       const card = event.target.closest(".node-card");
       if (card) {
+        if (event.detail >= 2) {
+          event.preventDefault();
+          openInspectorFor("node", card.dataset.id);
+          return;
+        }
         if (event.ctrlKey || event.metaKey) toggleSelection("node", card.dataset.id);
         else setSelection([{ kind: "node", id: card.dataset.id }], { kind: "node", id: card.dataset.id });
         renderAll();
@@ -3036,6 +3079,12 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
     });
 
     nodeLayer.addEventListener("dblclick", event => {
+      const chip = event.target.closest("[data-select-kind]");
+      if (chip) {
+        event.preventDefault();
+        openInspectorFor(chip.dataset.selectKind, chip.dataset.selectId);
+        return;
+      }
       const card = event.target.closest(".node-card");
       if (!card) return;
       event.preventDefault();
@@ -3438,6 +3487,21 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
       toast("已清空草稿");
     });
     el("importBtn").addEventListener("click", () => el("importFile").click());
+    const importMenuButton = el("importMenuBtn");
+    const importMenu = el("importMenu");
+    const setImportMenu = visible => {
+      importMenu.hidden = !visible;
+      importMenuButton.classList.toggle("on", visible);
+      importMenuButton.setAttribute("aria-expanded", String(visible));
+    };
+    importMenuButton.addEventListener("click", event => {
+      event.stopPropagation();
+      setImportMenu(importMenu.hidden);
+    });
+    importMenu.addEventListener("click", () => setImportMenu(false));
+    document.addEventListener("click", event => {
+      if (!event.target.closest(".import-actions")) setImportMenu(false);
+    });
     el("importFile").addEventListener("change", async event => {
       const file = event.target.files?.[0];
       if (!file) return;

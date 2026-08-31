@@ -21,17 +21,22 @@
     </div>
     <div class="topbar-actions">
         <div class="primary-actions">
-          <button class="btn" id="importBtn" type="button">导入 Design</button>
-          <button class="btn" id="importMetadataBtn" type="button">导入元数据</button>
+          <div class="import-actions">
+            <button class="btn" id="importMenuBtn" type="button" aria-haspopup="true" aria-expanded="false">导入</button>
+            <div class="more-menu import-menu" id="importMenu" hidden>
+              <button class="btn" id="importBtn" type="button" title="导入 strategy-flow-input Design JSON">导入 Design</button>
+              <button class="btn" id="importMetadataBtn" type="button" title="导入 Metadata Companion JSON">导入元数据</button>
+            </div>
+          </div>
           <button class="btn" id="openRegistrationDrawerBtn" type="button">本策略注册信息</button>
           <button class="btn" id="openAgentDrawerBtn" type="button">Agent 草稿</button>
           <button class="btn primary" id="openExportDrawerBtn" type="button">导出</button>
       </div>
       <div class="utility-actions">
         <div class="layout-switch" role="group" aria-label="面板显示控制">
-          <button id="toggleLeftPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起左侧组件栏">左栏</button>
-          <button id="toggleRightPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起右侧属性栏">右栏</button>
-          <button id="toggleBottomPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起底部校验与代码栏">下栏</button>
+          <button id="toggleLeftPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起新增卡片和业务">新增卡片和业务</button>
+          <button id="toggleRightPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起卡片信息">卡片信息</button>
+          <button id="toggleBottomPanelBtn" class="on" type="button" aria-pressed="true" title="显示 / 收起代码和校验">代码和校验</button>
         </div>
         <div class="zoom-switch" role="group" aria-label="画布缩放控制">
           <button id="zoomOutBtn" type="button" title="缩小画布（Ctrl/⌘ + 滚轮向下）">−</button>
@@ -79,7 +84,7 @@
         </div>
         <p class="hint">切换范式只改变策略入口逻辑；标签、元数据和流程图仍由 0.3 契约统一校验。</p>
       </div>
-      <div class="side-block">
+      <div class="side-block primary">
         <h2 class="side-title">添加流程卡片</h2>
         <div class="node-buttons" id="nodeButtons">
           <button class="btn" type="button" data-node-type="entry" title="客户或对象从这里进入策略">开始进入</button>
@@ -101,9 +106,11 @@
         </div>
         <p class="hint">客户触达内容：对客户说什么、用什么权益、看什么业务指标。执行跟进动作：谁执行、执行什么、看什么过程指标。</p>
       </div>
-      <div class="side-block">
-        <h2 class="side-title">画布操作</h2>
-        <p class="hint">拖拽卡片调整布局；空白处拖拽平移；Shift + 空白拖拽框选；Ctrl/⌘ + 点击多选；Ctrl/⌘ + C/V 复制粘贴。双击流程卡片或流转规则标签可打开右侧编辑。</p>
+      <div class="side-block tertiary">
+        <details class="canvas-help">
+          <summary><span class="help-icon" aria-hidden="true">?</span>操作说明</summary>
+          <p class="hint">拖拽卡片调整布局；空白处拖拽平移；Shift + 空白拖拽框选；Ctrl/⌘ + 点击多选；Ctrl/⌘ + C/V 复制粘贴。双击流程卡片、流转规则标签或卡片内的动作气泡可打开右侧编辑。</p>
+        </details>
       </div>
     </aside>
 
