@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ebscn.local/strategy-agent/strategy-draft/0.1/schema.json",
   "title": "Strategy Agent Strategy Draft",
-  "description": "Agent-produced draft with field-level provenance. The candidate is a standard strategy-flow-input/0.2 or 0.3 document plus its metadata companion, wrapped - never extended - by this envelope. Draft shape, pointers, and evidence references are validated immediately; output contract and reference integrity are enforced at the export boundary. A draft is never a fact source; humans refine it in the canonical editor.",
+  "description": "Agent-produced draft with field-level provenance. The candidate is a standard strategy-flow-input/0.2, 0.3, or 0.4 document plus its metadata companion, wrapped - never extended - by this envelope. Draft shape, pointers, and evidence references are validated immediately; output contract and reference integrity are enforced at the export boundary. A draft is never a fact source; humans refine it in the canonical editor.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -66,7 +66,7 @@
       "required": ["schemaVersion"],
       "properties": {
         "schemaVersion": {
-          "enum": ["strategy-flow-input/0.2", "strategy-flow-input/0.3"]
+          "enum": ["strategy-flow-input/0.2", "strategy-flow-input/0.3", "strategy-flow-input/0.4"]
         }
       },
       "description": "Guard only. The draft layer may remain human-reviewable; final output must pass the selected strategy-flow-input contract and reference-integrity checks."

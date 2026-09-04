@@ -10,8 +10,9 @@
   const SCHEMA_VERSION_0_1 = "strategy-flow-input/0.1";
   const SCHEMA_VERSION_0_2 = "strategy-flow-input/0.2";
   const SCHEMA_VERSION_0_3 = "strategy-flow-input/0.3";
-  const SCHEMA_VERSION = SCHEMA_VERSION_0_3;
-  const SUPPORTED_SCHEMA_VERSIONS = [SCHEMA_VERSION_0_1, SCHEMA_VERSION_0_2, SCHEMA_VERSION_0_3];
+  const SCHEMA_VERSION_0_4 = "strategy-flow-input/0.4";
+  const SCHEMA_VERSION = SCHEMA_VERSION_0_4;
+  const SUPPORTED_SCHEMA_VERSIONS = [SCHEMA_VERSION_0_1, SCHEMA_VERSION_0_2, SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4];
   const METADATA_SCHEMA_VERSION = "strategy-flow-registration-metadata/2.0";
   const TAXONOMY_SCHEMA_VERSION = "strategy-taxonomy/2026-09";
   const STORAGE_KEY = "ebscn.strategy-flow-designer.draft.v0";
@@ -257,7 +258,6 @@
         name: string(subject.name),
         state: string(subject.state),
       },
-      displayName: string(source.displayName),
       layout: {
         x: numberOr(layout.x, 90),
         y: numberOr(layout.y, defaultY),
@@ -306,8 +306,6 @@
       localId: string(source.localId),
       nodeId: string(source.nodeId),
       outgoingEdgeId: string(source.outgoingEdgeId),
-      time: string(source.time),
-      subjectState: string(source.subjectState),
       judge: string(source.judge),
       touchScene: string(source.touchScene),
       touchMethod: string(source.touchMethod),
@@ -326,15 +324,67 @@
       localId: string(source.localId),
       nodeId: string(source.nodeId),
       outgoingEdgeId: string(source.outgoingEdgeId),
-      executor: string(source.executor),
       scene: string(source.scene),
       condition: string(source.condition),
       result: string(source.result),
       action: string(source.action),
       hook: string(source.hook),
-      recipient: string(source.recipient),
       metrics: array(source.metrics).map(clean).filter(Boolean),
     };
+  }
+
+  function documentMigrationIssues(source, sourceSchemaVersion) {
+    // 0.4 makes the parent card own these facts. Equal legacy values are a
+    // storage change only; conflicting values are reported so an upgrade never
+    // silently rewrites a different business fact.
+    if (![SCHEMA_VERSION_0_1, SCHEMA_VERSION_0_2, SCHEMA_VERSION_0_3].includes(sourceSchemaVersion)) return [];
+    const issues = [];
+    const nodes = new Map(array(source.nodes)
+      .map(node => [clean(node?.localId), node]));
+    array(source.nodes).forEach((node, index) => {
+      if (clean(node?.displayName)) {
+        issues.push(issue(
+          "MIGRATION_DISPLAY_NAME_DISCARDED",
+          `0.4 已删除卡片展示名，导入时丢弃：${clean(node.displayName)}`,
+          `nodes[${index}].displayName`,
+        ));
+      }
+    });
+    array(source.strategyActions).forEach((action, index) => {
+      const node = nodes.get(clean(action?.nodeId));
+      const expected = {
+        time: clean(node?.time),
+        subjectState: clean(node?.subject?.state),
+      };
+      Object.entries(expected).forEach(([key, parentValue]) => {
+        const value = clean(action?.[key]);
+        if (value && value !== parentValue) {
+          issues.push(issue(
+            "MIGRATION_DERIVED_FIELD_DISCARDED",
+            `0.4 以所属流程卡片为准，动作字段 ${key} 被丢弃：${value}（卡片值：${parentValue || "空"}）`,
+            `strategyActions[${index}].${key}`,
+          ));
+        }
+      });
+    });
+    array(source.processActions).forEach((action, index) => {
+      const node = nodes.get(clean(action?.nodeId));
+      const expected = {
+        executor: clean(node?.executor),
+        recipient: clean(node?.subject?.name),
+      };
+      Object.entries(expected).forEach(([key, parentValue]) => {
+        const value = clean(action?.[key]);
+        if (value && value !== parentValue) {
+          issues.push(issue(
+            "MIGRATION_DERIVED_FIELD_DISCARDED",
+            `0.4 以所属流程卡片为准，动作字段 ${key} 被丢弃：${value}（卡片值：${parentValue || "空"}）`,
+            `processActions[${index}].${key}`,
+          ));
+        }
+      });
+    });
+    return issues;
   }
 
   function normalizeRegistrationMetadata(value) {
@@ -369,9 +419,12 @@
       ? clean(source.sourceSchemaVersion) || parsedVersion.raw
       : parsedVersion.raw;
     const isV0_1 = !isCanonicalInput && sourceSchemaVersion === SCHEMA_VERSION_0_1;
-    const allowedNodeTypes = isCanonicalInput || sourceSchemaVersion === SCHEMA_VERSION_0_3
+    const allowedNodeTypes = isCanonicalInput || [SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4].includes(sourceSchemaVersion)
       ? NODE_TYPES
       : LEGACY_NODE_TYPES;
+    const migrationIssues = isCanonicalInput
+      ? array(source.migrationIssues)
+      : documentMigrationIssues(source, sourceSchemaVersion);
     const normalized = {
       schemaVersion: SCHEMA_VERSION,
       sourceSchemaVersion,
@@ -384,6 +437,7 @@
       strategyActions: array(source.strategyActions).map(normalizeStrategyAction),
       processActions: array(source.processActions).map(normalizeProcessAction),
       registrationMetadata: normalizeRegistrationMetadata(source.registrationMetadata),
+      migrationIssues,
     };
     ensureAutomaticLocalIds(normalized);
     return normalized;
@@ -427,6 +481,7 @@
       strategyActions: [],
       processActions: [],
       registrationMetadata: normalizeRegistrationMetadata(),
+      migrationIssues: [],
     };
   }
 
@@ -443,8 +498,9 @@
   function validateExternalContractShape(raw, errors, version) {
     const source = raw && typeof raw === "object" ? raw : {};
     const v0_1 = version === SCHEMA_VERSION_0_1;
-    const allowedNodeTypes = version === SCHEMA_VERSION_0_3 ? NODE_TYPES : LEGACY_NODE_TYPES;
-    const requiredStrategyFields = version === SCHEMA_VERSION_0_3
+    const modernVersion = [SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4].includes(version);
+    const allowedNodeTypes = modernVersion ? NODE_TYPES : LEGACY_NODE_TYPES;
+    const requiredStrategyFields = modernVersion
       ? ["strategyName", "paradigm", "owner", "submitter", "version", "versionStatus"]
       : ["strategyName", "strategyId", "paradigm", "owner", "submitter", "version", "versionStatus"];
     const topLevelAllowed = [
@@ -457,7 +513,7 @@
 
     const strategyAllowed = v0_1
       ? ["strategyName", "strategyId", "paradigm", "owner", "submitter", "businessScene", "strategyType", "strategySubtype", "version", "versionStatus"]
-      : version === SCHEMA_VERSION_0_3
+      : modernVersion
         ? ["strategyName", "strategyId", "registrationCaseId", "paradigm", "owner", "submitter", "version", "versionStatus"]
         : ["strategyName", "strategyId", "paradigm", "owner", "submitter", "version", "versionStatus"];
     unknownKeys(source.strategy, strategyAllowed).forEach(key => {
@@ -471,16 +527,16 @@
     requiredStrategyFields.forEach(key => {
       if (clean(source.strategy?.[key]) === "") errors.push(issue("STRATEGY_FIELD_REQUIRED", `策略字段缺失：${key}`, `strategy.${key}`));
     });
-    if (version === SCHEMA_VERSION_0_3 && source.strategy?.strategyId !== undefined && clean(source.strategy.strategyId) === "") {
+    if (modernVersion && source.strategy?.strategyId !== undefined && clean(source.strategy.strategyId) === "") {
       errors.push(issue("STRATEGY_ID_INVALID", "看板策略编号不能为空；新建策略应省略该字段", "strategy.strategyId"));
     }
-    if (version === SCHEMA_VERSION_0_3 && clean(source.strategy?.strategyId) && !/^WB-[A-Za-z0-9][A-Za-z0-9_-]*$/.test(clean(source.strategy.strategyId))) {
+    if (modernVersion && clean(source.strategy?.strategyId) && !/^WB-[A-Za-z0-9][A-Za-z0-9_-]*$/.test(clean(source.strategy.strategyId))) {
       errors.push(issue("STRATEGY_ID_INVALID", "看板策略编号必须以 WB- 开头且由看板返回", "strategy.strategyId"));
     }
-    if (version === SCHEMA_VERSION_0_3 && source.strategy?.registrationCaseId !== undefined && clean(source.strategy.registrationCaseId) === "") {
+    if (modernVersion && source.strategy?.registrationCaseId !== undefined && clean(source.strategy.registrationCaseId) === "") {
       errors.push(issue("REGISTRATION_CASE_ID_INVALID", "提交注册 CaseID 不能为空；新建策略应省略该字段", "strategy.registrationCaseId"));
     }
-    if (version === SCHEMA_VERSION_0_3 && clean(source.strategy?.registrationCaseId) && (
+    if (modernVersion && clean(source.strategy?.registrationCaseId) && (
       ["待确认", "无", "暂无", "源表未填写"].includes(clean(source.strategy.registrationCaseId))
       || /^AG-[A-Za-z0-9_-]+$/.test(clean(source.strategy.registrationCaseId))
     )) {
@@ -574,11 +630,11 @@
       });
     });
 
-    const nodeKeys = ["localId", "nodeType", "time", "executor", "subject", "displayName", "layout"];
+    const nodeKeys = ["localId", "nodeType", "time", "executor", "subject", ...(version === SCHEMA_VERSION_0_4 ? [] : ["displayName"]), "layout"];
     const edgeKeys = ["localId", "from", "to", "edgeType", "actorBehavior", "subjectBehavior", "confirmed", "mutexGroup", "overwriteSource", "label", "layout"];
     const behaviorKeys = ["time", "action", "status"];
-    const strategyActionKeys = ["localId", "nodeId", "outgoingEdgeId", "time", "subjectState", "judge", "touchScene", "touchMethod", "theme", "goal", "hook", "copy", "hasLink", "metrics"];
-    const processActionKeys = ["localId", "nodeId", "outgoingEdgeId", "executor", "scene", "condition", "result", "action", "hook", "recipient", "metrics"];
+    const strategyActionKeys = ["localId", "nodeId", "outgoingEdgeId", ...(version === SCHEMA_VERSION_0_4 ? [] : ["time", "subjectState"]), "judge", "touchScene", "touchMethod", "theme", "goal", "hook", "copy", "hasLink", "metrics"];
+    const processActionKeys = ["localId", "nodeId", "outgoingEdgeId", ...(version === SCHEMA_VERSION_0_4 ? [] : ["executor"]), "scene", "condition", "result", "action", "hook", ...(version === SCHEMA_VERSION_0_4 ? [] : ["recipient"]), "metrics"];
     source.nodes?.forEach?.((item, index) => {
       unknownKeys(item, nodeKeys).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `节点未知字段：${key}`, `nodes[${index}].${key}`)));
       unknownKeys(item?.subject, ["type", "name", "state"]).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `对象未知字段：${key}`, `nodes[${index}].subject.${key}`)));
@@ -614,7 +670,7 @@
     } else if (!SUPPORTED_SCHEMA_VERSIONS.includes(sourceVersion.raw)) {
       errors.push(issue("SCHEMA_VERSION_UNSUPPORTED", `不支持的策略契约版本：${sourceVersion.raw}；当前支持：${SUPPORTED_SCHEMA_VERSIONS.join("、")}`, "schemaVersion"));
     } else if (sourceVersion.raw !== SCHEMA_VERSION) {
-      warnings.push(issue("SCHEMA_MIGRATED", `已从 ${sourceVersion.key} 迁移到 0.3；旧契约未承载的分类能力需重新确认`, "schemaVersion"));
+      warnings.push(issue("SCHEMA_MIGRATED", `已从 ${sourceVersion.key} 迁移到 ${SCHEMA_VERSION.split("/").pop()}；旧契约字段按 0.4 规则归一`, "schemaVersion"));
     }
     const isCanonicalInput = Boolean(input?.taxonomy?.selections);
     const knownExternalVersion = sourceVersion.valid && SUPPORTED_SCHEMA_VERSIONS.includes(sourceVersion.raw);
@@ -624,20 +680,20 @@
         errors.push(issue("STRATEGY_FIELD_REQUIRED", `策略字段缺失：${key}`, `strategy.${key}`));
       }
     });
-    if (sourceVersion.raw === SCHEMA_VERSION_0_3 && doc.strategy.strategyId && (
+    if ([SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4].includes(sourceVersion.raw) && doc.strategy.strategyId && (
       ["待确认", "无", "暂无", "源表未填写"].includes(clean(doc.strategy.strategyId))
       || /^AG-[A-Za-z0-9_-]+$/.test(clean(doc.strategy.strategyId))
       || !/^WB-[A-Za-z0-9][A-Za-z0-9_-]*$/.test(clean(doc.strategy.strategyId))
     )) {
       errors.push(issue("STRATEGY_ID_INVALID", "看板策略编号必须是看板返回的正式编号；新建策略留空，禁止使用本地工作区 ID", "strategy.strategyId"));
     }
-    if (sourceVersion.raw === SCHEMA_VERSION_0_3 && doc.strategy.registrationCaseId && (
+    if ([SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4].includes(sourceVersion.raw) && doc.strategy.registrationCaseId && (
       ["待确认", "无", "暂无", "源表未填写"].includes(clean(doc.strategy.registrationCaseId))
       || /^AG-[A-Za-z0-9_-]+$/.test(clean(doc.strategy.registrationCaseId))
     )) {
       errors.push(issue("REGISTRATION_CASE_ID_INVALID", "提交注册 CaseID 必须由看板返回；禁止使用占位文本或 Agent 本地工作区 ID", "strategy.registrationCaseId"));
     }
-    if (sourceVersion.raw === SCHEMA_VERSION_0_3 && doc.strategy.registrationCaseId && doc.strategy.strategyId === doc.strategy.registrationCaseId) {
+    if ([SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4].includes(sourceVersion.raw) && doc.strategy.registrationCaseId && doc.strategy.strategyId === doc.strategy.registrationCaseId) {
       errors.push(issue("REGISTRATION_CASE_ID_INVALID", "提交注册 CaseID 与正式策略编号必须是两个不同标识", "strategy.registrationCaseId"));
     }
 
@@ -861,7 +917,7 @@
       const base = `strategyActions[${index}]`;
       actionNode("STRATEGY_ACTION", action, index, "strategyActions");
       [
-        ["time", "时间"], ["subjectState", "对象状态"], ["judge", "进入条件"],
+        ["judge", "进入条件"],
         ["touchScene", "触达场景"], ["touchMethod", "触达方式"], ["theme", "话术主题"],
         ["goal", "核心目标"], ["hook", "核心抓手"], ["copy", "文案"],
       ].forEach(([key, name]) => {
@@ -874,9 +930,8 @@
       const base = `processActions[${index}]`;
       actionNode("PROCESS_ACTION", action, index, "processActions");
       [
-        ["executor", "执行人 / 角色"], ["scene", "执行场景"], ["condition", "什么情况下执行"],
+        ["scene", "执行场景"], ["condition", "什么情况下执行"],
         ["result", "执行后的结果"], ["action", "具体执行动作"], ["hook", "执行抓手"],
-        ["recipient", "接受对象"],
       ].forEach(([key, name]) => {
         if (!clean(action[key])) errors.push(issue("ACTION_FIELD_REQUIRED", `执行跟进动作字段缺失：${name}`, `${base}.${key}`));
       });
@@ -904,6 +959,7 @@
         errors.push(issue("CLASSIFICATION_OUTGOING_EDGE_REQUIRED", "对象分类卡片必须有出边承接分类后的处理", base));
       }
     });
+    warnings.push(...doc.migrationIssues);
 
     return {
       status: errors.length ? "draft" : "ready_to_submit",
@@ -1154,10 +1210,8 @@
     if (value?.schemaVersion !== "strategy-agent-strategy-draft/0.1") {
       return {ok: false, error: "草稿必须是 strategy-agent-strategy-draft/0.1"};
     }
-    if (value.candidate?.schemaVersion !== SCHEMA_VERSION_0_2) {
-      if (value.candidate?.schemaVersion !== SCHEMA_VERSION_0_3) {
-        return {ok: false, error: "candidate 必须是 strategy-flow-input/0.2 或 0.3"};
-      }
+    if (![SCHEMA_VERSION_0_2, SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4].includes(value.candidate?.schemaVersion)) {
+      return {ok: false, error: "candidate 必须是 strategy-flow-input/0.2、0.3 或 0.4"};
     }
     if (value.registrationMetadataCandidate?.schemaVersion !== METADATA_SCHEMA_VERSION) {
       return {ok: false, error: "registrationMetadataCandidate 必须是 strategy-flow-registration-metadata/2.0"};
@@ -1211,6 +1265,7 @@
     SCHEMA_VERSION_0_1,
     SCHEMA_VERSION_0_2,
     SCHEMA_VERSION_0_3,
+    SCHEMA_VERSION_0_4,
     SUPPORTED_SCHEMA_VERSIONS,
     TAXONOMY_SCHEMA_VERSION,
     TAXONOMY_FIELDS,
@@ -1523,6 +1578,13 @@
       return entries;
     }
 
+    function selectedNodeIds() {
+      return selectedEntries()
+        .filter(entry => entry.kind === "node")
+        .map(entry => entry.id)
+        .filter(id => documentState.nodes.some(node => node.localId === id));
+    }
+
     function snapshotState() {
       return {
         document: JSON.parse(JSON.stringify(documentState)),
@@ -1738,7 +1800,6 @@
           name: "待确认",
           state: type === "classification" ? "待分类" : "待确认",
         },
-        displayName: "",
         layout: { x, y },
       }, documentState.nodes.length);
       if (type === "classification") documentState.sourceSchemaVersion = SCHEMA_VERSION;
@@ -1756,8 +1817,6 @@
       const action = normalizeStrategyAction({
         localId: nextId("sa", documentState.strategyActions),
         nodeId,
-        time: node?.time || "",
-        subjectState: node?.subject.state || "",
         judge: "待确认",
         touchScene: "待确认",
         touchMethod: "待确认",
@@ -1781,13 +1840,11 @@
       const action = normalizeProcessAction({
         localId: nextId("pa", documentState.processActions),
         nodeId,
-        executor: node?.executor || "待确认",
         scene: "待确认",
         condition: "待确认",
         result: "待确认",
         action: "待确认",
         hook: "待确认",
-        recipient: "待确认",
         metrics: ["待确认"],
       });
       pushHistory("add-process-action");
@@ -2282,6 +2339,10 @@
       return `<div class="system-field"><span>${escapeHtml(label)}（自动生成）</span><b>${escapeHtml(value || "待生成")}</b><small>${escapeHtml(note)}</small></div>`;
     }
 
+    function inheritedField(label, value, note = "继承所属流程卡片，修改卡片后自动更新。") {
+      return `<label class="field inherited"><span>${escapeHtml(label)}（继承）</span><input type="text" value="${escapeHtml(value || "待确认")}" disabled><small>${escapeHtml(note)}</small></label>`;
+    }
+
     function taxonomySelectionField(fieldCode) {
       const field = TAXONOMY_FIELDS.get(fieldCode);
       const selected = documentState.taxonomy.selections[fieldCode] || [];
@@ -2399,7 +2460,7 @@
     function renderBasicInspector() {
       const strategy = documentState.strategy;
       inspectorContent.innerHTML = `<div class="side-block primary">
-        <div class="inspector-head"><div><b>策略基础信息</b><small>strategy-flow-input/0.3 · 标签由 taxonomy 统一承载</small></div></div>
+          <div class="inspector-head"><div><b>策略基础信息</b><small>strategy-flow-input/0.4 · 标签由 taxonomy 统一承载</small></div></div>
         <div class="inspector-form field-grid">
           ${inputField("策略名称", "strategy.strategyName", strategy.strategyName)}
           ${inputField("看板策略编号", "strategy.strategyId", strategy.strategyId, "text", "更新已有策略时填写；新建策略留空")}
@@ -2486,7 +2547,6 @@
             ${inputField("对象状态", `nodes.${node.localId}.subject.state`, node.subject.state, "text", node.nodeType === "classification" ? "例如：待分类、已完成分类、已分层" : "例如：未触达、已触达、已转化")}
             <p class="field-help">对象状态是对象进入这张卡片时的业务状态。它描述“现在处于什么阶段”，不是对象类别，也不是执行人的处理进度。对象分类卡片用于对当前对象做分类或分层，对象本身不需要发生行为。</p>
           </div>
-          ${inputField("卡片展示名", `nodes.${node.localId}.displayName`, node.displayName, "text", "不填时按执行人和状态展示")}
         </div>
       </div>
       <div class="side-block">
@@ -2534,6 +2594,7 @@
     function renderActionInspector(kind, action) {
       const nodeOptions = documentState.nodes.map(node => [node.localId, `${node.executor || "执行人待确认"}｜${node.subject.name || "对象待确认"}｜${node.subject.state || "状态待确认"}`]);
       const edgeOptions = [["", "暂不绑定流转规则"], ...documentState.edges.filter(edge => edge.from === action.nodeId).map(edge => [edge.localId, `规则｜${edge.actorBehavior.action || "待确认"}`])];
+      const node = documentState.nodes.find(item => item.localId === action.nodeId);
       if (kind === "strategyAction") {
         inspectorContent.innerHTML = `<div class="side-block primary">
           <div class="inspector-head"><div><b>客户触达内容</b><small>对客户说什么、用什么权益</small></div><button class="btn danger small" data-action="delete" type="button">删除</button></div>
@@ -2541,8 +2602,8 @@
             <div class="wide">${systemIdField("内容系统编号", action.localId, "系统自动维护，不需要业务填写。")}</div>
             ${selectField("所属流程卡片", `strategyActions.${action.localId}.nodeId`, action.nodeId, nodeOptions)}
             ${selectField("绑定的流转规则", `strategyActions.${action.localId}.outgoingEdgeId`, action.outgoingEdgeId, edgeOptions)}
-            ${inputField("时间", `strategyActions.${action.localId}.time`, action.time, "text", "填写业务时间表达式")}
-            ${inputField("对象状态", `strategyActions.${action.localId}.subjectState`, action.subjectState, "text", "该触达内容适用的对象状态")}
+            ${inheritedField("时间", node?.time)}
+            ${inheritedField("对象状态", node?.subject.state)}
             ${inputField("进入条件", `strategyActions.${action.localId}.judge`, action.judge)}
             <p class="field-help wide">进入条件是这条触达内容被选用前的前置判断，用来筛“该用哪套内容”。它不决定流程是否进入下一张卡片；流程走向仍由流转规则的执行人行为和对象行为判断。</p>
             ${inputField("触达场景", `strategyActions.${action.localId}.touchScene`, action.touchScene)}
@@ -2562,10 +2623,10 @@
             <div class="wide">${systemIdField("动作系统编号", action.localId, "系统自动维护，不需要业务填写。")}</div>
             ${selectField("所属流程卡片", `processActions.${action.localId}.nodeId`, action.nodeId, nodeOptions)}
             ${selectField("绑定的流转规则", `processActions.${action.localId}.outgoingEdgeId`, action.outgoingEdgeId, edgeOptions)}
-            ${inputField("执行人 / 角色", `processActions.${action.localId}.executor`, action.executor)}
+            ${inheritedField("执行人 / 角色", node?.executor)}
             ${inputField("执行场景", `processActions.${action.localId}.scene`, action.scene)}
             ${inputField("执行抓手", `processActions.${action.localId}.hook`, action.hook)}
-            ${inputField("接受对象", `processActions.${action.localId}.recipient`, action.recipient)}
+            ${inheritedField("接收对象", node?.subject.name)}
             <div class="wide">${textareaField("什么情况下执行", `processActions.${action.localId}.condition`, action.condition)}</div>
             <div class="wide">${textareaField("执行后的结果", `processActions.${action.localId}.result`, action.result)}</div>
             <div class="wide">${textareaField("具体执行动作", `processActions.${action.localId}.action`, action.action)}</div>
@@ -2637,7 +2698,7 @@
     function issueSource(item) {
       const domain = issueDomain(item.path);
       if (domain === "metadata") return "Metadata 2.0";
-      if (domain === "flow" || domain === "contract") return "Design 0.3";
+      if (domain === "flow" || domain === "contract") return "Design 0.4";
       return domain === "taxonomy" ? "Design taxonomy" : "Design strategy";
     }
 
@@ -2645,7 +2706,7 @@
       const advice = {
         SCHEMA_VERSION_REQUIRED: "补齐 schemaVersion 后重新导入。",
         SCHEMA_VERSION_INVALID: "使用 strategy-flow-input/<major>.<minor> 格式。",
-        SCHEMA_VERSION_UNSUPPORTED: "改用当前已注册的 0.1 / 0.2 / 0.3 契约。",
+        SCHEMA_VERSION_UNSUPPORTED: "改用当前已注册的 0.1 / 0.2 / 0.3 / 0.4 契约。",
         SCHEMA_UNKNOWN_FIELD: "删除契约未定义的字段，或升级到承载该字段的版本。",
         STRATEGY_FIELD_REQUIRED: "在基础信息 Tab 补齐策略事实。",
         TAG_FIELD_REQUIRED: "在策略标签 Tab 选择必填标签。",
@@ -2660,6 +2721,8 @@
         EXECUTOR_HANDOFF_MISSING: "执行人变化时把流转类型改为 handoff。",
         NODE_ORPHAN: "为孤立卡片连线，或删除该卡片。",
         ACTION_FIELD_REQUIRED: "补齐动作业务字段和指标。",
+        MIGRATION_DERIVED_FIELD_DISCARDED: "确认所属流程卡片上的继承值；0.4 不再在动作内保存重复字段。",
+        MIGRATION_DISPLAY_NAME_DISCARDED: "确认卡片业务事实仍完整；0.4 不再提供独立展示名。",
         CUSTOM_TAG_APPROVAL_REQUIRED: "保留提案等待 Workbench 审批；未批准前不要进入 process。",
       }[item.code];
       return advice || (item.severity === "error" ? "处理该项阻断后再导出正式输入。" : "评估该警告是否会影响业务确认。");
@@ -2784,7 +2847,7 @@
         ? `  --case ${clean(documentState.strategy.registrationCaseId)} \\\n`
         : "";
       el("exportCliTemplate").value = `python3 strategy-workbench/scripts/manage_case.py --json import-flow \\
-${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) || "strategy-flow"}-0.3.json \\
+${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) || "strategy-flow"}-0.4.json \\
   --metadata ./${clean(documentState.strategy.strategyName) || "strategy-flow"}-registration-metadata-2.0.json \\
   --actor 李四 \\
   --request-id REQ-IMPORT-FLOW-001`;
@@ -2996,6 +3059,10 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
       if (path.endsWith(".nodeType") && clean(target.value) === "classification") {
         documentState.sourceSchemaVersion = SCHEMA_VERSION;
       }
+      if (path.endsWith(".nodeId")) {
+        renderAll();
+        return;
+      }
       if (path.endsWith(".localId") && current?.value) {
         const nextId = clean(target.value);
         const oldId = current.value.localId;
@@ -3067,6 +3134,7 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
       }
       const card = event.target.closest(".node-card");
       if (card) {
+        if (clickOrigin?.moved) return;
         if (event.detail >= 2) {
           event.preventDefault();
           openInspectorFor("node", card.dataset.id);
@@ -3116,12 +3184,28 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
         event.preventDefault();
         return;
       }
-      selected = { kind: "node", id: node.localId };
+      let entries = selectedEntries();
+      if (!entries.some(entry => entry.kind === "node" && entry.id === node.localId)) {
+        entries = [{ kind: "node", id: node.localId }];
+      }
+      setSelection(entries, { kind: "node", id: node.localId });
       renderInspector();
       renderCanvas();
       const point = canvasPoint(event);
-      nodeDrag = { id: node.localId, offsetX: point.x - node.layout.x, offsetY: point.y - node.layout.y };
-      card.classList.add("dragging");
+      const dragNodeIds = selectedNodeIds();
+      const dragNodes = dragNodeIds
+        .map(id => {
+          const item = documentState.nodes.find(candidate => candidate.localId === id);
+          return item ? { id, x: item.layout.x, y: item.layout.y } : null;
+        })
+        .filter(Boolean);
+      nodeDrag = {
+        id: node.localId,
+        startPointerX: point.x,
+        startPointerY: point.y,
+        nodes: dragNodes,
+      };
+      dragNodeIds.forEach(id => document.getElementById(`node-${id}`)?.classList.add("dragging"));
       try { card.setPointerCapture?.(event.pointerId); } catch (_) { /* pointer capture is best-effort */ }
       event.preventDefault();
     });
@@ -3240,16 +3324,25 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
         }
       } else if (nodeDrag) {
         const point = canvasPoint(event);
-        const node = documentState.nodes.find(item => item.localId === nodeDrag.id);
-        if (node) {
+        if (nodeDrag.nodes.length) {
           if (!nodeDrag.pushed) {
-            pushHistory(`node-drag:${nodeDrag.id}`);
+            pushHistory(`node-drag:${nodeDrag.nodes.map(item => item.id).sort().join(",")}`);
             nodeDrag.pushed = true;
           }
-          node.layout.x = Math.max(0, Math.round(point.x - nodeDrag.offsetX));
-          node.layout.y = Math.max(0, Math.round(point.y - nodeDrag.offsetY));
-          const card = document.getElementById(`node-${node.localId}`);
-          if (card) card.style.transform = `translate(${node.layout.x}px,${node.layout.y}px)`;
+          // Clamp the group bounding box, not each card. Per-card clamping at
+          // the top/left edge would compress a multi-card selection.
+          const minX = Math.min(...nodeDrag.nodes.map(item => item.x));
+          const minY = Math.min(...nodeDrag.nodes.map(item => item.y));
+          const deltaX = Math.max(-minX, point.x - nodeDrag.startPointerX);
+          const deltaY = Math.max(-minY, point.y - nodeDrag.startPointerY);
+          nodeDrag.nodes.forEach(item => {
+            const node = documentState.nodes.find(candidate => candidate.localId === item.id);
+            if (!node) return;
+            node.layout.x = Math.round(item.x + deltaX);
+            node.layout.y = Math.round(item.y + deltaY);
+            const card = document.getElementById(`node-${item.id}`);
+            if (card) card.style.transform = `translate(${node.layout.x}px,${node.layout.y}px)`;
+          });
           renderEdges();
         }
       } else if (connecting) {
@@ -3300,8 +3393,9 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
         saveDraft();
       }
       if (nodeDrag) {
-        const card = document.getElementById(`node-${nodeDrag.id}`);
-        card?.classList.remove("dragging");
+        nodeDrag.nodes.forEach(item => {
+          document.getElementById(`node-${item.id}`)?.classList.remove("dragging");
+        });
         nodeDrag = null;
         renderValidation();
         saveDraft();
@@ -3757,10 +3851,10 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
           { localId: "e2", from: "n2", to: "n3", edgeType: "handoff", actorBehavior: { time: "观察期结束前", action: "人工跟进", status: "executed" }, subjectBehavior: { time: "观察期结束前", action: "完成转化", status: "happened" }, confirmed: true, mutexGroup: "g2", label: "跟进并完成转化" },
         ],
         strategyActions: [
-          { localId: "sa1", nodeId: "n1", outgoingEdgeId: "e1", time: "启动日", subjectState: "未触达", judge: "无前置判断（流程入口）", touchScene: "多渠道触达", touchMethod: "按实际渠道填写", theme: "引导完成关键行为", goal: "引导完成关键行为", hook: "通用权益", copy: "【通用示例文案】请按实际策略替换。", hasLink: true, metrics: ["触达数", "点击数", "点击率"] },
+          { localId: "sa1", nodeId: "n1", outgoingEdgeId: "e1", judge: "无前置判断（流程入口）", touchScene: "多渠道触达", touchMethod: "按实际渠道填写", theme: "引导完成关键行为", goal: "引导完成关键行为", hook: "通用权益", copy: "【通用示例文案】请按实际策略替换。", hasLink: true, metrics: ["触达数", "点击数", "点击率"] },
         ],
         processActions: [
-          { localId: "pa1", nodeId: "n2", outgoingEdgeId: "", executor: "系统", scene: "按实际场景填写", condition: "客户已触达且需要人工跟进", result: "线索转交责任执行人", action: "转交线索给责任执行人", hook: "待确认", recipient: "责任执行人", metrics: ["任务数"] },
+          { localId: "pa1", nodeId: "n2", outgoingEdgeId: "", scene: "按实际场景填写", condition: "客户已触达且需要人工跟进", result: "线索转交责任执行人", action: "转交线索给责任执行人", hook: "待确认", metrics: ["任务数"] },
         ],
       });
     }

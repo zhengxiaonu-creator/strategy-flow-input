@@ -4,8 +4,8 @@
 
 本协议定义“非结构化材料 → 证据 → 草稿 → 人工编辑 → 既有输出”的 Agent 通道。默认是轻量 human-in-loop 工作流：Agent 尽早把可编辑草稿交给画布，证据问题以待办呈现，最终只在导出边界检查输出契约。四条不变量：
 
-1. **输出契约零改动。** candidate 可使用 `strategy-flow-input/0.2` 或 `0.3`，`strategy-flow-registration-metadata/2.0`、`strategy-taxonomy/2026-09` 保持原样；草稿在外层包装 candidate 与 provenance，不向输出 JSON 增加任何字段。
-2. **草稿不是事实源。** Agent 产物永远是 draft；人工在 canonical 编辑状态中修改，最终仍以导出的 Design 0.3 与 Metadata 2.0 双文件为准。
+1. **输出契约零改动。** candidate 可使用 `strategy-flow-input/0.2`、`0.3` 或 `0.4`，`strategy-flow-registration-metadata/2.0`、`strategy-taxonomy/2026-09` 保持原样；草稿在外层包装 candidate 与 provenance，不向输出 JSON 增加任何字段。
+2. **草稿不是事实源。** Agent 产物永远是 draft；人工在 canonical 编辑状态中修改，最终仍以导出的 Design 0.4 与 Metadata 2.0 双文件为准。
 3. **无证据不得冒充事实。** `supported`/`conflict` 字段必须引用 corpus 中存在的 `evidenceId`；无证据的值只能 `missing` 并保持“待确认”或空值。`missing`/`conflict`/`openQuestions` 是审查待办，不是导入编辑器的硬门。
 4. **Mermaid 不参与 round-trip。** 全链路只走 JSON 契约；Mermaid 仍是展示投影。
 
@@ -79,7 +79,7 @@
 ### 两段式校验
 
 1. 草稿边界硬校验：`strategy-agent-strategy-draft/0.1` Schema、corpus 指纹、pointer 可解析、evidence 引用完整。
-2. 导出边界硬校验：candidate 必须符合 `strategy-flow-input/0.2` 或 `0.3` 输出契约，metadata candidate 必须符合 `strategy-flow-registration-metadata/2.0`，并保持节点 / 边 / 动作引用完整。业务建议和证据待办在导出前以 warning 呈现。
+2. 导出边界硬校验：candidate 必须符合 `strategy-flow-input/0.2`、`0.3` 或 `0.4` 输出契约，metadata candidate 必须符合 `strategy-flow-registration-metadata/2.0`，并保持节点 / 边 / 动作引用完整。业务建议和证据待办在导出前以 warning 呈现。新草稿默认使用 0.4。
 
 ### provenance 规则
 
@@ -122,7 +122,7 @@
   → strategy-draft（candidate + provenance + openQuestions）
   → canonical 编辑状态（missing / conflict / openQuestions 保留为待办）
   → 人工在画布 / 属性栏修改
-  → 导出 design 0.3 + metadata 2.0
+  → 导出 design 0.4 + metadata 2.0
   → manage_case.py --json import-flow（现有唯一提交入口，不变）
 ```
 

@@ -367,7 +367,7 @@ function confirmDraft({requestId, input, store, now, designer}) {
     nextAction: "export_and_import_flow",
     submissionCommand: "python manage_case.py --json import-flow "
       + (registrationCaseId ? `--case ${registrationCaseId} ` : "")
-      + `--design strategy-flow-0.3.json --metadata strategy-flow-registration-metadata-2.0.json `
+      + `--design strategy-flow-0.4.json --metadata strategy-flow-registration-metadata-2.0.json `
       + `--actor ${input.confirmedBy ?? "<actor>"} --request-id ${requestId}`,
   });
 }

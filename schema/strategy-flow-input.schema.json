@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ebscn.local/strategy-flow-input/0.3/schema.json",
+  "$id": "https://ebscn.local/strategy-flow-input/0.4/schema.json",
   "title": "EBSCN Strategy Flow Input",
   "type": "object",
   "additionalProperties": false,
@@ -15,7 +15,7 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": "strategy-flow-input/0.3"
+      "const": "strategy-flow-input/0.4"
     },
     "strategy": {
       "$ref": "#/$defs/strategy"
@@ -198,7 +198,7 @@
       ],
       "properties": {
         "strategyName": { "type": "string", "minLength": 1 },
-        "strategyId": { "type": "string", "pattern": "^WB-[A-Za-z0-9][A-Za-z0-9_-]*$", "description": "看板生成的正式策略编号。新建策略提交前省略；更新已有策略时携带。禁止使用 Agent 本地工作区 ID。" },
+        "strategyId": { "type": "string", "minLength": 1, "pattern": "^WB-[A-Za-z0-9][A-Za-z0-9_-]*$", "description": "看板生成的正式策略编号。新建策略提交前省略；更新已有策略时携带。禁止使用 Agent 本地工作区 ID。" },
         "registrationCaseId": { "type": "string", "minLength": 1, "description": "看板在提交注册时生成的 CaseID。新建策略提交前省略；看板返回后携带。禁止与 Agent 本地工作区 ID 混用。" },
         "paradigm": { "enum": ["customer", "scene"] },
         "owner": { "type": "string", "minLength": 1 },
@@ -214,7 +214,8 @@
       "properties": {
         "localId": { "$ref": "#/$defs/localId" },
         "nodeType": {
-          "enum": ["entry", "classification", "process", "wait", "outcome", "recycle", "reentry", "terminal"]
+          "enum": ["entry", "classification", "process", "wait", "outcome", "recycle", "reentry", "terminal"],
+          "description": "流程卡片类型。classification 表示对当前对象做分类、分层或重新分层；其余类型沿用 0.2 语义。"
         },
         "time": { "$ref": "#/$defs/strategyTime" },
         "executor": { "type": "string", "minLength": 1 },
@@ -236,7 +237,6 @@
             }
           }
         },
-        "displayName": { "type": "string" },
         "layout": {
           "type": "object",
           "additionalProperties": false,
@@ -308,8 +308,6 @@
         "localId": { "$ref": "#/$defs/localId" },
         "nodeId": { "$ref": "#/$defs/localId" },
         "outgoingEdgeId": { "$ref": "#/$defs/optionalLocalId" },
-        "time": { "$ref": "#/$defs/strategyTime" },
-        "subjectState": { "type": "string" },
         "judge": { "type": "string" },
         "touchScene": { "type": "string" },
         "touchMethod": { "type": "string" },
@@ -332,13 +330,11 @@
         "localId": { "$ref": "#/$defs/localId" },
         "nodeId": { "$ref": "#/$defs/localId" },
         "outgoingEdgeId": { "$ref": "#/$defs/optionalLocalId" },
-        "executor": { "type": "string" },
         "scene": { "type": "string" },
         "condition": { "type": "string" },
         "result": { "type": "string" },
         "action": { "type": "string" },
         "hook": { "type": "string" },
-        "recipient": { "type": "string" },
         "metrics": {
           "type": "array",
           "items": { "type": "string" }

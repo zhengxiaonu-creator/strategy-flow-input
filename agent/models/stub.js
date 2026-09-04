@@ -69,7 +69,6 @@ function buildGraphFromTable(table, evidenceId) {
         name: columnValue(table.columns, row, /对象|客群|客户/),
         state,
       },
-      displayName: `${executor}·${state}`,
       layout: {x: 80 + index * 350, y: 160},
     });
     if (index > 0) {
@@ -99,7 +98,6 @@ function buildMinimalGraph() {
       time: PENDING,
       executor: PENDING,
       subject: {type: "customer", name: PENDING, state: PENDING},
-      displayName: PENDING,
       layout: {x: 80, y: 160},
     }, {
       localId: "n2",
@@ -107,7 +105,6 @@ function buildMinimalGraph() {
       time: PENDING,
       executor: PENDING,
       subject: {type: "customer", name: PENDING, state: PENDING},
-      displayName: PENDING,
       layout: {x: 430, y: 160},
     }],
     edges: [{
@@ -175,7 +172,7 @@ function generateDraft({corpus, corpusFingerprint, taxonomy, draftId, caseId, re
   }
 
   const candidate = {
-    schemaVersion: "strategy-flow-input/0.3",
+    schemaVersion: "strategy-flow-input/0.4",
     strategy: {
       strategyName,
       paradigm: "customer",

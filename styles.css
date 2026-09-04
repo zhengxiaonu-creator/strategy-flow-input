@@ -435,6 +435,8 @@ body.resizing-bottom { cursor:row-resize; }
 .field textarea { min-height:76px; resize:vertical; line-height:1.6; }
 .field input:hover,.field select:hover,.field textarea:hover { border-color:rgba(0,120,212,.34); }
 .field input:focus,.field select:focus,.field textarea:focus { border-color:var(--accent); background:#fff; box-shadow:0 0 0 2px var(--accent-ring); }
+.field.inherited > small { color:var(--muted-soft); font-size:9.8px; line-height:1.45; }
+.field.inherited > input:disabled { color:var(--muted); background:rgba(243,242,241,.55); box-shadow:none; cursor:not-allowed; }
 .system-field {
   display:flex; flex-direction:column; gap:3px; padding:7px 9px; border:0;
   border-radius:var(--radius-sm); background:rgba(243,242,241,.38);

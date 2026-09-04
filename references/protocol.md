@@ -1,9 +1,9 @@
-# strategy-flow-input/0.3 Protocol
+# strategy-flow-input/0.4 Protocol
 
 ## 版本策略
 
-- 当前导出版本：`strategy-flow-input/0.3`
-- 兼容导入版本：`strategy-flow-input/0.1`、`strategy-flow-input/0.2`
+- 当前导出版本：`strategy-flow-input/0.4`
+- 兼容导入版本：`strategy-flow-input/0.1`、`strategy-flow-input/0.2`、`strategy-flow-input/0.3`
 - 拒绝版本：未知版本、格式非法版本
 - 版本格式：`strategy-flow-input/<major>.<minor>`
 
@@ -13,7 +13,7 @@
 
 ```json
 {
-  "schemaVersion": "strategy-flow-input/0.3",
+  "schemaVersion": "strategy-flow-input/0.4",
   "strategy": {},
   "taxonomy": {},
   "nodes": [],
@@ -36,8 +36,8 @@
 
 ```text
 strategyName
-strategyId（0.3 可选；正式注册后由看板返回）
-registrationCaseId（0.3 可选；提交注册后由看板返回）
+strategyId（0.3 起可选；正式注册后由看板返回）
+registrationCaseId（0.3 起可选；提交注册后由看板返回）
 paradigm
 owner
 submitter
@@ -92,7 +92,7 @@ strategy-taxonomy/2026-09
 
 ## metadata companion
 
-`strategy-flow-input/0.3` 必须搭配：
+`strategy-flow-input/0.4` 必须搭配：
 
 ```text
 strategy-flow-registration-metadata/2.0
@@ -102,7 +102,7 @@ metadata 不承载任何 taxonomy 标签。设计器将两份文件分开导出�
 
 ### 看板 ID 创建 / 更新
 
-0.3 区分两个看板 ID：
+0.3 起区分两个看板 ID：
 
 - `registrationCaseId`：提交注册时生成的 CaseID，用于定位本次提交注册过程。
 - `strategyId`：正式注册后生成的策略编号，用于定位正式策略。
@@ -111,7 +111,26 @@ metadata 不承载任何 taxonomy 标签。设计器将两份文件分开导出�
 
 两个字段出现时必须是非空看板返回值，禁止导出空字符串、占位文本或 Agent 本地工作区 ID（`AG-...`），且二者不能相同。0.1 / 0.2 导入仍按旧契约校验 `strategyId`；0.2 不识别 `registrationCaseId`。
 
-看板 0.3 importer 必须以 `requestId` 做导入幂等键：`registrationCaseId` 缺失表示创建提交注册，重放同一创建请求必须返回同一个 CaseID；`registrationCaseId` 存在表示继续对应提交。`strategyId` 缺失表示尚未正式注册，存在则更新对应正式策略，不得重新生成新编号。
+看板 importer 必须以 `requestId` 做导入幂等键：`registrationCaseId` 缺失表示创建提交注册，重放同一创建请求必须返回同一个 CaseID；`registrationCaseId` 存在表示继续对应提交。`strategyId` 缺失表示尚未正式注册，存在则更新对应正式策略，不得重新生成新编号。
+
+## 0.4 派生字段与迁移
+
+0.4 把重复的动作事实收敛到流程卡片单一事实源：
+
+```text
+strategyActions[].time       <- nodes[].time
+strategyActions[].subjectState <- nodes[].subject.state
+processActions[].executor    <- nodes[].executor
+processActions[].recipient   <- nodes[].subject.name
+```
+
+这些字段不再出现在 0.4 action JSON 中；展示层按 `nodeId` 实时派生。`strategyActions[].judge` 仍是动作局部字段，用于筛选该用哪条触达内容，不表示流程入口条件。`nodes[].displayName` 在 0.4 删除。
+
+0.1 / 0.2 / 0.3 导入时统一升级为 0.4 canonical model：
+
+- 旧动作派生字段与所属卡片不一致时，以卡片值准，丢弃动作值，并给非阻断 `MIGRATION_DERIVED_FIELD_DISCARDED` warning。
+- 非空 `displayName` 会被丢弃，并给非阻断 `MIGRATION_DISPLAY_NAME_DISCARDED` warning。
+- 0.4 导出再导入必须保持策略、taxonomy、节点、边、动作和布局的结构化 round-trip；`validation` 总是重算，Mermaid 不参与 round-trip。
 
 ## ID 规则
 
@@ -119,7 +138,7 @@ metadata 不承载任何 taxonomy 标签。设计器将两份文件分开导出�
 ^[A-Za-z][A-Za-z0-9_-]*$
 ```
 
-0.2 / 0.3 要求节点、边、动作 ID 显式存在。设计器新增对象时自动生成；导入缺失 ID 会按结构校验暴露。0.1 兼容导入沿用旧规则，可在迁移时补齐内部 ID。
+0.2 / 0.3 / 0.4 要求节点、边、动作 ID 显式存在。设计器新增对象时自动生成；导入缺失 ID 会按结构校验暴露。0.1 兼容导入沿用旧规则，可在迁移时补齐内部 ID。
 
 ## 语义规则
 
@@ -137,7 +156,7 @@ metadata 不承载任何 taxonomy 标签。设计器将两份文件分开导出�
 
 ## 0.1 / 0.2 迁移
 
-0.1 / 0.2 导入后会升级为 0.3 canonical model：
+0.1 / 0.2 / 0.3 导入后会升级为 0.4 canonical model：
 
 ```text
 strategy.businessScene -> taxonomy.businessScene
@@ -147,7 +166,7 @@ strategy.strategySubtype -> taxonomy.freeTextTags.strategySubtype
 
 0.1 没有承载 lifecycle、客群、资产、风险、触达标签，也没有 metadata 2.0；迁移后必须补齐。迁移会给出 `SCHEMA_MIGRATED` warning，不做静默编造。
 
-0.2 没有承载 `classification`。导入时不得根据 `displayName` 或动作描述把 `process` 猜测为 `classification`；业务人员显式修改卡片类型后，才会以 0.3 语义导出。
+0.2 没有承载 `classification`。导入时不得根据 `displayName` 或动作描述把 `process` 猜测为 `classification`；业务人员显式修改卡片类型后，才会以 0.4 语义导出。
 
 ## 与 Workbench 的边界
 
@@ -155,10 +174,10 @@ strategy.strategySubtype -> taxonomy.freeTextTags.strategySubtype
 
 ```text
 manage_case.py --json import-flow \
-  --design strategy-flow-0.3.json \
+  --design strategy-flow-0.4.json \
   --metadata strategy-flow-registration-metadata-2.0.json \
   --actor ... \
   --request-id ...
 ```
 
-稳定错误码见 `../README.md`。0.3 的看板 ID 语义由 `STRATEGY_ID_INVALID` 与 `REGISTRATION_CASE_ID_INVALID` 阻断：字段存在时必须是看板返回值，不能是空值、占位文本或 `AG-...` 本地工作区 ID，且两个看板 ID 不能相同。
+稳定错误码见 `../README.md`。0.3 起的看板 ID 语义由 `STRATEGY_ID_INVALID` 与 `REGISTRATION_CASE_ID_INVALID` 阻断：字段存在时必须是看板返回值，不能是空值、占位文本或 `AG-...` 本地工作区 ID，且两个看板 ID 不能相同。

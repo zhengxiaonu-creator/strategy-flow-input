@@ -64,7 +64,7 @@ Agent 的价值不是替业务人员猜，而是把证据、冲突和缺失摊�
    - 客户触达内容与执行跟进动作。
    - 基础信息、taxonomy、metadata。
 6. 处理底部校验错误和警告。
-7. 导出 `strategy-flow-input/0.3` 与 `strategy-flow-registration-metadata/2.0` 双 JSON。
+7. 导出 `strategy-flow-input/0.4` 与 `strategy-flow-registration-metadata/2.0` 双 JSON。
 
 默认轻量 human-in-loop：`missing`、`conflict`、`openQuestions` 可以作为待办进入编辑器，但导出边界必须通过双 JSON 契约。
 

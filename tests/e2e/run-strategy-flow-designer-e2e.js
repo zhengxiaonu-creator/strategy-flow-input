@@ -77,13 +77,14 @@ let browser;
     "测试执行动作"
   );
   const edgeLabelText = await page.locator(".edge-label").first().innerText();
+  const normalizedEdgeLabelText = edgeLabelText.replace(/\s+/g, "");
   assert.equal(
     true,
-    edgeLabelText.includes("执行人：启动日 已执行 测试执行动作")
+    normalizedEdgeLabelText.includes("执行人已执行启动日测试执行动作")
   );
   assert.equal(
     true,
-    edgeLabelText.includes("对象：启动日 已发生 点击链接")
+    normalizedEdgeLabelText.includes("对象已发生启动日点击链接")
   );
   await page.locator("#node-n1").click();
   const nodeFieldHelp = await page.evaluate(() => ({
@@ -103,6 +104,7 @@ let browser;
     true,
     nodeFieldHelp.cardFacts.some(text => text.includes("对象状态"))
   );
+  assert.equal(await page.locator('[data-bind="nodes.n1.displayName"]').count(), 0);
   await page.fill('[data-bind="nodes.n1.subject.name"]', "测试对象名称");
   await page.fill(
     '[data-bind="nodes.n1.subject.state"]',
@@ -132,6 +134,20 @@ let browser;
     "测试执行动作",
     explicitlySaved.draft.edges.find(edge => edge.localId === "e1").actorBehavior.action
   );
+  await page.locator(".action-chip.strategy").click();
+  const strategyActionInspector = await page.locator("#inspector").innerText();
+  assert.equal(true, strategyActionInspector.includes("时间（继承）"));
+  assert.equal(true, strategyActionInspector.includes("测试对象状态"));
+  assert.equal(true, strategyActionInspector.includes("进入条件"));
+  assert.equal(await page.locator('[data-bind="strategyActions.sa1.time"]').count(), 0);
+  assert.equal(await page.locator('[data-bind="strategyActions.sa1.subjectState"]').count(), 0);
+  await page.locator(".action-chip.process").click();
+  const processActionInspector = await page.locator("#inspector").innerText();
+  assert.equal(true, processActionInspector.includes("执行人 / 角色（继承）"));
+  assert.equal(true, processActionInspector.includes("接收对象（继承）"));
+  assert.equal(await page.locator('[data-bind="processActions.pa1.executor"]').count(), 0);
+  assert.equal(await page.locator('[data-bind="processActions.pa1.recipient"]').count(), 0);
+  await page.click("#node-n1");
   const editorInput = page.locator('[data-bind="nodes.n1.subject.name"]');
   const editorBox = await editorInput.boundingBox();
   const canvasBox = await page.locator("#canvasShell").boundingBox();
@@ -258,6 +274,51 @@ let browser;
   assert.ok(afterDrag);
   assert.ok(afterDrag.x > beforeDrag.x + 80);
   assert.ok(afterDrag.y > beforeDrag.y + 45);
+  await page.keyboard.press("Escape");
+  const beforeGroupDrag = await page.evaluate(() => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    return {
+      n1: design.nodes.find(node => node.localId === "n1").layout,
+      n4: design.nodes.find(node => node.localId === "n4").layout,
+    };
+  });
+  await page.click("#node-n1", { modifiers: ["Control"] });
+  await page.click("#node-n4", { modifiers: ["Control"] });
+  assert.equal(await page.locator(".node-card.selected").count(), 2);
+  const groupDragSource = await page.locator("#node-n4").boundingBox();
+  assert.ok(groupDragSource);
+  await page.waitForTimeout(500);
+  await page.mouse.move(groupDragSource.x + 45, groupDragSource.y + 18);
+  await page.mouse.down();
+  await page.mouse.move(groupDragSource.x + 125, groupDragSource.y + 65, { steps: 8 });
+  await page.mouse.up();
+  const afterGroupDrag = await page.evaluate(() => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    return {
+      selected: document.querySelectorAll(".node-card.selected").length,
+      n1: design.nodes.find(node => node.localId === "n1").layout,
+      n4: design.nodes.find(node => node.localId === "n4").layout,
+    };
+  });
+  assert.equal(afterGroupDrag.selected, 2);
+  assert.notEqual(afterGroupDrag.n1.x, beforeGroupDrag.n1.x);
+  assert.equal(
+    afterGroupDrag.n1.x - beforeGroupDrag.n1.x,
+    afterGroupDrag.n4.x - beforeGroupDrag.n4.x
+  );
+  assert.equal(
+    afterGroupDrag.n1.y - beforeGroupDrag.n1.y,
+    afterGroupDrag.n4.y - beforeGroupDrag.n4.y
+  );
+  await page.click("#moreActionsBtn");
+  await page.click("#undoBtn");
+  await page.waitForFunction(before => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    const n1 = design.nodes.find(node => node.localId === "n1").layout;
+    const n4 = design.nodes.find(node => node.localId === "n4").layout;
+    return n1.x === before.n1.x && n1.y === before.n1.y
+      && n4.x === before.n4.x && n4.y === before.n4.y;
+  }, beforeGroupDrag);
   await page.fill('[data-bind="nodes.n4.executor"]', "系统");
   await page.fill('[data-bind="nodes.n4.subject.state"]', "持续跟进");
   const sourcePort = await page.locator("#node-n1 .node-port.output").boundingBox();
@@ -350,7 +411,10 @@ let browser;
   });
 
   const exported = await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value));
-  assert.equal(exported.schemaVersion, "strategy-flow-input/0.3");
+  assert.equal(exported.schemaVersion, "strategy-flow-input/0.4");
+  assert.equal(exported.nodes.every(node => !("displayName" in node)), true);
+  assert.equal(exported.strategyActions.every(action => !("time" in action || "subjectState" in action)), true);
+  assert.equal(exported.processActions.every(action => !("executor" in action || "recipient" in action)), true);
   assert.equal("strategyId" in exported.strategy, false);
   assert.equal("registrationCaseId" in exported.strategy, false);
   assert.equal(exported.nodes.length, 4);
@@ -412,7 +476,7 @@ let browser;
       errors: design.validation.errors,
     };
   });
-  assert.equal(classificationExport.schemaVersion, "strategy-flow-input/0.3");
+  assert.equal(classificationExport.schemaVersion, "strategy-flow-input/0.4");
   assert.equal(classificationExport.nodeType, "classification");
   assert.equal(classificationExport.subjectStatus, "no_requirement");
   assert.equal(classificationExport.processActionCount, 1);
