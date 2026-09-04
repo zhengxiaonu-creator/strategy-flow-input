@@ -9,26 +9,26 @@
 项目版本：
 
 ```text
-1.4.0
+1.5.0
 ```
 
 一次性运行：
 
 ```bash
-npx github:zhengxiaonu-creator/strategy-flow-input#v1.4.0 --open
+npx github:zhengxiaonu-creator/strategy-flow-input#v1.5.0 --open
 ```
 
 全局安装：
 
 ```bash
-npm install -g github:zhengxiaonu-creator/strategy-flow-input#v1.4.0
+npm install -g github:zhengxiaonu-creator/strategy-flow-input#v1.5.0
 strategy-flow-input --open
 ```
 
 安装到当前项目：
 
 ```bash
-npm install --save-dev github:zhengxiaonu-creator/strategy-flow-input#v1.4.0
+npm install --save-dev github:zhengxiaonu-creator/strategy-flow-input#v1.5.0
 npx strategy-flow-input --open
 ```
 

@@ -1,3 +1,14 @@
+# Version 1.5.0 — 2026-09-04
+
+Release tag: `v1.5.0`
+
+- Upgrade the design contract to `strategy-flow-input/0.4`.
+- Make strategy-action time / subject state and process-action executor / recipient derive from their parent flow card.
+- Keep strategy-action `judge` action-local and remove node `displayName` from the current contract.
+- Preserve 0.1 / 0.2 / 0.3 import compatibility, normalize legacy duplicates to parent-card values, and expose migration warnings.
+- Add multi-select group dragging with shared relative layout and one undo record.
+- Update Agent draft generation, contracts, examples, validation, E2E coverage, and protocol documentation.
+
 # Version 1.4.0 — 2026-08-30
 
 Release tag: `v1.4.0`
