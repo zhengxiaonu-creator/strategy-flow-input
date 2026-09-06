@@ -91,7 +91,7 @@ server.on("error", error => {
 });
 server.listen(options.port, options.host, () => {
   const url = `http://${options.host === "0.0.0.0" ? "127.0.0.1" : options.host}:${options.port}`;
-  console.log(`strategy-flow-input 1.6.0 · strategy-flow-input/0.6`);
+  console.log(`strategy-flow-input 1.7.0 · strategy-flow-input/0.6`);
   console.log(`Designer: ${url}`);
   console.log(`Press Ctrl+C to stop.`);
   if (!options.open) return;

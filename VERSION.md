@@ -1,3 +1,14 @@
+# Version 1.7.0 — 2026-09-06
+
+Release tag: `v1.7.0`
+
+- Upgrade the design contract to `strategy-flow-input/0.6`.
+- Add `nodes[].sortOrder` as the explicit, globally unique board display order.
+- Keep sort values non-negative, bounded integers that may leave insertion gaps.
+- Preserve canvas layout semantics so dragging never changes business ordering.
+- Migrate 0.1–0.5 node array positions to `10、20、30…` with a visible warning.
+- Update Agent generation, contracts, examples, validation, E2E coverage, and protocol documentation.
+
 # Version 1.6.0 — 2026-09-06
 
 Release tag: `v1.6.0`
