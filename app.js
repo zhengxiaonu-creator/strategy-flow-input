@@ -11,8 +11,9 @@
   const SCHEMA_VERSION_0_2 = "strategy-flow-input/0.2";
   const SCHEMA_VERSION_0_3 = "strategy-flow-input/0.3";
   const SCHEMA_VERSION_0_4 = "strategy-flow-input/0.4";
-  const SCHEMA_VERSION = SCHEMA_VERSION_0_4;
-  const SUPPORTED_SCHEMA_VERSIONS = [SCHEMA_VERSION_0_1, SCHEMA_VERSION_0_2, SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4];
+  const SCHEMA_VERSION_0_5 = "strategy-flow-input/0.5";
+  const SCHEMA_VERSION = SCHEMA_VERSION_0_5;
+  const SUPPORTED_SCHEMA_VERSIONS = [SCHEMA_VERSION_0_1, SCHEMA_VERSION_0_2, SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4, SCHEMA_VERSION_0_5];
   const METADATA_SCHEMA_VERSION = "strategy-flow-registration-metadata/2.0";
   const TAXONOMY_SCHEMA_VERSION = "strategy-taxonomy/2026-09";
   const STORAGE_KEY = "ebscn.strategy-flow-designer.draft.v0";
@@ -54,6 +55,13 @@
     "SUBJECT_STATUS_REQUIRED",
     "EDGE_ENDPOINT_MISSING",
     "ACTION_FIELD_REQUIRED",
+    "ACTION_TOUCH_SCENE_REQUIRED",
+    "ACTION_TOUCH_METHOD_REQUIRED",
+    "ACTION_TOUCH_CODE_INVALID",
+    "ACTION_TOUCH_PARENT_MISMATCH",
+    "ACTION_TOUCH_TAXONOMY_SCOPE_MISMATCH",
+    "ACTION_TOUCH_CHILD_REQUIRED",
+    "ACTION_TOUCH_DUPLICATE",
     "CLASSIFICATION_PROCESS_ACTION_REQUIRED",
     "CLASSIFICATION_STRATEGY_ACTION_FORBIDDEN",
     "CLASSIFICATION_OUTGOING_EDGE_REQUIRED",
@@ -300,15 +308,49 @@
     };
   }
 
-  function normalizeStrategyAction(value) {
+  function legacyTouchSelection(value) {
     const source = value && typeof value === "object" ? value : {};
+    const sceneLabel = clean(source.touchScene);
+    const methodLabel = clean(source.touchMethod);
+    const scene = sceneLabel
+      ? TAXONOMY_FIELDS.get("touchScene").values.find(item => item.label === sceneLabel)
+      : null;
+    const method = methodLabel
+      ? TAXONOMY_FIELDS.get("touchMethod").values.find(item => item.label === methodLabel)
+      : null;
+    const scenes = scene ? [{code: scene.code}] : [];
+    const methods = scene && method && method.parentCode === scene.code
+      ? [{code: method.code, parentCode: method.parentCode}]
+      : [];
+    const discarded = [];
+    if (sceneLabel && !scene) discarded.push("touchScene");
+    if (methodLabel && (!method || !scene || method.parentCode !== scene.code)) discarded.push("touchMethod");
+    return {scenes, methods, discarded};
+  }
+
+  function normalizeStrategyAction(value, sourceSchemaVersion = SCHEMA_VERSION) {
+    const source = value && typeof value === "object" ? value : {};
+    const legacy = sourceSchemaVersion === SCHEMA_VERSION_0_5
+      ? null
+      : legacyTouchSelection(source);
     return {
       localId: string(source.localId),
       nodeId: string(source.nodeId),
       outgoingEdgeId: string(source.outgoingEdgeId),
       judge: string(source.judge),
-      touchScene: string(source.touchScene),
-      touchMethod: string(source.touchMethod),
+      touchScenes: legacy
+        ? legacy.scenes
+        : array(source.touchScenes)
+          .map(item => ({code: clean(item?.code)}))
+          .filter(item => item.code),
+      touchMethods: legacy
+        ? legacy.methods
+        : array(source.touchMethods)
+          .map(item => ({
+            code: clean(item?.code),
+            parentCode: clean(item?.parentCode),
+          }))
+          .filter(item => item.code && item.parentCode),
       theme: string(source.theme),
       goal: string(source.goal),
       hook: string(source.hook),
@@ -337,7 +379,7 @@
     // 0.4 makes the parent card own these facts. Equal legacy values are a
     // storage change only; conflicting values are reported so an upgrade never
     // silently rewrites a different business fact.
-    if (![SCHEMA_VERSION_0_1, SCHEMA_VERSION_0_2, SCHEMA_VERSION_0_3].includes(sourceSchemaVersion)) return [];
+    if (![SCHEMA_VERSION_0_1, SCHEMA_VERSION_0_2, SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4].includes(sourceSchemaVersion)) return [];
     const issues = [];
     const nodes = new Map(array(source.nodes)
       .map(node => [clean(node?.localId), node]));
@@ -365,6 +407,14 @@
             `strategyActions[${index}].${key}`,
           ));
         }
+      });
+      const legacyTouch = legacyTouchSelection(action);
+      legacyTouch.discarded.forEach(key => {
+        issues.push(issue(
+          "MIGRATION_TOUCH_FIELD_DISCARDED",
+          `0.5 只按 taxonomy 展示名精确匹配迁移，动作字段 ${key} 被丢弃：${clean(action?.[key])}`,
+          `strategyActions[${index}].${key}`,
+        ));
       });
     });
     array(source.processActions).forEach((action, index) => {
@@ -419,7 +469,7 @@
       ? clean(source.sourceSchemaVersion) || parsedVersion.raw
       : parsedVersion.raw;
     const isV0_1 = !isCanonicalInput && sourceSchemaVersion === SCHEMA_VERSION_0_1;
-    const allowedNodeTypes = isCanonicalInput || [SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4].includes(sourceSchemaVersion)
+    const allowedNodeTypes = isCanonicalInput || [SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4, SCHEMA_VERSION_0_5].includes(sourceSchemaVersion)
       ? NODE_TYPES
       : LEGACY_NODE_TYPES;
     const migrationIssues = isCanonicalInput
@@ -434,7 +484,10 @@
         : normalizeTaxonomy(source.taxonomy),
       nodes: array(source.nodes).map((node, index) => normalizeNode(node, index, allowedNodeTypes)),
       edges: array(source.edges).map(normalizeEdge),
-      strategyActions: array(source.strategyActions).map(normalizeStrategyAction),
+      strategyActions: array(source.strategyActions).map(item => normalizeStrategyAction(
+        item,
+        isCanonicalInput ? SCHEMA_VERSION : sourceSchemaVersion,
+      )),
       processActions: array(source.processActions).map(normalizeProcessAction),
       registrationMetadata: normalizeRegistrationMetadata(source.registrationMetadata),
       migrationIssues,
@@ -498,7 +551,7 @@
   function validateExternalContractShape(raw, errors, version) {
     const source = raw && typeof raw === "object" ? raw : {};
     const v0_1 = version === SCHEMA_VERSION_0_1;
-    const modernVersion = [SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4].includes(version);
+    const modernVersion = [SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4, SCHEMA_VERSION_0_5].includes(version);
     const allowedNodeTypes = modernVersion ? NODE_TYPES : LEGACY_NODE_TYPES;
     const requiredStrategyFields = modernVersion
       ? ["strategyName", "paradigm", "owner", "submitter", "version", "versionStatus"]
@@ -630,11 +683,13 @@
       });
     });
 
-    const nodeKeys = ["localId", "nodeType", "time", "executor", "subject", ...(version === SCHEMA_VERSION_0_4 ? [] : ["displayName"]), "layout"];
+    const nodeKeys = ["localId", "nodeType", "time", "executor", "subject", ...([SCHEMA_VERSION_0_4, SCHEMA_VERSION_0_5].includes(version) ? [] : ["displayName"]), "layout"];
     const edgeKeys = ["localId", "from", "to", "edgeType", "actorBehavior", "subjectBehavior", "confirmed", "mutexGroup", "overwriteSource", "label", "layout"];
     const behaviorKeys = ["time", "action", "status"];
-    const strategyActionKeys = ["localId", "nodeId", "outgoingEdgeId", ...(version === SCHEMA_VERSION_0_4 ? [] : ["time", "subjectState"]), "judge", "touchScene", "touchMethod", "theme", "goal", "hook", "copy", "hasLink", "metrics"];
-    const processActionKeys = ["localId", "nodeId", "outgoingEdgeId", ...(version === SCHEMA_VERSION_0_4 ? [] : ["executor"]), "scene", "condition", "result", "action", "hook", ...(version === SCHEMA_VERSION_0_4 ? [] : ["recipient"]), "metrics"];
+    const strategyActionKeys = version === SCHEMA_VERSION_0_5
+      ? ["localId", "nodeId", "outgoingEdgeId", "judge", "touchScenes", "touchMethods", "theme", "goal", "hook", "copy", "hasLink", "metrics"]
+      : ["localId", "nodeId", "outgoingEdgeId", ...([SCHEMA_VERSION_0_4].includes(version) ? [] : ["time", "subjectState"]), "judge", "touchScene", "touchMethod", "theme", "goal", "hook", "copy", "hasLink", "metrics"];
+    const processActionKeys = ["localId", "nodeId", "outgoingEdgeId", ...([SCHEMA_VERSION_0_4, SCHEMA_VERSION_0_5].includes(version) ? [] : ["executor"]), "scene", "condition", "result", "action", "hook", ...([SCHEMA_VERSION_0_4, SCHEMA_VERSION_0_5].includes(version) ? [] : ["recipient"]), "metrics"];
     source.nodes?.forEach?.((item, index) => {
       unknownKeys(item, nodeKeys).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `节点未知字段：${key}`, `nodes[${index}].${key}`)));
       unknownKeys(item?.subject, ["type", "name", "state"]).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `对象未知字段：${key}`, `nodes[${index}].subject.${key}`)));
@@ -649,6 +704,14 @@
     });
     source.strategyActions?.forEach?.((item, index) => {
       unknownKeys(item, strategyActionKeys).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `策略动作未知字段：${key}`, `strategyActions[${index}].${key}`)));
+      if (version === SCHEMA_VERSION_0_5) {
+        array(item?.touchScenes).forEach((selection, selectionIndex) => {
+          unknownKeys(selection, ["code"]).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `触达场景引用未知字段：${key}`, `strategyActions[${index}].touchScenes[${selectionIndex}].${key}`)));
+        });
+        array(item?.touchMethods).forEach((selection, selectionIndex) => {
+          unknownKeys(selection, ["code", "parentCode"]).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `触达方式引用未知字段：${key}`, `strategyActions[${index}].touchMethods[${selectionIndex}].${key}`)));
+        });
+      }
     });
     source.processActions?.forEach?.((item, index) => {
       unknownKeys(item, processActionKeys).forEach(key => errors.push(issue("SCHEMA_UNKNOWN_FIELD", `过程动作未知字段：${key}`, `processActions[${index}].${key}`)));
@@ -670,7 +733,7 @@
     } else if (!SUPPORTED_SCHEMA_VERSIONS.includes(sourceVersion.raw)) {
       errors.push(issue("SCHEMA_VERSION_UNSUPPORTED", `不支持的策略契约版本：${sourceVersion.raw}；当前支持：${SUPPORTED_SCHEMA_VERSIONS.join("、")}`, "schemaVersion"));
     } else if (sourceVersion.raw !== SCHEMA_VERSION) {
-      warnings.push(issue("SCHEMA_MIGRATED", `已从 ${sourceVersion.key} 迁移到 ${SCHEMA_VERSION.split("/").pop()}；旧契约字段按 0.4 规则归一`, "schemaVersion"));
+      warnings.push(issue("SCHEMA_MIGRATED", `已从 ${sourceVersion.key} 迁移到 ${SCHEMA_VERSION.split("/").pop()}；旧契约字段按当前规则归一`, "schemaVersion"));
     }
     const isCanonicalInput = Boolean(input?.taxonomy?.selections);
     const knownExternalVersion = sourceVersion.valid && SUPPORTED_SCHEMA_VERSIONS.includes(sourceVersion.raw);
@@ -680,20 +743,20 @@
         errors.push(issue("STRATEGY_FIELD_REQUIRED", `策略字段缺失：${key}`, `strategy.${key}`));
       }
     });
-    if ([SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4].includes(sourceVersion.raw) && doc.strategy.strategyId && (
+    if ([SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4, SCHEMA_VERSION_0_5].includes(sourceVersion.raw) && doc.strategy.strategyId && (
       ["待确认", "无", "暂无", "源表未填写"].includes(clean(doc.strategy.strategyId))
       || /^AG-[A-Za-z0-9_-]+$/.test(clean(doc.strategy.strategyId))
       || !/^WB-[A-Za-z0-9][A-Za-z0-9_-]*$/.test(clean(doc.strategy.strategyId))
     )) {
       errors.push(issue("STRATEGY_ID_INVALID", "看板策略编号必须是看板返回的正式编号；新建策略留空，禁止使用本地工作区 ID", "strategy.strategyId"));
     }
-    if ([SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4].includes(sourceVersion.raw) && doc.strategy.registrationCaseId && (
+    if ([SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4, SCHEMA_VERSION_0_5].includes(sourceVersion.raw) && doc.strategy.registrationCaseId && (
       ["待确认", "无", "暂无", "源表未填写"].includes(clean(doc.strategy.registrationCaseId))
       || /^AG-[A-Za-z0-9_-]+$/.test(clean(doc.strategy.registrationCaseId))
     )) {
       errors.push(issue("REGISTRATION_CASE_ID_INVALID", "提交注册 CaseID 必须由看板返回；禁止使用占位文本或 Agent 本地工作区 ID", "strategy.registrationCaseId"));
     }
-    if ([SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4].includes(sourceVersion.raw) && doc.strategy.registrationCaseId && doc.strategy.strategyId === doc.strategy.registrationCaseId) {
+    if ([SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4, SCHEMA_VERSION_0_5].includes(sourceVersion.raw) && doc.strategy.registrationCaseId && doc.strategy.strategyId === doc.strategy.registrationCaseId) {
       errors.push(issue("REGISTRATION_CASE_ID_INVALID", "提交注册 CaseID 与正式策略编号必须是两个不同标识", "strategy.registrationCaseId"));
     }
 
@@ -913,16 +976,73 @@
       }
     };
 
+    const globalTouchScenes = new Set(doc.taxonomy.selections.touchScene.map(item => item.code));
+    const globalTouchMethods = new Set(doc.taxonomy.selections.touchMethod.map(item => `${item.code}:${item.parentCode}`));
+    const validateActionTouchSelections = (action, base) => {
+      if (!action.touchScenes.length) {
+        errors.push(issue("ACTION_TOUCH_SCENE_REQUIRED", "客户触达内容至少需要一个触达场景", `${base}.touchScenes`));
+      }
+      if (!action.touchMethods.length) {
+        errors.push(issue("ACTION_TOUCH_METHOD_REQUIRED", "客户触达内容至少需要一个触达方式", `${base}.touchMethods`));
+      }
+
+      const sceneCodes = new Set();
+      action.touchScenes.forEach((item, itemIndex) => {
+        const definition = TAXONOMY_FIELDS.get("touchScene").values.find(value => value.code === item.code);
+        if (!definition) {
+          errors.push(issue("ACTION_TOUCH_CODE_INVALID", `触达场景存在未知 taxonomy code：${item.code || "空"}`, `${base}.touchScenes[${itemIndex}].code`));
+          return;
+        }
+        if (sceneCodes.has(item.code)) {
+          errors.push(issue("ACTION_TOUCH_DUPLICATE", `触达场景重复：${item.code}`, `${base}.touchScenes[${itemIndex}].code`));
+          return;
+        }
+        sceneCodes.add(item.code);
+        if (!globalTouchScenes.has(item.code)) {
+          errors.push(issue("ACTION_TOUCH_TAXONOMY_SCOPE_MISMATCH", `触达场景超出全局策略标签范围：${item.code}`, `${base}.touchScenes[${itemIndex}].code`));
+        }
+      });
+
+      const methodCodes = new Set();
+      action.touchMethods.forEach((item, itemIndex) => {
+        const definition = TAXONOMY_FIELDS.get("touchMethod").values.find(value => value.code === item.code);
+        if (!definition) {
+          errors.push(issue("ACTION_TOUCH_CODE_INVALID", `触达方式存在未知 taxonomy code：${item.code || "空"}`, `${base}.touchMethods[${itemIndex}].code`));
+          return;
+        }
+        if (methodCodes.has(item.code)) {
+          errors.push(issue("ACTION_TOUCH_DUPLICATE", `触达方式重复：${item.code}`, `${base}.touchMethods[${itemIndex}].code`));
+          return;
+        }
+        methodCodes.add(item.code);
+        if (definition.parentCode !== item.parentCode) {
+          errors.push(issue("ACTION_TOUCH_PARENT_MISMATCH", `触达方式 ${item.code} 的 parentCode 必须为 ${definition.parentCode}`, `${base}.touchMethods[${itemIndex}].parentCode`));
+        }
+        if (!sceneCodes.has(item.parentCode)) {
+          errors.push(issue("ACTION_TOUCH_PARENT_MISMATCH", `触达方式 ${item.code} 必须挂在当前动作已选择的触达场景下`, `${base}.touchMethods[${itemIndex}].parentCode`));
+        }
+        if (!globalTouchMethods.has(`${item.code}:${item.parentCode}`)) {
+          errors.push(issue("ACTION_TOUCH_TAXONOMY_SCOPE_MISMATCH", `触达方式超出全局策略标签范围：${item.code}`, `${base}.touchMethods[${itemIndex}].code`));
+        }
+      });
+
+      sceneCodes.forEach(sceneCode => {
+        if (!action.touchMethods.some(item => item.parentCode === sceneCode)) {
+          errors.push(issue("ACTION_TOUCH_CHILD_REQUIRED", `触达场景 ${sceneCode} 至少需要一个触达方式`, `${base}.touchMethods`));
+        }
+      });
+    };
+
     doc.strategyActions.forEach((action, index) => {
       const base = `strategyActions[${index}]`;
       actionNode("STRATEGY_ACTION", action, index, "strategyActions");
       [
-        ["judge", "进入条件"],
-        ["touchScene", "触达场景"], ["touchMethod", "触达方式"], ["theme", "话术主题"],
+        ["judge", "进入条件"], ["theme", "话术主题"],
         ["goal", "核心目标"], ["hook", "核心抓手"], ["copy", "文案"],
       ].forEach(([key, name]) => {
         if (!clean(action[key])) errors.push(issue("ACTION_FIELD_REQUIRED", `客户触达内容字段缺失：${name}`, `${base}.${key}`));
       });
+      validateActionTouchSelections(action, base);
       if (!action.metrics.length) errors.push(issue("ACTION_FIELD_REQUIRED", "客户触达内容至少需要一个考察指标", `${base}.metrics`));
     });
 
@@ -1210,8 +1330,8 @@
     if (value?.schemaVersion !== "strategy-agent-strategy-draft/0.1") {
       return {ok: false, error: "草稿必须是 strategy-agent-strategy-draft/0.1"};
     }
-    if (![SCHEMA_VERSION_0_2, SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4].includes(value.candidate?.schemaVersion)) {
-      return {ok: false, error: "candidate 必须是 strategy-flow-input/0.2、0.3 或 0.4"};
+    if (![SCHEMA_VERSION_0_2, SCHEMA_VERSION_0_3, SCHEMA_VERSION_0_4, SCHEMA_VERSION_0_5].includes(value.candidate?.schemaVersion)) {
+      return {ok: false, error: "candidate 必须是 strategy-flow-input/0.2、0.3、0.4 或 0.5"};
     }
     if (value.registrationMetadataCandidate?.schemaVersion !== METADATA_SCHEMA_VERSION) {
       return {ok: false, error: "registrationMetadataCandidate 必须是 strategy-flow-registration-metadata/2.0"};
@@ -1266,6 +1386,7 @@
     SCHEMA_VERSION_0_2,
     SCHEMA_VERSION_0_3,
     SCHEMA_VERSION_0_4,
+    SCHEMA_VERSION_0_5,
     SUPPORTED_SCHEMA_VERSIONS,
     TAXONOMY_SCHEMA_VERSION,
     TAXONOMY_FIELDS,
@@ -1347,6 +1468,8 @@
     let inspectorContent = null;
     let activeInspectorTab = "basic";
     let validationFilter = "all";
+    let openTouchDropdown = null;
+    let touchFocusCode = null;
     const historyState = { past: [], future: [], lastKey: null, lastAt: 0 };
     const layoutState = {
       left: true,
@@ -1818,8 +1941,8 @@
         localId: nextId("sa", documentState.strategyActions),
         nodeId,
         judge: "待确认",
-        touchScene: "待确认",
-        touchMethod: "待确认",
+        touchScenes: [],
+        touchMethods: [],
         theme: "待确认",
         goal: "待确认",
         hook: "待确认",
@@ -2343,6 +2466,46 @@
       return `<label class="field inherited"><span>${escapeHtml(label)}（继承）</span><input type="text" value="${escapeHtml(value || "待确认")}" disabled><small>${escapeHtml(note)}</small></label>`;
     }
 
+    function touchSelectionField(fieldCode, selected) {
+      const taxonomyFieldCode = fieldCode === "touchScenes" ? "touchScene" : "touchMethod";
+      const field = TAXONOMY_FIELDS.get(taxonomyFieldCode);
+      const selectedCodes = new Set(selected.map(item => item.code));
+      const globalCodes = new Set(documentState.taxonomy.selections[taxonomyFieldCode].map(item => item.code));
+      const parentField = field.parentFieldCode ? TAXONOMY_FIELDS.get(field.parentFieldCode) : null;
+      const parentLabels = new Map(parentField?.values.map(item => [item.code, item.label]) || []);
+      const visibleValues = field.values.filter(value =>
+        globalCodes.has(value.code) || selectedCodes.has(value.code));
+      const isOpen = openTouchDropdown === fieldCode;
+      const chips = selected.map(item => {
+        const definition = field.values.find(value => value.code === item.code);
+        return `<button type="button" class="multi-select-chip" data-touch-remove="${escapeHtml(item.code)}" title="删除 ${escapeHtml(definition?.label || item.code)}">${escapeHtml(definition?.label || item.code)}<span>×</span></button>`;
+      }).join("");
+      const options = visibleValues
+        .map(value => `<label class="multi-select-option">
+          <input type="checkbox" data-touch-field="${escapeHtml(fieldCode)}" data-touch-code="${escapeHtml(value.code)}"${selectedCodes.has(value.code) ? " checked" : ""}${touchFocusCode === value.code ? " data-touch-focus=\"true\"" : ""}>
+          <span>${escapeHtml(parentField ? `${parentLabels.get(value.parentCode) || value.parentCode} · ${value.label}` : value.label)}</span>
+          <small>${escapeHtml(value.code)}</small>
+        </label>`)
+        .join("");
+      const html = `<div class="field wide multi-select${isOpen ? " open" : ""}" data-touch-container="${escapeHtml(fieldCode)}">
+        <span>${escapeHtml(field.label)} *</span>
+        <div class="multi-select-trigger" role="button" tabindex="0" aria-expanded="${isOpen ? "true" : "false"}" aria-controls="${escapeHtml(fieldCode)}Popover" data-touch-toggle="${escapeHtml(fieldCode)}">
+          <span class="multi-select-values">${chips || "<em>请选择</em>"}</span>
+          <i aria-hidden="true">▾</i>
+        </div>
+        <div class="multi-select-popover" id="${escapeHtml(fieldCode)}Popover" role="group" aria-label="${escapeHtml(field.label)}"${isOpen ? "" : " hidden"}>
+          ${options || '<p class="field-help">请先在全局策略标签中选择可用选项。</p>'}
+        </div>
+        <small>多选；只能选择全局策略标签范围内已审批的 taxonomy code。${parentField ? "取消场景会同时移除该场景下的方式。" : ""}</small>
+      </div>`;
+      if (isOpen) {
+        requestAnimationFrame(() => {
+          document.querySelector(`[data-touch-container="${fieldCode}"] [data-touch-focus]`)?.focus();
+        });
+      }
+      return html;
+    }
+
     function taxonomySelectionField(fieldCode) {
       const field = TAXONOMY_FIELDS.get(fieldCode);
       const selected = documentState.taxonomy.selections[fieldCode] || [];
@@ -2457,10 +2620,77 @@
       }
     }
 
+    function syncTouchDropdownState() {
+      document.querySelectorAll("[data-touch-container]").forEach(container => {
+        const fieldCode = container.dataset.touchContainer;
+        const isOpen = openTouchDropdown === fieldCode;
+        container.classList.toggle("open", isOpen);
+        const trigger = container.querySelector("[data-touch-toggle]");
+        trigger?.setAttribute("aria-expanded", String(isOpen));
+        const popover = container.querySelector(".multi-select-popover");
+        if (popover) popover.hidden = !isOpen;
+      });
+    }
+
+    function setTouchDropdown(fieldCode, isOpen) {
+      openTouchDropdown = isOpen ? fieldCode : null;
+      if (!isOpen && fieldCode === openTouchDropdown) openTouchDropdown = null;
+      syncTouchDropdownState();
+    }
+
+    function closeTouchDropdowns(focusTrigger = false) {
+      const trigger = openTouchDropdown
+        ? document.querySelector(`[data-touch-container="${openTouchDropdown}"] [data-touch-toggle]`)
+        : null;
+      openTouchDropdown = null;
+      syncTouchDropdownState();
+      if (focusTrigger) trigger?.focus();
+    }
+
+    function updateActionTouchSelection(target, checked) {
+      const current = selectedObject();
+      if (current?.kind !== "strategyAction") return;
+      const action = current.value;
+      const fieldCode = clean(target.dataset.touchField);
+      const code = clean(target.dataset.touchCode);
+      const taxonomyFieldCode = fieldCode === "touchScenes" ? "touchScene" : "touchMethod";
+      const definition = TAXONOMY_FIELDS.get(taxonomyFieldCode)?.values.find(item => item.code === code);
+      if (!definition) return;
+
+      if (fieldCode === "touchScenes") {
+        if (checked) {
+          action.touchScenes.push({code});
+        } else {
+          action.touchScenes = action.touchScenes.filter(item => item.code !== code);
+          action.touchMethods = action.touchMethods.filter(item => item.parentCode !== code);
+        }
+      } else if (checked) {
+        action.touchMethods.push({code, parentCode: definition.parentCode});
+      } else {
+        action.touchMethods = action.touchMethods.filter(item => item.code !== code);
+      }
+      openTouchDropdown = fieldCode;
+      touchFocusCode = code;
+    }
+
+    function removeActionTouchSelection(fieldCode, code) {
+      const current = selectedObject();
+      if (current?.kind !== "strategyAction") return;
+      const action = current.value;
+      if (fieldCode === "touchScenes") {
+        action.touchScenes = action.touchScenes.filter(item => item.code !== code);
+        action.touchMethods = action.touchMethods.filter(item => item.parentCode !== code);
+      } else {
+        action.touchMethods = action.touchMethods.filter(item => item.code !== code);
+      }
+      openTouchDropdown = null;
+      touchFocusCode = null;
+    }
+
     function renderBasicInspector() {
       const strategy = documentState.strategy;
       inspectorContent.innerHTML = `<div class="side-block primary">
-          <div class="inspector-head"><div><b>策略基础信息</b><small>strategy-flow-input/0.4 · 标签由 taxonomy 统一承载</small></div></div>
+          <div class="inspector-head"><div><b>策略基础信息</b><small>strategy-flow-input/0.5 · 标签由 taxonomy 统一承载</small></div></div>
         <div class="inspector-form field-grid">
           ${inputField("策略名称", "strategy.strategyName", strategy.strategyName)}
           ${inputField("看板策略编号", "strategy.strategyId", strategy.strategyId, "text", "更新已有策略时填写；新建策略留空")}
@@ -2606,8 +2836,8 @@
             ${inheritedField("对象状态", node?.subject.state)}
             ${inputField("进入条件", `strategyActions.${action.localId}.judge`, action.judge)}
             <p class="field-help wide">进入条件是这条触达内容被选用前的前置判断，用来筛“该用哪套内容”。它不决定流程是否进入下一张卡片；流程走向仍由流转规则的执行人行为和对象行为判断。</p>
-            ${inputField("触达场景", `strategyActions.${action.localId}.touchScene`, action.touchScene)}
-            ${inputField("触达方式", `strategyActions.${action.localId}.touchMethod`, action.touchMethod)}
+            ${touchSelectionField("touchScenes", action.touchScenes)}
+            ${touchSelectionField("touchMethods", action.touchMethods)}
             ${inputField("话术主题", `strategyActions.${action.localId}.theme`, action.theme)}
             ${inputField("核心目标", `strategyActions.${action.localId}.goal`, action.goal)}
             ${inputField("核心抓手", `strategyActions.${action.localId}.hook`, action.hook)}
@@ -2651,6 +2881,10 @@
     }
 
     function renderCurrentObjectInspector(current) {
+      if (current.kind !== "strategyAction") {
+        openTouchDropdown = null;
+        touchFocusCode = null;
+      }
       if (current.kind === "node") renderNodeInspector(current.value);
       else if (current.kind === "edge") renderEdgeInspector(current.value);
       else renderActionInspector(current.kind, current.value);
@@ -2698,7 +2932,7 @@
     function issueSource(item) {
       const domain = issueDomain(item.path);
       if (domain === "metadata") return "Metadata 2.0";
-      if (domain === "flow" || domain === "contract") return "Design 0.4";
+      if (domain === "flow" || domain === "contract") return "Design 0.5";
       return domain === "taxonomy" ? "Design taxonomy" : "Design strategy";
     }
 
@@ -2706,7 +2940,7 @@
       const advice = {
         SCHEMA_VERSION_REQUIRED: "补齐 schemaVersion 后重新导入。",
         SCHEMA_VERSION_INVALID: "使用 strategy-flow-input/<major>.<minor> 格式。",
-        SCHEMA_VERSION_UNSUPPORTED: "改用当前已注册的 0.1 / 0.2 / 0.3 / 0.4 契约。",
+        SCHEMA_VERSION_UNSUPPORTED: "改用当前已注册的 0.1 / 0.2 / 0.3 / 0.4 / 0.5 契约。",
         SCHEMA_UNKNOWN_FIELD: "删除契约未定义的字段，或升级到承载该字段的版本。",
         STRATEGY_FIELD_REQUIRED: "在基础信息 Tab 补齐策略事实。",
         TAG_FIELD_REQUIRED: "在策略标签 Tab 选择必填标签。",
@@ -2721,6 +2955,14 @@
         EXECUTOR_HANDOFF_MISSING: "执行人变化时把流转类型改为 handoff。",
         NODE_ORPHAN: "为孤立卡片连线，或删除该卡片。",
         ACTION_FIELD_REQUIRED: "补齐动作业务字段和指标。",
+        ACTION_TOUCH_SCENE_REQUIRED: "在客户触达内容中至少选择一个触达场景。",
+        ACTION_TOUCH_METHOD_REQUIRED: "在客户触达内容中至少选择一个触达方式。",
+        ACTION_TOUCH_CODE_INVALID: "改用 taxonomy 字典中已审批的触达 code。",
+        ACTION_TOUCH_PARENT_MISMATCH: "重新选择触达方式，使其挂在正确的触达场景下。",
+        ACTION_TOUCH_TAXONOMY_SCOPE_MISMATCH: "先在全局策略标签中选择对应触达范围，或在动作中移除超范围选项。",
+        ACTION_TOUCH_CHILD_REQUIRED: "为每个已选触达场景至少选择一个触达方式。",
+        ACTION_TOUCH_DUPLICATE: "删除重复的触达场景或触达方式。",
+        MIGRATION_TOUCH_FIELD_DISCARDED: "旧自由文本无法精确匹配 taxonomy；请重新选择触达场景和方式。",
         MIGRATION_DERIVED_FIELD_DISCARDED: "确认所属流程卡片上的继承值；0.4 不再在动作内保存重复字段。",
         MIGRATION_DISPLAY_NAME_DISCARDED: "确认卡片业务事实仍完整；0.4 不再提供独立展示名。",
         CUSTOM_TAG_APPROVAL_REQUIRED: "保留提案等待 Workbench 审批；未批准前不要进入 process。",
@@ -2847,7 +3089,7 @@
         ? `  --case ${clean(documentState.strategy.registrationCaseId)} \\\n`
         : "";
       el("exportCliTemplate").value = `python3 strategy-workbench/scripts/manage_case.py --json import-flow \\
-${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) || "strategy-flow"}-0.4.json \\
+${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) || "strategy-flow"}-0.5.json \\
   --metadata ./${clean(documentState.strategy.strategyName) || "strategy-flow"}-registration-metadata-2.0.json \\
   --actor 李四 \\
   --request-id REQ-IMPORT-FLOW-001`;
@@ -3010,6 +3252,26 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
 
     function bindInspectorSurface(surface) {
       surface.addEventListener("click", event => {
+      const touchChip = event.target.closest("[data-touch-remove]");
+      if (touchChip) {
+        const container = touchChip.closest("[data-touch-container]");
+        const fieldCode = container?.dataset.touchContainer;
+        pushHistory(`touch.${fieldCode}.${touchChip.dataset.touchRemove}`);
+        removeActionTouchSelection(fieldCode, touchChip.dataset.touchRemove);
+        renderAll();
+        event.preventDefault();
+        return;
+      }
+      const touchToggle = event.target.closest("[data-touch-toggle]");
+      if (touchToggle) {
+        const fieldCode = touchToggle.dataset.touchToggle;
+        setTouchDropdown(fieldCode, openTouchDropdown !== fieldCode);
+        if (openTouchDropdown === fieldCode) {
+          document.querySelector(`[data-touch-container="${fieldCode}"] input[type="checkbox"]`)?.focus();
+        }
+        event.preventDefault();
+        return;
+      }
       const tabButton = event.target.closest("[data-inspector-tab]");
       if (!tabButton || tabButton.disabled) return;
       activeInspectorTab = tabButton.dataset.inspectorTab;
@@ -3022,9 +3284,15 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
       });
 
       surface.addEventListener("input", event => {
-      const target = event.target;
-      const path = target.dataset?.bind;
-      if (target.dataset.taxonomyField) {
+        const target = event.target;
+        const path = target.dataset?.bind;
+        if (target.dataset.touchField) {
+          pushHistory(`touch.${target.dataset.touchField}.${target.dataset.touchCode}`);
+          updateActionTouchSelection(target, target.checked);
+          renderAll();
+          return;
+        }
+        if (target.dataset.taxonomyField) {
         pushHistory(`taxonomy.${target.dataset.taxonomyField}.${target.dataset.taxonomyCode}`);
         updateTaxonomySelection(target);
         renderAll();
@@ -3111,10 +3379,30 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
         renderAll();
       }
       });
+
+      surface.addEventListener("keydown", event => {
+        if (event.key === "Escape" && openTouchDropdown) {
+          closeTouchDropdowns(true);
+          event.preventDefault();
+          return;
+        }
+        const trigger = event.target.closest("[data-touch-toggle]");
+        if (!trigger || (event.key !== "Enter" && event.key !== " ")) return;
+        const fieldCode = trigger.dataset.touchToggle;
+        setTouchDropdown(fieldCode, openTouchDropdown !== fieldCode);
+        if (openTouchDropdown === fieldCode) {
+          document.querySelector(`[data-touch-container="${fieldCode}"] input[type="checkbox"]`)?.focus();
+        }
+        event.preventDefault();
+      });
     }
 
     bindInspectorSurface(inspector);
     bindInspectorSurface(registrationDrawer);
+
+    document.addEventListener("pointerdown", event => {
+      if (!event.target.closest(".multi-select")) closeTouchDropdowns();
+    }, true);
 
     nodeLayer.addEventListener("click", event => {
       const chip = event.target.closest("[data-select-kind]");
@@ -3851,7 +4139,7 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
           { localId: "e2", from: "n2", to: "n3", edgeType: "handoff", actorBehavior: { time: "观察期结束前", action: "人工跟进", status: "executed" }, subjectBehavior: { time: "观察期结束前", action: "完成转化", status: "happened" }, confirmed: true, mutexGroup: "g2", label: "跟进并完成转化" },
         ],
         strategyActions: [
-          { localId: "sa1", nodeId: "n1", outgoingEdgeId: "e1", judge: "无前置判断（流程入口）", touchScene: "多渠道触达", touchMethod: "按实际渠道填写", theme: "引导完成关键行为", goal: "引导完成关键行为", hook: "通用权益", copy: "【通用示例文案】请按实际策略替换。", hasLink: true, metrics: ["触达数", "点击数", "点击率"] },
+          { localId: "sa1", nodeId: "n1", outgoingEdgeId: "e1", judge: "无前置判断（流程入口）", touchScenes: [{ code: "app" }], touchMethods: [{ code: "in_app_message", parentCode: "app" }], theme: "引导完成关键行为", goal: "引导完成关键行为", hook: "通用权益", copy: "【通用示例文案】请按实际策略替换。", hasLink: true, metrics: ["触达数", "点击数", "点击率"] },
         ],
         processActions: [
           { localId: "pa1", nodeId: "n2", outgoingEdgeId: "", scene: "按实际场景填写", condition: "客户已触达且需要人工跟进", result: "线索转交责任执行人", action: "转交线索给责任执行人", hook: "待确认", metrics: ["任务数"] },

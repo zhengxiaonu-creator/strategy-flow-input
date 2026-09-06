@@ -12,6 +12,7 @@ const required = [
   "contracts/strategy-flow-input-0.2.schema.json",
   "contracts/strategy-flow-input-0.3.schema.json",
   "contracts/strategy-flow-input-0.4.schema.json",
+  "contracts/strategy-flow-input-0.5.schema.json",
   "contracts/strategy-flow-registration-metadata-2.0.schema.json",
   "contracts/strategy-taxonomy-2026-09.json",
   "contracts/strategy-taxonomy-2026-09.js",
@@ -23,6 +24,7 @@ const required = [
   "examples/contracts/strategy-flow-input-0.2.json",
   "examples/contracts/strategy-flow-input-0.3.json",
   "examples/contracts/strategy-flow-input-0.4.json",
+  "examples/contracts/strategy-flow-input-0.5.json",
   "examples/contracts/strategy-flow-registration-metadata-2.0.json",
   "examples/contracts/agent/source-manifest.example.json",
   "examples/contracts/agent/evidence-corpus.example.json",
@@ -82,10 +84,10 @@ const skillDocumentation = {
   workbench: fs.readFileSync(path.join(root, "skills/strategy-flow-agent/references/workbench-protocol.md"), "utf8"),
 };
 for (const [text, phrase] of [
-  [skillDocumentation.entry, "对象分类使用 Design 0.4 的 `classification` 卡片表达"],
+  [skillDocumentation.entry, "对象分类使用 Design 0.5 的 `classification` 卡片表达"],
   [skillDocumentation.material, "显式信号"],
   [skillDocumentation.material, "弱信号"],
-  [skillDocumentation.material, "当前离线 stub 生成 Design 0.4，但不会自动生成 `classification`"],
+  [skillDocumentation.material, "当前离线 stub 生成 Design 0.5，但不会自动生成 `classification`"],
   [skillDocumentation.human, "对象分类确认"],
   [skillDocumentation.entry, "不向业务人员询问本地工作区 `caseId`"],
   [skillDocumentation.workbench, "CLASSIFICATION_PROCESS_ACTION_REQUIRED"],
@@ -118,12 +120,14 @@ for (const relativePath of [
   "contracts/strategy-flow-input-0.2.schema.json",
   "contracts/strategy-flow-input-0.3.schema.json",
   "contracts/strategy-flow-input-0.4.schema.json",
+  "contracts/strategy-flow-input-0.5.schema.json",
   "contracts/strategy-flow-registration-metadata-2.0.schema.json",
   "contracts/strategy-taxonomy-2026-09.schema.json",
   "contracts/strategy-taxonomy-2026-09.json",
   "examples/contracts/strategy-flow-input-0.2.json",
   "examples/contracts/strategy-flow-input-0.3.json",
   "examples/contracts/strategy-flow-input-0.4.json",
+  "examples/contracts/strategy-flow-input-0.5.json",
   "examples/contracts/strategy-flow-registration-metadata-2.0.json",
   "contracts/strategy-agent-response-0.1.schema.json",
   "contracts/strategy-agent-source-manifest-0.1.schema.json",
@@ -144,16 +148,17 @@ for (const relativePath of [
 assert(
   isDeepStrictEqual(
     readJson("schema/strategy-flow-input.schema.json"),
-    readJson("contracts/strategy-flow-input-0.4.schema.json"),
+    readJson("contracts/strategy-flow-input-0.5.schema.json"),
   ),
-  "Current schema and authority 0.4 contract must stay identical",
+  "Current schema and authority 0.5 contract must stay identical",
 );
 
 const designer = require(path.join(root, "app.js"));
-assert(designer.SUPPORTED_SCHEMA_VERSIONS.join(",") === "strategy-flow-input/0.1,strategy-flow-input/0.2,strategy-flow-input/0.3,strategy-flow-input/0.4", "Version registry contract failed");
+assert(designer.SUPPORTED_SCHEMA_VERSIONS.join(",") === "strategy-flow-input/0.1,strategy-flow-input/0.2,strategy-flow-input/0.3,strategy-flow-input/0.4,strategy-flow-input/0.5", "Version registry contract failed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.2").key === "0.2", "Valid version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.3").key === "0.3", "Valid 0.3 version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.4").key === "0.4", "Valid 0.4 version was not parsed");
+assert(designer.parseSchemaVersion("strategy-flow-input/0.5").key === "0.5", "Valid 0.5 version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/v0.2").valid === false, "Invalid version suffix must fail");
 assert(designer.parseSchemaVersion("other-flow/0.2").valid === false, "Invalid version namespace must fail");
 
@@ -165,7 +170,7 @@ const validResult = designer.validateDocument(canonical);
 assert(validResult.status === "ready_to_submit", `Authority example unexpectedly invalid: ${JSON.stringify(validResult)}`);
 
 const exported = designer.toExportDocument(canonical);
-assert(exported.schemaVersion === "strategy-flow-input/0.4", "Designer must export 0.4");
+assert(exported.schemaVersion === "strategy-flow-input/0.5", "Designer must export 0.5");
 assert(exported.validation.status === "ready_to_submit", "Exported authority example must remain valid");
 assert(!("registrationMetadata" in exported), "Companion metadata must not leak into design JSON");
 assert(designer.validateRegistrationMetadata(metadata).status === "ready_to_submit", "Metadata authority example unexpectedly invalid");
@@ -173,26 +178,81 @@ assert(designer.toRegistrationMetadataDocument(canonical).schemaVersion === "str
 
 const roundTripped = designer.normalizeDocument(exported);
 for (const key of ["strategy", "nodes", "edges", "strategyActions", "processActions"]) {
-  assert(JSON.stringify(roundTripped[key]) === JSON.stringify(canonical[key]), `0.2 -> 0.4 round-trip changed ${key}`);
+  assert(JSON.stringify(roundTripped[key]) === JSON.stringify(canonical[key]), `0.2 -> 0.5 round-trip changed ${key}`);
 }
-assert(JSON.stringify(roundTripped.taxonomy.selections) === JSON.stringify(canonical.taxonomy.selections), "0.2 -> 0.4 taxonomy round-trip failed");
-assert(roundTripped.taxonomy.strategySubtype === canonical.taxonomy.strategySubtype, "0.2 -> 0.4 free-text round-trip failed");
+assert(JSON.stringify(roundTripped.taxonomy.selections) === JSON.stringify(canonical.taxonomy.selections), "0.2 -> 0.5 taxonomy round-trip failed");
+assert(roundTripped.taxonomy.strategySubtype === canonical.taxonomy.strategySubtype, "0.2 -> 0.5 free-text round-trip failed");
 
-const classificationDesign = readJson("examples/contracts/strategy-flow-input-0.4.json");
+const classificationDesign = readJson("examples/contracts/strategy-flow-input-0.5.json");
 const classificationCanonical = designer.normalizeDocument(classificationDesign);
 classificationCanonical.registrationMetadata = metadata;
 const classificationResult = designer.validateDocument(classificationCanonical);
 assert(classificationResult.status === "ready_to_submit", `Classification example unexpectedly invalid: ${JSON.stringify(classificationResult)}`);
-assert(classificationResult.errors.length === 0 && classificationResult.warnings.length === 0, "Classification example must be a clean 0.4 contract sample");
+assert(classificationResult.errors.length === 0 && classificationResult.warnings.length === 0, "Classification example must be a clean 0.5 contract sample");
 const classificationExport = designer.toExportDocument(classificationCanonical);
-assert(classificationExport.schemaVersion === "strategy-flow-input/0.4", "Classification example must export 0.4");
+assert(classificationExport.schemaVersion === "strategy-flow-input/0.5", "Classification example must export 0.5");
 assert(classificationExport.nodes[0].nodeType === "classification", "Classification example must use the classification node type");
-assert(!("strategyId" in classificationExport.strategy), "New 0.4 strategy must omit board-assigned strategyId");
-assert(!("registrationCaseId" in classificationExport.strategy), "New 0.4 strategy must omit board-assigned registration case id");
+assert(!("strategyId" in classificationExport.strategy), "New 0.5 strategy must omit board-assigned strategyId");
+assert(!("registrationCaseId" in classificationExport.strategy), "New 0.5 strategy must omit board-assigned registration case id");
 const classificationRoundTrip = designer.normalizeDocument(classificationExport);
 for (const key of ["strategy", "nodes", "edges", "strategyActions", "processActions"]) {
-  assert(JSON.stringify(classificationRoundTrip[key]) === JSON.stringify(classificationCanonical[key]), `0.4 classification round-trip changed ${key}`);
+  assert(JSON.stringify(classificationRoundTrip[key]) === JSON.stringify(classificationCanonical[key]), `0.5 classification round-trip changed ${key}`);
 }
+const assertTouchError = (variant, code) => {
+  const result = designer.validateDocument(variant);
+  assert(result.errors.some(error => error.code === code), `Expected touch validation error ${code}: ${JSON.stringify(result.errors)}`);
+};
+const touchVariant = () => clone(classificationCanonical);
+const noScene = touchVariant();
+noScene.strategyActions[0].touchScenes = [];
+assertTouchError(noScene, "ACTION_TOUCH_SCENE_REQUIRED");
+const noMethod = touchVariant();
+noMethod.strategyActions[0].touchMethods = [];
+assertTouchError(noMethod, "ACTION_TOUCH_METHOD_REQUIRED");
+assertTouchError(noMethod, "ACTION_TOUCH_CHILD_REQUIRED");
+const unknownTouchCode = touchVariant();
+unknownTouchCode.strategyActions[0].touchScenes[0].code = "unknown_touch_scene";
+assertTouchError(unknownTouchCode, "ACTION_TOUCH_CODE_INVALID");
+const mismatchedTouchParent = touchVariant();
+mismatchedTouchParent.strategyActions[0].touchMethods[0].parentCode = "sms";
+assertTouchError(mismatchedTouchParent, "ACTION_TOUCH_PARENT_MISMATCH");
+const outOfScopeTouch = touchVariant();
+outOfScopeTouch.taxonomy.selections.touchScene = outOfScopeTouch.taxonomy.selections.touchScene.filter(item => item.code !== "wecom");
+outOfScopeTouch.taxonomy.selections.touchMethod = outOfScopeTouch.taxonomy.selections.touchMethod.filter(item => item.code !== "wecom_private_chat");
+assertTouchError(outOfScopeTouch, "ACTION_TOUCH_TAXONOMY_SCOPE_MISMATCH");
+const duplicateTouch = touchVariant();
+duplicateTouch.strategyActions[0].touchScenes.push(clone(duplicateTouch.strategyActions[0].touchScenes[0]));
+duplicateTouch.strategyActions[0].touchMethods.push(clone(duplicateTouch.strategyActions[0].touchMethods[0]));
+assertTouchError(duplicateTouch, "ACTION_TOUCH_DUPLICATE");
+
+const legacy04 = readJson("examples/contracts/strategy-flow-input-0.4.json");
+const legacy04Unmatched = designer.normalizeDocument(legacy04);
+assert(legacy04Unmatched.strategyActions.every(action => action.touchScenes.length === 0 && action.touchMethods.length === 0), "Unmatched 0.4 touch text must migrate to empty selections");
+assert(designer.validateDocument(legacy04Unmatched).warnings.some(error => error.code === "MIGRATION_TOUCH_FIELD_DISCARDED" && error.path === "strategyActions[0].touchScene"), "Unmatched 0.4 touch scene must warn");
+assert(designer.validateDocument(legacy04Unmatched).warnings.some(error => error.code === "MIGRATION_TOUCH_FIELD_DISCARDED" && error.path === "strategyActions[0].touchMethod"), "Unmatched 0.4 touch method must warn");
+const legacy04Mapped = clone(legacy04);
+legacy04Mapped.strategyActions[0].touchScene = "APP触达";
+legacy04Mapped.strategyActions[0].touchMethod = "站内信";
+const legacy04MappedCanonical = designer.normalizeDocument(legacy04Mapped);
+legacy04MappedCanonical.registrationMetadata = metadata;
+assert(
+  JSON.stringify(legacy04MappedCanonical.strategyActions[0].touchScenes) === JSON.stringify([{code: "app"}]),
+  "Exact 0.4 touch scene label must migrate to taxonomy code",
+);
+assert(
+  JSON.stringify(legacy04MappedCanonical.strategyActions[0].touchMethods) === JSON.stringify([{code: "in_app_message", parentCode: "app"}]),
+  "Exact 0.4 touch method label must migrate to taxonomy code",
+);
+assert(
+  !designer.validateDocument(legacy04MappedCanonical).warnings.some(error => error.code === "MIGRATION_TOUCH_FIELD_DISCARDED"),
+  "Exact 0.4 touch labels must not produce a discard warning",
+);
+const legacy04MethodMismatch = clone(legacy04);
+legacy04MethodMismatch.strategyActions[0].touchScene = "短信触达";
+legacy04MethodMismatch.strategyActions[0].touchMethod = "站内信";
+const legacy04MethodMismatchCanonical = designer.normalizeDocument(legacy04MethodMismatch);
+assert(legacy04MethodMismatchCanonical.strategyActions[0].touchMethods.length === 0, "A method outside the legacy scene must be discarded");
+assert(designer.validateDocument(legacy04MethodMismatchCanonical).warnings.some(error => error.code === "MIGRATION_TOUCH_FIELD_DISCARDED" && error.path === "strategyActions[0].touchMethod"), "Method outside legacy scene must warn");
 const legacy03 = readJson("examples/contracts/strategy-flow-input-0.3.json");
 const legacyConflict = clone(legacy03);
 legacyConflict.strategyActions[0].time = "冲突时间";
@@ -209,11 +269,24 @@ assert(legacyConflictResult.warnings.some(error => error.code === "MIGRATION_DER
 const invalid04DerivedFields = clone(classificationDesign);
 invalid04DerivedFields.nodes[0].displayName = "非法展示名";
 invalid04DerivedFields.strategyActions[0].time = "非法动作时间";
+invalid04DerivedFields.strategyActions[0].touchScene = "非法动作触达场景";
 invalid04DerivedFields.processActions[0].executor = "非法动作执行人";
 const invalid04DerivedResult = designer.validateDocument(invalid04DerivedFields);
 assert(invalid04DerivedResult.errors.some(error => error.code === "SCHEMA_UNKNOWN_FIELD" && error.path === "nodes[0].displayName"), "0.4 must reject displayName");
 assert(invalid04DerivedResult.errors.some(error => error.code === "SCHEMA_UNKNOWN_FIELD" && error.path === "strategyActions[0].time"), "0.4 must reject action-owned time");
+assert(invalid04DerivedResult.errors.some(error => error.code === "SCHEMA_UNKNOWN_FIELD" && error.path === "strategyActions[0].touchScene"), "0.5 must reject singular legacy touch fields");
 assert(invalid04DerivedResult.errors.some(error => error.code === "SCHEMA_UNKNOWN_FIELD" && error.path === "processActions[0].executor"), "0.4 must reject action-owned executor");
+const invalidTouchReferences = clone(classificationDesign);
+invalidTouchReferences.strategyActions[0].touchScenes[0].label = "非法 label";
+invalidTouchReferences.strategyActions[0].touchMethods[0].extra = "非法字段";
+assert(
+  designer.validateDocument(invalidTouchReferences).errors.some(error => error.code === "SCHEMA_UNKNOWN_FIELD" && error.path === "strategyActions[0].touchScenes[0].label"),
+  "0.5 touch scene references must not carry labels",
+);
+assert(
+  designer.validateDocument(invalidTouchReferences).errors.some(error => error.code === "SCHEMA_UNKNOWN_FIELD" && error.path === "strategyActions[0].touchMethods[0].extra"),
+  "0.5 touch method references must reject unknown fields",
+);
 for (const subjectType of ["customer", "scene", "event", "activity"]) {
   const variant = JSON.parse(JSON.stringify(classificationCanonical));
   variant.nodes[0].subject.type = subjectType;
@@ -278,7 +351,7 @@ editable02NewStrategy.registrationMetadata = metadata;
 assert(designer.validateDocument(editable02NewStrategy).status === "ready_to_submit", "An imported 0.2 draft with an empty id must be editable as a new 0.4 strategy");
 assert(!("strategyId" in designer.toExportDocument(editable02NewStrategy).strategy), "An imported 0.2 draft with an empty id must export as a new 0.4 strategy");
 
-const unsupported = designer.validateDocument({...externalDesign, schemaVersion: "strategy-flow-input/0.5"});
+const unsupported = designer.validateDocument({...externalDesign, schemaVersion: "strategy-flow-input/0.6"});
 assert(unsupported.errors.some(error => error.code === "SCHEMA_VERSION_UNSUPPORTED"), "Unknown future version must be rejected explicitly");
 const malformed = designer.validateDocument({...externalDesign, schemaVersion: "strategy-flow-input/v0.2"});
 assert(malformed.errors.some(error => error.code === "SCHEMA_VERSION_INVALID"), "Malformed version must be rejected");
@@ -401,7 +474,7 @@ for (const error of agentErrors.errors) {
 }
 
 assert(agentDraft.schemaVersion === "strategy-agent-strategy-draft/0.1", "Agent draft version contract failed");
-assert(agentDraft.candidate.schemaVersion === "strategy-flow-input/0.4", "Draft candidate must use 0.4 create semantics");
+assert(agentDraft.candidate.schemaVersion === "strategy-flow-input/0.5", "Draft candidate must use 0.5 create semantics");
 assert(!("strategyId" in agentDraft.candidate.strategy), "New agent draft must omit strategyId");
 assert(!("registrationCaseId" in agentDraft.candidate.strategy), "New agent draft must omit registrationCaseId");
 assert(agentDraft.registrationMetadataCandidate.schemaVersion === "strategy-flow-registration-metadata/2.0", "Draft metadata candidate must stay on 2.0");
@@ -518,7 +591,7 @@ assert(unsupportedEnvelope.status === "ok" && unsupportedEnvelope.data.manifest.
 const draftEnvelope = executeCommand({command: "generate-draft", requestId: "req-test-draft", input: {caseId: agentCaseId}, store: agentStore});
 assert(draftEnvelope.status === "ok", `Agent draft generation failed: ${JSON.stringify(draftEnvelope.error ?? null)}`);
 const generatedDraft = draftEnvelope.data.draft;
-assert(generatedDraft.candidate.schemaVersion === "strategy-flow-input/0.4", "Offline stub must generate Design 0.4");
+assert(generatedDraft.candidate.schemaVersion === "strategy-flow-input/0.5", "Offline stub must generate Design 0.5");
 assert(generatedDraft.candidate.nodes.every(node => !("displayName" in node)), "Offline stub must omit removed displayName");
 const selectedTaxonomy = new Map(generatedDraft.candidate.taxonomy.tagSelections.map(selection => [selection.fieldCode, selection.values.map(value => value.code)]));
 for (const [fieldCode, codes] of [["lifecycle", "existing"], ["customerClass", "generic"], ["assetRange", "unlimited"], ["riskLevel", "unspecified"], ["businessScene", "user_activation"], ["strategyType", "tail_customer_operation"], ["touchScene", "app"], ["touchMethod", "in_app_message"]]) {

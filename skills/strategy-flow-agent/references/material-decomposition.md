@@ -41,7 +41,7 @@
 
 ### 4. 对象分类信号
 
-Design 0.4 用 `nodes[].nodeType = "classification"` 表达“对象分类”卡片。它可作用于客群、场景、事件或活动，表示执行人对对象做分类、分层或重新分层；对象本身无行为要求，也不因此被触达。
+Design 0.5 用 `nodes[].nodeType = "classification"` 表达“对象分类”卡片。它可作用于客群、场景、事件或活动，表示执行人对对象做分类、分层或重新分层；对象本身无行为要求，也不因此被触达。
 
 **显式信号**：材料同时出现分类 / 分层 / 分群 / 打标 / 按行为划分 / 产出细分对象等意图，并能定位到被分类对象、执行人或分类结果之一。此时可以把“存在对象分类需求”记录为证据支撑的候选意图，并引用具体 `evidenceId`。
 
@@ -59,7 +59,7 @@ Design 0.4 用 `nodes[].nodeType = "classification"` 表达“对象分类”卡
 落地边界：
 
 - `classification` 是 Design 0.3 引入、0.4 继续使用的能力；0.2 只有 `process`，不得把 0.2 的展示名或动作描述自动猜成新类型。
-- 当前离线 stub 生成 Design 0.4，但不会自动生成 `classification`。Agent 发现信号后只能在审查汇报 / openQuestions 中提示，待业务人员确认后在编辑器显式添加或修改卡片。
+- 当前离线 stub 生成 Design 0.5，但不会自动生成 `classification`。Agent 发现信号后只能在审查汇报 / openQuestions 中提示，待业务人员确认后在编辑器显式添加或修改卡片。
 - 不要直接修改 `strategy-agent-store` 里的 draft 来补 `classification`。
 - 分类依据、动作、结果和指标继续挂在 `processActions`；`classification` 禁止挂接 `strategyActions`。
 - 所有出边的对象行为必须是 `no_requirement`；执行人变化仍需 `handoff`。

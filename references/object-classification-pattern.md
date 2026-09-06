@@ -1,8 +1,8 @@
-# 对象分类卡片模式（strategy-flow-input/0.4）
+# 对象分类卡片模式（strategy-flow-input/0.5）
 
 ## 定位
 
-`classification` 是 0.3 引入、0.4 继续使用的流程卡片类型，中文展示名为“对象分类”。它表示执行人对当前对象做分类、分层或重新分层；对象本身没有行为要求，也不因此被触达。
+`classification` 是 0.3 引入、0.4 / 0.5 继续使用的流程卡片类型，中文展示名为“对象分类”。它表示执行人对当前对象做分类、分层或重新分层；对象本身没有行为要求，也不因此被触达。
 
 对象类型沿用现有 `subject.type`：
 
@@ -66,6 +66,6 @@ CLASSIFICATION_SUBJECT_BEHAVIOR_INVALID
 
 0.2 没有 `classification`。如需在 0.2 中表达类似业务，只能用 `process + processActions + no_requirement` 的业务模式，并在 `displayName` 中说明；该写法不会被机器识别为对象分类，也不会获得上述硬校验。
 
-0.2 / 0.3 导入 0.4 编辑器后仍保持 `process`。业务人员显式把卡片类型改为“对象分类”后，导出才使用 `classification`。
+0.2 / 0.3 / 0.4 导入 0.5 编辑器后仍保持 `process`。业务人员显式把卡片类型改为“对象分类”后，导出才使用 `classification`。
 
-通用完整示例见 [`../examples/contracts/strategy-flow-input-0.4.json`](../examples/contracts/strategy-flow-input-0.4.json)。
+通用完整示例见 [`../examples/contracts/strategy-flow-input-0.5.json`](../examples/contracts/strategy-flow-input-0.5.json)。

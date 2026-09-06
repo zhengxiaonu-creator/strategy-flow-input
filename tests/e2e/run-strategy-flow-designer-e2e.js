@@ -141,6 +141,83 @@ let browser;
   assert.equal(true, strategyActionInspector.includes("进入条件"));
   assert.equal(await page.locator('[data-bind="strategyActions.sa1.time"]').count(), 0);
   assert.equal(await page.locator('[data-bind="strategyActions.sa1.subjectState"]').count(), 0);
+  await page.click("#openRegistrationDrawerBtn");
+  await page.click('[data-inspector-tab="taxonomy"]');
+  await page.check('input[data-taxonomy-field="touchScene"][data-taxonomy-code="wecom"]');
+  await page.check('input[data-taxonomy-field="touchMethod"][data-taxonomy-code="wecom_private_chat"]');
+  await page.keyboard.press("Escape");
+  await page.locator(".action-chip.strategy").click();
+  const readTouchSelection = () => page.evaluate(() => {
+    const action = JSON.parse(document.getElementById("jsonOutput").value)
+      .strategyActions.find(item => item.localId === "sa1");
+    return {
+      scenes: action.touchScenes.map(item => item.code),
+      methods: action.touchMethods.map(item => `${item.code}:${item.parentCode}`),
+    };
+  });
+  await page.click('[data-touch-toggle="touchScenes"]');
+  await page.check('input[data-touch-field="touchScenes"][data-touch-code="wecom"]');
+  await page.keyboard.press("Escape");
+  await page.click('[data-touch-toggle="touchMethods"]');
+  await page.check('input[data-touch-field="touchMethods"][data-touch-code="wecom_private_chat"]');
+  assert.deepEqual(await readTouchSelection(), {
+    scenes: ["app", "wecom"],
+    methods: ["in_app_message:app", "wecom_private_chat:wecom"],
+  });
+  await page.click('[data-touch-toggle="touchScenes"]');
+  await page.uncheck('input[data-touch-field="touchScenes"][data-touch-code="wecom"]');
+  assert.deepEqual(await readTouchSelection(), {
+    scenes: ["app"],
+    methods: ["in_app_message:app"],
+  });
+  await page.click("#moreActionsBtn");
+  await page.click("#undoBtn");
+  await page.waitForFunction(() => {
+    const action = JSON.parse(document.getElementById("jsonOutput").value)
+      .strategyActions.find(item => item.localId === "sa1");
+    return action.touchScenes.some(item => item.code === "wecom")
+      && action.touchMethods.some(item => item.code === "wecom_private_chat");
+  });
+  await page.locator('.multi-select-chip', { hasText: "APP触达" }).click();
+  assert.deepEqual(await readTouchSelection(), {
+    scenes: ["wecom"],
+    methods: ["wecom_private_chat:wecom"],
+  });
+  await page.click("#moreActionsBtn");
+  await page.click("#undoBtn");
+  await page.waitForFunction(() => {
+    const action = JSON.parse(document.getElementById("jsonOutput").value)
+      .strategyActions.find(item => item.localId === "sa1");
+    return action.touchScenes.some(item => item.code === "app")
+      && action.touchMethods.some(item => item.code === "in_app_message");
+  });
+  await page.focus('[data-touch-toggle="touchMethods"]');
+  await page.keyboard.press("Enter");
+  assert.equal(
+    await page.locator('[data-touch-container="touchMethods"].open').count(),
+    1
+  );
+  await page.keyboard.press("Escape");
+  assert.equal(
+    await page.locator('[data-touch-container="touchMethods"].open').count(),
+    0
+  );
+  await page.focus('[data-touch-toggle="touchScenes"]');
+  await page.keyboard.press("Enter");
+  await page.focus('input[data-touch-field="touchScenes"][data-touch-code="app"]');
+  await page.keyboard.press("Space");
+  assert.deepEqual(await readTouchSelection(), {
+    scenes: ["wecom"],
+    methods: ["wecom_private_chat:wecom"],
+  });
+  await page.click("#moreActionsBtn");
+  await page.click("#undoBtn");
+  await page.waitForFunction(() => {
+    const action = JSON.parse(document.getElementById("jsonOutput").value)
+      .strategyActions.find(item => item.localId === "sa1");
+    return action.touchScenes.some(item => item.code === "app")
+      && action.touchMethods.some(item => item.code === "in_app_message");
+  });
   await page.locator(".action-chip.process").click();
   const processActionInspector = await page.locator("#inspector").innerText();
   assert.equal(true, processActionInspector.includes("执行人 / 角色（继承）"));
@@ -354,6 +431,12 @@ let browser;
   await page.waitForFunction(() => document.querySelectorAll(".edge-label").length === 4);
   await page.click("#node-n4");
   await page.click("#addStrategyActionBtn");
+  await page.click('[data-touch-toggle="touchScenes"]');
+  await page.check('input[data-touch-field="touchScenes"][data-touch-code="app"]');
+  await page.keyboard.press("Escape");
+  await page.click('[data-touch-toggle="touchMethods"]');
+  await page.check('input[data-touch-field="touchMethods"][data-touch-code="in_app_message"]');
+  await page.keyboard.press("Escape");
   await page.click("#addProcessActionBtn");
   await page.waitForFunction(() => {
     const json = JSON.parse(document.getElementById("jsonOutput").value);
@@ -411,9 +494,12 @@ let browser;
   });
 
   const exported = await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value));
-  assert.equal(exported.schemaVersion, "strategy-flow-input/0.4");
+  assert.equal(exported.schemaVersion, "strategy-flow-input/0.5");
   assert.equal(exported.nodes.every(node => !("displayName" in node)), true);
   assert.equal(exported.strategyActions.every(action => !("time" in action || "subjectState" in action)), true);
+  assert.equal(exported.strategyActions.every(action => !("touchScene" in action || "touchMethod" in action)), true);
+  assert.equal(exported.strategyActions.every(action => action.touchScenes.every(item => Object.keys(item).join(",") === "code")), true);
+  assert.equal(exported.strategyActions.every(action => action.touchMethods.every(item => Object.keys(item).sort().join(",") === "code,parentCode")), true);
   assert.equal(exported.processActions.every(action => !("executor" in action || "recipient" in action)), true);
   assert.equal("strategyId" in exported.strategy, false);
   assert.equal("registrationCaseId" in exported.strategy, false);
@@ -476,7 +562,7 @@ let browser;
       errors: design.validation.errors,
     };
   });
-  assert.equal(classificationExport.schemaVersion, "strategy-flow-input/0.4");
+  assert.equal(classificationExport.schemaVersion, "strategy-flow-input/0.5");
   assert.equal(classificationExport.nodeType, "classification");
   assert.equal(classificationExport.subjectStatus, "no_requirement");
   assert.equal(classificationExport.processActionCount, 1);

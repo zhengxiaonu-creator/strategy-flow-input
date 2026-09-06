@@ -1,9 +1,9 @@
-# strategy-flow-input/0.4 Protocol
+# strategy-flow-input/0.5 Protocol
 
 ## 版本策略
 
-- 当前导出版本：`strategy-flow-input/0.4`
-- 兼容导入版本：`strategy-flow-input/0.1`、`strategy-flow-input/0.2`、`strategy-flow-input/0.3`
+- 当前导出版本：`strategy-flow-input/0.5`
+- 兼容导入版本：`strategy-flow-input/0.1`、`strategy-flow-input/0.2`、`strategy-flow-input/0.3`、`strategy-flow-input/0.4`
 - 拒绝版本：未知版本、格式非法版本
 - 版本格式：`strategy-flow-input/<major>.<minor>`
 
@@ -13,7 +13,7 @@
 
 ```json
 {
-  "schemaVersion": "strategy-flow-input/0.4",
+  "schemaVersion": "strategy-flow-input/0.5",
   "strategy": {},
   "taxonomy": {},
   "nodes": [],
@@ -92,7 +92,7 @@ strategy-taxonomy/2026-09
 
 ## metadata companion
 
-`strategy-flow-input/0.4` 必须搭配：
+`strategy-flow-input/0.5` 必须搭配：
 
 ```text
 strategy-flow-registration-metadata/2.0
@@ -126,11 +126,39 @@ processActions[].recipient   <- nodes[].subject.name
 
 这些字段不再出现在 0.4 action JSON 中；展示层按 `nodeId` 实时派生。`strategyActions[].judge` 仍是动作局部字段，用于筛选该用哪条触达内容，不表示流程入口条件。`nodes[].displayName` 在 0.4 删除。
 
-0.1 / 0.2 / 0.3 导入时统一升级为 0.4 canonical model：
+0.1 / 0.2 / 0.3 导入时统一升级为当前 canonical model：
 
 - 旧动作派生字段与所属卡片不一致时，以卡片值准，丢弃动作值，并给非阻断 `MIGRATION_DERIVED_FIELD_DISCARDED` warning。
 - 非空 `displayName` 会被丢弃，并给非阻断 `MIGRATION_DISPLAY_NAME_DISCARDED` warning。
-- 0.4 导出再导入必须保持策略、taxonomy、节点、边、动作和布局的结构化 round-trip；`validation` 总是重算，Mermaid 不参与 round-trip。
+- 当前版本导出再导入必须保持策略、taxonomy、节点、边、动作和布局的结构化 round-trip；`validation` 总是重算，Mermaid 不参与 round-trip。
+
+## 0.5 动作局部触达选择
+
+每条 `strategyActions` 独立选择触达场景和触达方式：
+
+```json
+{
+  "touchScenes": [
+    { "code": "wecom" },
+    { "code": "app" }
+  ],
+  "touchMethods": [
+    { "code": "wecom_private_chat", "parentCode": "wecom" },
+    { "code": "in_app_message", "parentCode": "app" }
+  ]
+}
+```
+
+规则：
+
+1. 只保存 taxonomy `code` / `parentCode`，不保存 label 或自由文本。
+2. 动作局部选择必须落在全局 `taxonomy.selections.touchScene / touchMethod` 已选范围内。
+3. 每个动作至少一个场景和一个方式；每个已选场景至少有一个方式。
+4. 方式的 `parentCode` 必须符合字典，且必须属于当前动作已选场景。
+5. 场景和方式均不允许重复。
+6. 新增标签仍走全局 `customTagProposals`；审批前不能成为动作可选值。
+
+旧 `touchScene` / `touchMethod` 自由文本迁移时只做 trim 后的中文展示名精确匹配。无法匹配、包含多个值或父子不匹配时丢弃，并给非阻断 `MIGRATION_TOUCH_FIELD_DISCARDED` warning；迁移后为空由 0.5 必填错误阻断导出。
 
 ## ID 规则
 
@@ -138,7 +166,7 @@ processActions[].recipient   <- nodes[].subject.name
 ^[A-Za-z][A-Za-z0-9_-]*$
 ```
 
-0.2 / 0.3 / 0.4 要求节点、边、动作 ID 显式存在。设计器新增对象时自动生成；导入缺失 ID 会按结构校验暴露。0.1 兼容导入沿用旧规则，可在迁移时补齐内部 ID。
+0.2 / 0.3 / 0.4 / 0.5 要求节点、边、动作 ID 显式存在。设计器新增对象时自动生成；导入缺失 ID 会按结构校验暴露。0.1 兼容导入沿用旧规则，可在迁移时补齐内部 ID。
 
 ## 语义规则
 
@@ -151,12 +179,12 @@ processActions[].recipient   <- nodes[].subject.name
 7. 策略动作和过程动作必须挂接节点，可选择挂接该节点的流出边。
 8. 动作挂接流出边时，边源节点必须等于动作挂接节点。
 9. `no_requirement` 表示无动作 / 无行为要求，不等同于“未发生”。
-10. 缺失业务事实填“待确认”，不得填 0 或由系统编造。
+10. 缺失业务事实填“待确认”，不得填 0 或由系统编造；动作局部触达选择不得为空或超出全局 taxonomy 范围。
 11. Workbench 当前 Schema 阶段不完整校验图语义；设计器仍执行上述图完整性硬门，避免把坏图交给后续加工。
 
 ## 0.1 / 0.2 迁移
 
-0.1 / 0.2 / 0.3 导入后会升级为 0.4 canonical model：
+0.1 / 0.2 / 0.3 / 0.4 导入后会升级为 0.5 canonical model：
 
 ```text
 strategy.businessScene -> taxonomy.businessScene
@@ -166,7 +194,7 @@ strategy.strategySubtype -> taxonomy.freeTextTags.strategySubtype
 
 0.1 没有承载 lifecycle、客群、资产、风险、触达标签，也没有 metadata 2.0；迁移后必须补齐。迁移会给出 `SCHEMA_MIGRATED` warning，不做静默编造。
 
-0.2 没有承载 `classification`。导入时不得根据 `displayName` 或动作描述把 `process` 猜测为 `classification`；业务人员显式修改卡片类型后，才会以 0.4 语义导出。
+0.2 没有承载 `classification`。导入时不得根据 `displayName` 或动作描述把 `process` 猜测为 `classification`；业务人员显式修改卡片类型后，才会以当前版本语义导出。
 
 ## 与 Workbench 的边界
 
@@ -174,7 +202,7 @@ strategy.strategySubtype -> taxonomy.freeTextTags.strategySubtype
 
 ```text
 manage_case.py --json import-flow \
-  --design strategy-flow-0.4.json \
+  --design strategy-flow-0.5.json \
   --metadata strategy-flow-registration-metadata-2.0.json \
   --actor ... \
   --request-id ...

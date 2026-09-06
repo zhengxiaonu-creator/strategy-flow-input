@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ebscn.local/strategy-flow-input/0.4/schema.json",
+  "$id": "https://ebscn.local/strategy-flow-input/0.5/schema.json",
   "title": "EBSCN Strategy Flow Input",
   "type": "object",
   "additionalProperties": false,
@@ -15,7 +15,7 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": "strategy-flow-input/0.4"
+      "const": "strategy-flow-input/0.5"
     },
     "strategy": {
       "$ref": "#/$defs/strategy"
@@ -309,8 +309,14 @@
         "nodeId": { "$ref": "#/$defs/localId" },
         "outgoingEdgeId": { "$ref": "#/$defs/optionalLocalId" },
         "judge": { "type": "string" },
-        "touchScene": { "type": "string" },
-        "touchMethod": { "type": "string" },
+        "touchScenes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/touchSceneSelection" }
+        },
+        "touchMethods": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/touchMethodSelection" }
+        },
         "theme": { "type": "string" },
         "goal": { "type": "string" },
         "hook": { "type": "string" },
@@ -339,6 +345,23 @@
           "type": "array",
           "items": { "type": "string" }
         }
+      }
+    },
+    "touchSceneSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code"],
+      "properties": {
+        "code": { "$ref": "#/$defs/tagCode" }
+      }
+    },
+    "touchMethodSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "parentCode"],
+      "properties": {
+        "code": { "$ref": "#/$defs/tagCode" },
+        "parentCode": { "$ref": "#/$defs/tagCode" }
       }
     }
   }

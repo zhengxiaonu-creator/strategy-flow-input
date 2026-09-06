@@ -1,0 +1,298 @@
+{
+  "schemaVersion": "strategy-flow-input/0.5",
+  "strategy": {
+    "strategyName": "通用客群分层后经营策略",
+    "paradigm": "customer",
+    "owner": "张三",
+    "submitter": "李四",
+    "version": "0.1",
+    "versionStatus": "draft"
+  },
+  "taxonomy": {
+    "schemaVersion": "strategy-taxonomy/2026-09",
+    "tagSelections": [
+      {
+        "fieldCode": "lifecycle",
+        "values": [
+          {
+            "code": "existing",
+            "label": "存量"
+          }
+        ]
+      },
+      {
+        "fieldCode": "customerClass",
+        "values": [
+          {
+            "code": "generic",
+            "label": "通用客群"
+          }
+        ]
+      },
+      {
+        "fieldCode": "assetRange",
+        "values": [
+          {
+            "code": "unlimited",
+            "parentCode": "generic",
+            "label": "不限资产"
+          }
+        ]
+      },
+      {
+        "fieldCode": "riskLevel",
+        "values": [
+          {
+            "code": "unspecified",
+            "label": "不设分风险等级"
+          }
+        ]
+      },
+      {
+        "fieldCode": "businessScene",
+        "values": [
+          {
+            "code": "user_activation",
+            "label": "用户激活"
+          }
+        ]
+      },
+      {
+        "fieldCode": "strategyType",
+        "values": [
+          {
+            "code": "tail_customer_operation",
+            "parentCode": "user_activation",
+            "label": "长尾客户运营策略"
+          }
+        ]
+      },
+      {
+        "fieldCode": "touchScene",
+        "values": [
+          {
+            "code": "wecom",
+            "label": "企业微信"
+          },
+          {
+            "code": "app",
+            "label": "APP触达"
+          }
+        ]
+      },
+      {
+        "fieldCode": "touchMethod",
+        "values": [
+          {
+            "code": "wecom_private_chat",
+            "parentCode": "wecom",
+            "label": "企微私聊"
+          },
+          {
+            "code": "in_app_message",
+            "parentCode": "app",
+            "label": "站内信"
+          }
+        ]
+      }
+    ],
+    "freeTextTags": [
+      {
+        "fieldCode": "strategySubtype",
+        "value": "通用客群分层后经营策略"
+      }
+    ],
+    "customTagProposals": []
+  },
+  "nodes": [
+    {
+      "localId": "n0",
+      "nodeType": "classification",
+      "time": "策略启动前",
+      "executor": "策略设计系统",
+      "subject": {
+        "type": "customer",
+        "name": "基础客群",
+        "state": "已完成分层"
+      },
+      "layout": {
+        "x": 80,
+        "y": 160
+      }
+    },
+    {
+      "localId": "n1",
+      "nodeType": "entry",
+      "time": "启动日",
+      "executor": "策略设计系统",
+      "subject": {
+        "type": "customer",
+        "name": "基础客群",
+        "state": "已分层，待策略处理"
+      },
+      "layout": {
+        "x": 430,
+        "y": 160
+      }
+    },
+    {
+      "localId": "n2",
+      "nodeType": "process",
+      "time": "启动后1日",
+      "executor": "系统",
+      "subject": {
+        "type": "customer",
+        "name": "基础客群",
+        "state": "已触达"
+      },
+      "layout": {
+        "x": 780,
+        "y": 160
+      }
+    },
+    {
+      "localId": "n3",
+      "nodeType": "outcome",
+      "time": "观察期结束前",
+      "executor": "责任执行人",
+      "subject": {
+        "type": "customer",
+        "name": "基础客群",
+        "state": "已转化"
+      },
+      "layout": {
+        "x": 1130,
+        "y": 160
+      }
+    }
+  ],
+  "edges": [
+    {
+      "localId": "e0",
+      "from": "n0",
+      "to": "n1",
+      "edgeType": "state_transition",
+      "actorBehavior": {
+        "time": "策略启动前",
+        "action": "完成客群分层规则计算并生成细分客群",
+        "status": "executed"
+      },
+      "subjectBehavior": {
+        "time": "策略启动前",
+        "action": "无动作",
+        "status": "no_requirement"
+      },
+      "confirmed": true,
+      "mutexGroup": "g0",
+      "overwriteSource": false,
+      "label": "分层完成后进入统一策略入口"
+    },
+    {
+      "localId": "e1",
+      "from": "n1",
+      "to": "n2",
+      "edgeType": "handoff",
+      "actorBehavior": {
+        "time": "启动日",
+        "action": "多渠道触达",
+        "status": "executed"
+      },
+      "subjectBehavior": {
+        "time": "启动日",
+        "action": "点击链接",
+        "status": "happened"
+      },
+      "confirmed": true,
+      "mutexGroup": "g1",
+      "overwriteSource": false,
+      "label": "细分客群进入触达"
+    },
+    {
+      "localId": "e2",
+      "from": "n2",
+      "to": "n3",
+      "edgeType": "handoff",
+      "actorBehavior": {
+        "time": "观察期结束前",
+        "action": "人工跟进",
+        "status": "executed"
+      },
+      "subjectBehavior": {
+        "time": "观察期结束前",
+        "action": "完成转化",
+        "status": "happened"
+      },
+      "confirmed": true,
+      "mutexGroup": "g2",
+      "overwriteSource": false,
+      "label": "跟进并完成转化"
+    }
+  ],
+  "strategyActions": [
+    {
+      "localId": "sa1",
+      "nodeId": "n1",
+      "outgoingEdgeId": "e1",
+      "judge": "命中统一入口分配的细分客群",
+      "theme": "引导完成关键行为",
+      "goal": "引导完成关键行为",
+      "hook": "通用权益",
+      "copy": "【通用示例文案】请按实际策略替换。",
+      "hasLink": true,
+      "metrics": [
+        "触达数",
+        "点击数",
+        "点击率"
+      ],
+      "touchScenes": [
+        {
+          "code": "wecom"
+        },
+        {
+          "code": "app"
+        }
+      ],
+      "touchMethods": [
+        {
+          "code": "wecom_private_chat",
+          "parentCode": "wecom"
+        },
+        {
+          "code": "in_app_message",
+          "parentCode": "app"
+        }
+      ]
+    }
+  ],
+  "processActions": [
+    {
+      "localId": "pa0",
+      "nodeId": "n0",
+      "outgoingEdgeId": "e0",
+      "scene": "策略启动前 / 客群分类",
+      "condition": "基础客群内存在可区分的行为特征或状态差异",
+      "action": "按行为特征计算并标记细分客群",
+      "result": "产出互斥细分客群清单和统一策略入口分配口径",
+      "hook": "分类维度、阈值、优先级和兜底规则",
+      "metrics": [
+        "分类覆盖率",
+        "细分重叠率",
+        "未分类率",
+        "规则命中率"
+      ]
+    },
+    {
+      "localId": "pa1",
+      "nodeId": "n2",
+      "outgoingEdgeId": "",
+      "scene": "按实际场景填写",
+      "condition": "客户已触达且需要人工跟进",
+      "result": "线索转交责任执行人",
+      "action": "转交线索给责任执行人",
+      "hook": "待确认",
+      "metrics": [
+        "任务数"
+      ]
+    }
+  ]
+}

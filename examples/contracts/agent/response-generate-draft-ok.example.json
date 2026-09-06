@@ -18,7 +18,7 @@
       },
       "taxonomyVersion": "strategy-taxonomy/2026-09",
       "candidate": {
-        "schemaVersion": "strategy-flow-input/0.4",
+        "schemaVersion": "strategy-flow-input/0.5",
         "strategy": {
           "strategyName": "通用客群激活策略",
           "paradigm": "customer",
@@ -209,8 +209,6 @@
             "nodeId": "n1",
             "outgoingEdgeId": "e1",
             "judge": "无前置判断（流程入口）",
-            "touchScene": "多渠道触达",
-            "touchMethod": "按实际渠道填写",
             "theme": "引导完成关键行为",
             "goal": "引导完成关键行为",
             "hook": "通用权益",
@@ -220,6 +218,17 @@
               "触达数",
               "点击数",
               "点击率"
+            ],
+            "touchScenes": [
+              {
+                "code": "app"
+              }
+            ],
+            "touchMethods": [
+              {
+                "code": "in_app_message",
+                "parentCode": "app"
+              }
             ]
           }
         ],
