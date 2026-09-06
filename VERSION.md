@@ -1,3 +1,14 @@
+# Version 1.8.0 — 2026-09-07
+
+Release tag: `v1.8.0`
+
+- Upgrade the design contract to `strategy-flow-input/0.7`.
+- Add explicit board columns with globally ordered `columns[].sortOrder`.
+- Add `nodes[].columnId` so nodes in the same column share an explicit board grouping.
+- Scope node `sortOrder` uniqueness and ordering to its column.
+- Migrate 0.1–0.6 nodes into a default `c1` column with a visible warning.
+- Update editor column management, Agent generation, examples, validation, E2E coverage, and protocol documentation.
+
 # Version 1.7.0 — 2026-09-06
 
 Release tag: `v1.7.0`
