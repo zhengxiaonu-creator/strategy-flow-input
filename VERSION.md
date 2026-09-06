@@ -1,3 +1,14 @@
+# Version 1.6.0 — 2026-09-06
+
+Release tag: `v1.6.0`
+
+- Upgrade the design contract to `strategy-flow-input/0.5`.
+- Replace action-level touch free text with `touchScenes` and `touchMethods` taxonomy reference arrays.
+- Enforce action-local touch scope, parent-child relationships, required selections, and uniqueness.
+- Add a Fluent-style multi-select dropdown with chips, keyboard access, cascade removal, and one-step undo.
+- Preserve 0.1–0.4 imports, migrate exact legacy touch labels, and warn before discarding unmatched values.
+- Keep Agent envelope 0.1 unchanged while accepting and generating Design 0.5 candidates.
+
 # Version 1.5.0 — 2026-09-04
 
 Release tag: `v1.5.0`

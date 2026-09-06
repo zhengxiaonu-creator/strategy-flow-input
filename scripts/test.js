@@ -59,7 +59,7 @@ for (const relativePath of required) {
 
 const packageJson = readJson("package.json");
 assert(packageJson.name === "strategy-flow-input", "Unexpected package name");
-assert(packageJson.version === "1.5.0", "Package version must be 1.5.0");
+assert(packageJson.version === "1.6.0", "Package version must be 1.6.0");
 assert(packageJson.files.includes("contracts"), "Package must include authority contracts");
 assert(packageJson.bin?.["strategy-flow-input"] === "./bin/strategy-flow-input.js", "Missing CLI bin entry");
 
