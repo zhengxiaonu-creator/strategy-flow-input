@@ -92,10 +92,16 @@ let browser;
     stateHelp: [...document.querySelectorAll(".field-help")].some(node => node.textContent.includes("对象进入这张卡片时的业务状态")),
     cardFacts: [...document.querySelectorAll("#node-n1 .node-fact")].map(node => node.textContent.trim()),
     hasNameField: Boolean(document.querySelector('[data-bind="nodes.n1.subject.name"]')),
+    hasSortOrderField: Boolean(document.querySelector('[data-bind="nodes.n1.sortOrder"]')),
+    sortOrderHelp: [...document.querySelectorAll(".field-help")].some(node => node.textContent.includes("看板排序按升序展示流程卡片")),
+    cardSortLabel: document.querySelector("#node-n1 .node-id")?.textContent || "",
   }));
   assert.equal(nodeFieldHelp.objectHelp, true);
   assert.equal(nodeFieldHelp.stateHelp, true);
   assert.equal(nodeFieldHelp.hasNameField, true);
+  assert.equal(nodeFieldHelp.hasSortOrderField, true);
+  assert.equal(nodeFieldHelp.sortOrderHelp, true);
+  assert.equal(nodeFieldHelp.cardSortLabel.includes("排序 10"), true);
   assert.equal(
     true,
     nodeFieldHelp.cardFacts.some(text => text.includes("对象") && text.includes("客群｜通用目标客群"))
@@ -110,6 +116,7 @@ let browser;
     '[data-bind="nodes.n1.subject.state"]',
     "测试对象状态"
   );
+  await page.fill('[data-bind="nodes.n1.sortOrder"]', "15");
   await page.click("#moreActionsBtn");
   await page.click("#saveDraftBtn");
   const explicitlySaved = await page.evaluate(() => ({
@@ -130,6 +137,7 @@ let browser;
     "测试对象状态",
     explicitlySaved.json.nodes.find(node => node.localId === "n1").subject.state
   );
+  assert.equal(15, explicitlySaved.json.nodes.find(node => node.localId === "n1").sortOrder);
   assert.equal(
     "测试执行动作",
     explicitlySaved.draft.edges.find(edge => edge.localId === "e1").actorBehavior.action
@@ -341,6 +349,11 @@ let browser;
 
   await page.click('[data-node-type="process"]');
   await page.waitForFunction(() => document.querySelectorAll(".node-card").length === 4);
+  assert.equal(
+    40,
+    await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value)
+      .nodes.find(node => node.localId === "n4").sortOrder)
+  );
   const beforeDrag = await page.locator("#node-n4").boundingBox();
   assert.ok(beforeDrag);
   await page.mouse.move(beforeDrag.x + 45, beforeDrag.y + 18);
@@ -351,6 +364,11 @@ let browser;
   assert.ok(afterDrag);
   assert.ok(afterDrag.x > beforeDrag.x + 80);
   assert.ok(afterDrag.y > beforeDrag.y + 45);
+  assert.equal(
+    40,
+    await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value)
+      .nodes.find(node => node.localId === "n4").sortOrder)
+  );
   await page.keyboard.press("Escape");
   const beforeGroupDrag = await page.evaluate(() => {
     const design = JSON.parse(document.getElementById("jsonOutput").value);
@@ -494,8 +512,10 @@ let browser;
   });
 
   const exported = await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value));
-  assert.equal(exported.schemaVersion, "strategy-flow-input/0.5");
+  assert.equal(exported.schemaVersion, "strategy-flow-input/0.6");
   assert.equal(exported.nodes.every(node => !("displayName" in node)), true);
+  assert.equal(exported.nodes.every(node => Number.isInteger(node.sortOrder) && node.sortOrder >= 0), true);
+  assert.equal(new Set(exported.nodes.map(node => node.sortOrder)).size, exported.nodes.length, true);
   assert.equal(exported.strategyActions.every(action => !("time" in action || "subjectState" in action)), true);
   assert.equal(exported.strategyActions.every(action => !("touchScene" in action || "touchMethod" in action)), true);
   assert.equal(exported.strategyActions.every(action => action.touchScenes.every(item => Object.keys(item).join(",") === "code")), true);
@@ -523,6 +543,10 @@ let browser;
   assert.deepEqual(
     restored.nodes.map(node => node.localId),
     exported.nodes.map(node => node.localId)
+  );
+  assert.deepEqual(
+    restored.nodes.map(node => node.sortOrder),
+    exported.nodes.map(node => node.sortOrder)
   );
 
   await page.click('[data-node-type="classification"]');
@@ -555,6 +579,7 @@ let browser;
     const design = JSON.parse(document.getElementById("jsonOutput").value);
     return {
       schemaVersion: design.schemaVersion,
+      sortOrder: design.nodes.find(node => node.localId === "n5").sortOrder,
       nodeType: design.nodes.find(node => node.localId === "n5").nodeType,
       subjectStatus: design.edges.find(edge => edge.localId === "e5").subjectBehavior.status,
       processActionCount: design.processActions.filter(action => action.nodeId === "n5").length,
@@ -562,7 +587,8 @@ let browser;
       errors: design.validation.errors,
     };
   });
-  assert.equal(classificationExport.schemaVersion, "strategy-flow-input/0.5");
+  assert.equal(classificationExport.schemaVersion, "strategy-flow-input/0.6");
+  assert.equal(classificationExport.sortOrder, 50);
   assert.equal(classificationExport.nodeType, "classification");
   assert.equal(classificationExport.subjectStatus, "no_requirement");
   assert.equal(classificationExport.processActionCount, 1);

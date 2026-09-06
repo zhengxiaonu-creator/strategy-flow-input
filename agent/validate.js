@@ -78,7 +78,7 @@ function draftTargets(draft) {
 function validateDraft(draft, corpus) {
   const errors = [];
   if (draft?.schemaVersion !== "strategy-agent-strategy-draft/0.1") errors.push("schemaVersion must be strategy-agent-strategy-draft/0.1");
-  if (!["strategy-flow-input/0.2", "strategy-flow-input/0.3", "strategy-flow-input/0.4", "strategy-flow-input/0.5"].includes(draft?.candidate?.schemaVersion)) errors.push("candidate must be strategy-flow-input/0.2, 0.3, 0.4, or 0.5");
+  if (!["strategy-flow-input/0.2", "strategy-flow-input/0.3", "strategy-flow-input/0.4", "strategy-flow-input/0.5", "strategy-flow-input/0.6"].includes(draft?.candidate?.schemaVersion)) errors.push("candidate must be strategy-flow-input/0.2, 0.3, 0.4, 0.5, or 0.6");
   if (draft?.registrationMetadataCandidate?.schemaVersion !== "strategy-flow-registration-metadata/2.0") errors.push("metadata candidate must be 2.0");
   if (draft?.taxonomyVersion !== draft?.candidate?.taxonomy?.schemaVersion) errors.push("taxonomyVersion mismatch");
   const evidenceIds = new Set((corpus?.fragments ?? []).map(fragment => fragment.evidenceId));

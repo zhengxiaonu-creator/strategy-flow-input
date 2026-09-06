@@ -1,0 +1,656 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ebscn.local/strategy-flow-input/0.6/schema.json",
+  "title": "EBSCN Strategy Flow Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "strategy",
+    "taxonomy",
+    "nodes",
+    "edges",
+    "strategyActions",
+    "processActions"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "strategy-flow-input/0.6"
+    },
+    "strategy": {
+      "$ref": "#/$defs/strategy"
+    },
+    "taxonomy": {
+      "$ref": "#/$defs/taxonomy"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/edge"
+      }
+    },
+    "strategyActions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/strategyAction"
+      }
+    },
+    "processActions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/processAction"
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "导出时由设计器计算；再次导入时会被重新计算，不作为人工输入。",
+      "properties": {
+        "status": {
+          "enum": [
+            "draft",
+            "ready_to_submit"
+          ]
+        },
+        "errors": {
+          "$ref": "#/$defs/issue"
+        },
+        "warnings": {
+          "$ref": "#/$defs/issue"
+        }
+      },
+      "required": [
+        "status",
+        "errors",
+        "warnings"
+      ]
+    }
+  },
+  "$defs": {
+    "localId": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+    },
+    "optionalLocalId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": ""
+        },
+        {
+          "$ref": "#/$defs/localId"
+        }
+      ]
+    },
+    "strategyTime": {
+      "type": "string",
+      "minLength": 1,
+      "description": "业务时间表达式。支持相对时间、绝对日期或事件偏移；语义由策略范式和业务口径解释。"
+    },
+    "issue": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message",
+          "path"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]+$"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "fieldCode": {
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9_]*$"
+    },
+    "tagCode": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    "taxonomy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "tagSelections",
+        "freeTextTags",
+        "customTagProposals"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "strategy-taxonomy/2026-09"
+        },
+        "tagSelections": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fieldCode",
+              "values"
+            ],
+            "properties": {
+              "fieldCode": {
+                "$ref": "#/$defs/fieldCode"
+              },
+              "values": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "code"
+                  ],
+                  "properties": {
+                    "code": {
+                      "$ref": "#/$defs/tagCode"
+                    },
+                    "parentCode": {
+                      "anyOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "$ref": "#/$defs/tagCode"
+                        }
+                      ]
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "freeTextTags": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fieldCode",
+              "value"
+            ],
+            "properties": {
+              "fieldCode": {
+                "$ref": "#/$defs/fieldCode"
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "customTagProposals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "proposalId",
+              "fieldCode",
+              "label",
+              "reason"
+            ],
+            "properties": {
+              "proposalId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$"
+              },
+              "fieldCode": {
+                "$ref": "#/$defs/fieldCode"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentRef": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "fieldCode"
+                ],
+                "properties": {
+                  "fieldCode": {
+                    "$ref": "#/$defs/fieldCode"
+                  },
+                  "code": {
+                    "$ref": "#/$defs/tagCode"
+                  },
+                  "proposalId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$"
+                  }
+                },
+                "oneOf": [
+                  {
+                    "required": [
+                      "code"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "proposalId"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategyName",
+        "paradigm",
+        "owner",
+        "submitter",
+        "version",
+        "versionStatus"
+      ],
+      "properties": {
+        "strategyName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "strategyId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "看板生成的正式策略编号。新建策略提交前省略；更新已有策略时携带。禁止使用 Agent 本地工作区 ID。",
+          "pattern": "^WB-[A-Za-z0-9][A-Za-z0-9_-]*$"
+        },
+        "registrationCaseId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "看板在提交注册时生成的 CaseID。新建策略提交前省略；看板返回后携带。禁止与 Agent 本地工作区 ID 混用。"
+        },
+        "paradigm": {
+          "enum": [
+            "customer",
+            "scene"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "submitter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "versionStatus": {
+          "enum": [
+            "draft",
+            "candidate"
+          ]
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "localId",
+        "nodeType",
+        "time",
+        "executor",
+        "subject",
+        "sortOrder",
+        "layout"
+      ],
+      "properties": {
+        "localId": {
+          "$ref": "#/$defs/localId"
+        },
+        "nodeType": {
+          "enum": [
+            "entry",
+            "classification",
+            "process",
+            "wait",
+            "outcome",
+            "recycle",
+            "reentry",
+            "terminal"
+          ],
+          "description": "流程卡片类型。classification 表示对当前对象做分类、分层或重新分层；其余类型沿用 0.2 语义。"
+        },
+        "time": {
+          "$ref": "#/$defs/strategyTime"
+        },
+        "executor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "name",
+            "state"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "customer",
+                "scene",
+                "event",
+                "activity"
+              ]
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "对象名称，即该类型下的具体业务对象，例如目标客群名称、触发场景名称、事件名称或活动名称。"
+            },
+            "state": {
+              "type": "string",
+              "minLength": 1,
+              "description": "对象进入该流程卡片时的业务状态，例如未触达、已触达、已转化；不是对象类别，也不是执行人的处理进度。"
+            }
+          }
+        },
+        "layout": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "x",
+            "y"
+          ],
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          }
+        },
+        "sortOrder": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "description": "看板展示排序，按升序解析；全局唯一。不要求连续，不表示画布坐标，不参与流程走向。"
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "localId",
+        "from",
+        "to",
+        "edgeType",
+        "actorBehavior",
+        "subjectBehavior"
+      ],
+      "properties": {
+        "localId": {
+          "$ref": "#/$defs/localId"
+        },
+        "from": {
+          "$ref": "#/$defs/localId"
+        },
+        "to": {
+          "$ref": "#/$defs/localId"
+        },
+        "edgeType": {
+          "enum": [
+            "state_transition",
+            "handoff",
+            "outcome",
+            "recycle",
+            "reentry",
+            "exception"
+          ]
+        },
+        "actorBehavior": {
+          "$ref": "#/$defs/actorBehavior"
+        },
+        "subjectBehavior": {
+          "$ref": "#/$defs/subjectBehavior"
+        },
+        "confirmed": {
+          "type": "boolean"
+        },
+        "mutexGroup": {
+          "type": "string"
+        },
+        "overwriteSource": {
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string"
+        },
+        "layout": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "normalOffset"
+          ],
+          "description": "画布布局信息，不属于业务语义。normalOffset 是曲线沿中点法线方向的人工调整量。",
+          "properties": {
+            "normalOffset": {
+              "type": "number",
+              "minimum": -4800,
+              "maximum": 4800
+            }
+          }
+        }
+      }
+    },
+    "actorBehavior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "time",
+        "action",
+        "status"
+      ],
+      "properties": {
+        "time": {
+          "$ref": "#/$defs/strategyTime"
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "executed",
+            "not_executed",
+            "no_requirement"
+          ]
+        }
+      }
+    },
+    "subjectBehavior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "time",
+        "action",
+        "status"
+      ],
+      "properties": {
+        "time": {
+          "$ref": "#/$defs/strategyTime"
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "happened",
+            "not_happened",
+            "no_requirement"
+          ]
+        }
+      }
+    },
+    "strategyAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "localId",
+        "nodeId",
+        "outgoingEdgeId"
+      ],
+      "properties": {
+        "localId": {
+          "$ref": "#/$defs/localId"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/localId"
+        },
+        "outgoingEdgeId": {
+          "$ref": "#/$defs/optionalLocalId"
+        },
+        "judge": {
+          "type": "string"
+        },
+        "theme": {
+          "type": "string"
+        },
+        "goal": {
+          "type": "string"
+        },
+        "hook": {
+          "type": "string"
+        },
+        "copy": {
+          "type": "string"
+        },
+        "hasLink": {
+          "type": "boolean"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "touchScenes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/touchSceneSelection"
+          }
+        },
+        "touchMethods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/touchMethodSelection"
+          }
+        }
+      }
+    },
+    "processAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "localId",
+        "nodeId",
+        "outgoingEdgeId"
+      ],
+      "properties": {
+        "localId": {
+          "$ref": "#/$defs/localId"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/localId"
+        },
+        "outgoingEdgeId": {
+          "$ref": "#/$defs/optionalLocalId"
+        },
+        "scene": {
+          "type": "string"
+        },
+        "condition": {
+          "type": "string"
+        },
+        "result": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "hook": {
+          "type": "string"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "touchSceneSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/tagCode"
+        }
+      }
+    },
+    "touchMethodSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "parentCode"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/tagCode"
+        },
+        "parentCode": {
+          "$ref": "#/$defs/tagCode"
+        }
+      }
+    }
+  }
+}

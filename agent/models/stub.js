@@ -64,6 +64,7 @@ function buildGraphFromTable(table, evidenceId) {
       nodeType: index === 0 ? "entry" : index === table.rows.length - 1 ? "outcome" : "process",
       time: columnValue(table.columns, row, /时间|阶段/),
       executor,
+      sortOrder: (index + 1) * 10,
       subject: {
         type: "customer",
         name: columnValue(table.columns, row, /对象|客群|客户/),
@@ -97,6 +98,7 @@ function buildMinimalGraph() {
       nodeType: "entry",
       time: PENDING,
       executor: PENDING,
+      sortOrder: 10,
       subject: {type: "customer", name: PENDING, state: PENDING},
       layout: {x: 80, y: 160},
     }, {
@@ -104,6 +106,7 @@ function buildMinimalGraph() {
       nodeType: "outcome",
       time: PENDING,
       executor: PENDING,
+      sortOrder: 20,
       subject: {type: "customer", name: PENDING, state: PENDING},
       layout: {x: 430, y: 160},
     }],
@@ -172,7 +175,7 @@ function generateDraft({corpus, corpusFingerprint, taxonomy, draftId, caseId, re
   }
 
   const candidate = {
-    schemaVersion: "strategy-flow-input/0.5",
+    schemaVersion: "strategy-flow-input/0.6",
     strategy: {
       strategyName,
       paradigm: "customer",

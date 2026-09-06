@@ -112,7 +112,7 @@
       "stage": "draft",
       "httpStatus": 422,
       "retryable": false,
-      "description": "candidate 未通过既有的 strategy-flow-input/0.2 / 0.3 / 0.4 / 0.5 或 metadata 2.0 校验；输出契约不可被 Agent 绕过。"
+      "description": "candidate 未通过既有的 strategy-flow-input/0.2 / 0.3 / 0.4 / 0.5 / 0.6 或 metadata 2.0 校验；输出契约不可被 Agent 绕过。"
     },
     {
       "code": "E_DRAFT_PROVENANCE_POINTER_INVALID",

@@ -11,7 +11,7 @@
   },
   "taxonomyVersion": "strategy-taxonomy/2026-09",
   "candidate": {
-    "schemaVersion": "strategy-flow-input/0.5",
+    "schemaVersion": "strategy-flow-input/0.6",
     "strategy": {
       "strategyName": "通用客群激活策略",
       "paradigm": "customer",
@@ -121,7 +121,8 @@
         "layout": {
           "x": 80,
           "y": 160
-        }
+        },
+        "sortOrder": 10
       },
       {
         "localId": "n2",
@@ -136,7 +137,8 @@
         "layout": {
           "x": 430,
           "y": 160
-        }
+        },
+        "sortOrder": 20
       },
       {
         "localId": "n3",
@@ -151,7 +153,8 @@
         "layout": {
           "x": 790,
           "y": 160
-        }
+        },
+        "sortOrder": 30
       }
     ],
     "edges": [

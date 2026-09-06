@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ebscn.local/strategy-flow-input/0.5/schema.json",
+  "$id": "https://ebscn.local/strategy-flow-input/0.6/schema.json",
   "title": "EBSCN Strategy Flow Input",
   "type": "object",
   "additionalProperties": false,
@@ -15,7 +15,7 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": "strategy-flow-input/0.5"
+      "const": "strategy-flow-input/0.6"
     },
     "strategy": {
       "$ref": "#/$defs/strategy"
@@ -210,7 +210,7 @@
     "node": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["localId", "nodeType", "time", "executor", "subject", "layout"],
+      "required": ["localId", "nodeType", "time", "executor", "subject", "sortOrder", "layout"],
       "properties": {
         "localId": { "$ref": "#/$defs/localId" },
         "nodeType": {
@@ -219,6 +219,12 @@
         },
         "time": { "$ref": "#/$defs/strategyTime" },
         "executor": { "type": "string", "minLength": 1 },
+        "sortOrder": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "description": "看板展示排序，按升序解析；全局唯一。不要求连续，不表示画布坐标，不参与流程走向。"
+        },
         "subject": {
           "type": "object",
           "additionalProperties": false,

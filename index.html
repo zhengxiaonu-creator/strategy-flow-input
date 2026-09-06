@@ -12,7 +12,7 @@
     <div class="brand">
       <b><i title="EBSCN">E</i> 策略编排设计器</b>
       <div class="brand-meta">
-        <span>strategy-flow-input/0.5 · JSON 是事实源，Mermaid 是投影</span>
+        <span>strategy-flow-input/0.6 · JSON 是事实源，Mermaid 是投影</span>
         <div class="editor-status" id="editorStatusSummary">
           <span class="status draft" id="editorStatusPill">draft</span>
           <span class="issue-count" id="editorIssueCount">0 errors · 0 warnings</span>
@@ -82,7 +82,7 @@
             <span class="paradigm-copy"><b>按场景触发</b><small>事件发生后进入策略，需配置触发口径</small></span>
           </button>
         </div>
-        <p class="hint">切换范式只改变策略入口逻辑；标签、元数据和流程图仍由 0.5 契约统一校验。</p>
+        <p class="hint">切换范式只改变策略入口逻辑；标签、元数据和流程图仍由 0.6 契约统一校验。</p>
       </div>
       <div class="side-block primary">
         <h2 class="side-title">添加流程卡片</h2>
@@ -174,13 +174,13 @@
     <div class="export-drawer-head">
       <div>
         <b>导出策略看板输入</b>
-        <small>Workbench 需要同时接收 Design 0.5 与 Metadata 2.0 两份文件。</small>
+        <small>Workbench 需要同时接收 Design 0.6 与 Metadata 2.0 两份文件。</small>
       </div>
       <button class="btn ghost small" id="closeExportDrawerBtn" type="button">关闭</button>
     </div>
     <div class="export-file-grid">
       <article>
-        <b>strategy-flow-input/0.5</b>
+        <b>strategy-flow-input/0.6</b>
         <span id="exportDesignStatus">draft</span>
         <p>流程编排与 taxonomy 标签的事实源。</p>
         <div>
@@ -264,7 +264,7 @@
       </div>
       <div class="panel-view" id="codeView">
         <div class="code-subtabs" role="tablist" aria-label="代码输出">
-          <button class="on" data-code-pane="jsonCodePane" type="button">Design 0.5</button>
+          <button class="on" data-code-pane="jsonCodePane" type="button">Design 0.6</button>
           <button data-code-pane="metadataCodePane" type="button">Metadata 2.0</button>
           <button data-code-pane="mermaidCodePane" type="button">Mermaid</button>
         </div>
@@ -287,7 +287,7 @@
         </div>
         <aside class="import-help">
           <b>导入规则</b>
-          <p class="hint">1. 支持 strategy-flow-input/0.5 原生解析，以及 0.1 / 0.2 / 0.3 / 0.4 兼容导入。<br>2. validation 字段会被忽略并重新计算。<br>3. 标签唯一事实源在 taxonomy；0.1 缺失标签需补齐。<br>4. 注册元数据需单独导入 / 导出。<br>5. 导入后必须先处理校验错误，再导出正式 JSON。</p>
+          <p class="hint">1. 支持 strategy-flow-input/0.6 原生解析，以及 0.1 / 0.2 / 0.3 / 0.4 / 0.5 兼容导入。<br>2. validation 字段会被忽略并重新计算。<br>3. 标签唯一事实源在 taxonomy；0.1 缺失标签需补齐。<br>4. 注册元数据需单独导入 / 导出。<br>5. 导入后必须先处理校验错误，再导出正式 JSON。</p>
           <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">
             <button class="btn primary" id="applyImportBtn" type="button">应用导入</button>
             <button class="btn" id="formatImportBtn" type="button">格式化校验</button>

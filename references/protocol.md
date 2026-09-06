@@ -1,9 +1,9 @@
-# strategy-flow-input/0.5 Protocol
+# strategy-flow-input/0.6 Protocol
 
 ## 版本策略
 
-- 当前导出版本：`strategy-flow-input/0.5`
-- 兼容导入版本：`strategy-flow-input/0.1`、`strategy-flow-input/0.2`、`strategy-flow-input/0.3`、`strategy-flow-input/0.4`
+- 当前导出版本：`strategy-flow-input/0.6`
+- 兼容导入版本：`strategy-flow-input/0.1`、`strategy-flow-input/0.2`、`strategy-flow-input/0.3`、`strategy-flow-input/0.4`、`strategy-flow-input/0.5`
 - 拒绝版本：未知版本、格式非法版本
 - 版本格式：`strategy-flow-input/<major>.<minor>`
 
@@ -13,7 +13,7 @@
 
 ```json
 {
-  "schemaVersion": "strategy-flow-input/0.5",
+  "schemaVersion": "strategy-flow-input/0.6",
   "strategy": {},
   "taxonomy": {},
   "nodes": [],
@@ -92,7 +92,7 @@ strategy-taxonomy/2026-09
 
 ## metadata companion
 
-`strategy-flow-input/0.5` 必须搭配：
+`strategy-flow-input/0.6` 必须搭配：
 
 ```text
 strategy-flow-registration-metadata/2.0
@@ -113,6 +113,33 @@ metadata 不承载任何 taxonomy 标签。设计器将两份文件分开导出�
 
 看板 importer 必须以 `requestId` 做导入幂等键：`registrationCaseId` 缺失表示创建提交注册，重放同一创建请求必须返回同一个 CaseID；`registrationCaseId` 存在表示继续对应提交。`strategyId` 缺失表示尚未正式注册，存在则更新对应正式策略，不得重新生成新编号。
 
+## 0.6 流程卡片排序
+
+每个节点必须携带显式看板排序：
+
+```json
+{
+  "localId": "n1",
+  "sortOrder": 10
+}
+```
+
+规则：
+
+1. `sortOrder` 是 `0` 到 `2147483647` 的整数。
+2. 全局唯一，按升序解析。
+3. 不要求连续；推荐间隔 10，便于中间插卡。
+4. 不代表画布坐标，不参与流转方向、时间解释或策略优先级。
+5. 拖拽只改变 `layout.x / y`，不改变 `sortOrder`。
+6. 0.1–0.5 导入时按旧 `nodes` 数组位置生成 `10、20、30…`，并给非阻断 `MIGRATION_SORT_ORDER_GENERATED` warning。
+
+阻断错误码：
+
+```text
+NODE_SORT_ORDER_INVALID
+NODE_SORT_ORDER_DUPLICATE
+```
+
 ## 0.4 派生字段与迁移
 
 0.4 把重复的动作事实收敛到流程卡片单一事实源：
@@ -130,7 +157,7 @@ processActions[].recipient   <- nodes[].subject.name
 
 - 旧动作派生字段与所属卡片不一致时，以卡片值准，丢弃动作值，并给非阻断 `MIGRATION_DERIVED_FIELD_DISCARDED` warning。
 - 非空 `displayName` 会被丢弃，并给非阻断 `MIGRATION_DISPLAY_NAME_DISCARDED` warning。
-- 当前版本导出再导入必须保持策略、taxonomy、节点、边、动作和布局的结构化 round-trip；`validation` 总是重算，Mermaid 不参与 round-trip。
+- 当前版本导出再导入必须保持策略、taxonomy、节点、边、动作、看板排序和布局的结构化 round-trip；`validation` 总是重算，Mermaid 不参与 round-trip。
 
 ## 0.5 动作局部触达选择
 
@@ -158,7 +185,7 @@ processActions[].recipient   <- nodes[].subject.name
 5. 场景和方式均不允许重复。
 6. 新增标签仍走全局 `customTagProposals`；审批前不能成为动作可选值。
 
-旧 `touchScene` / `touchMethod` 自由文本迁移时只做 trim 后的中文展示名精确匹配。无法匹配、包含多个值或父子不匹配时丢弃，并给非阻断 `MIGRATION_TOUCH_FIELD_DISCARDED` warning；迁移后为空由 0.5 必填错误阻断导出。
+旧 `touchScene` / `touchMethod` 自由文本迁移时只做 trim 后的中文展示名精确匹配。无法匹配、包含多个值或父子不匹配时丢弃，并给非阻断 `MIGRATION_TOUCH_FIELD_DISCARDED` warning；迁移后为空由动作触达必填错误阻断导出。
 
 ## ID 规则
 
@@ -166,7 +193,7 @@ processActions[].recipient   <- nodes[].subject.name
 ^[A-Za-z][A-Za-z0-9_-]*$
 ```
 
-0.2 / 0.3 / 0.4 / 0.5 要求节点、边、动作 ID 显式存在。设计器新增对象时自动生成；导入缺失 ID 会按结构校验暴露。0.1 兼容导入沿用旧规则，可在迁移时补齐内部 ID。
+0.2 / 0.3 / 0.4 / 0.5 / 0.6 要求节点、边、动作 ID 显式存在。设计器新增对象时自动生成；导入缺失 ID 会按结构校验暴露。0.1 兼容导入沿用旧规则，可在迁移时补齐内部 ID。
 
 ## 语义规则
 
@@ -184,7 +211,7 @@ processActions[].recipient   <- nodes[].subject.name
 
 ## 0.1 / 0.2 迁移
 
-0.1 / 0.2 / 0.3 / 0.4 导入后会升级为 0.5 canonical model：
+0.1 / 0.2 / 0.3 / 0.4 / 0.5 导入后会升级为 0.6 canonical model：
 
 ```text
 strategy.businessScene -> taxonomy.businessScene
@@ -202,7 +229,7 @@ strategy.strategySubtype -> taxonomy.freeTextTags.strategySubtype
 
 ```text
 manage_case.py --json import-flow \
-  --design strategy-flow-0.5.json \
+  --design strategy-flow-0.6.json \
   --metadata strategy-flow-registration-metadata-2.0.json \
   --actor ... \
   --request-id ...
