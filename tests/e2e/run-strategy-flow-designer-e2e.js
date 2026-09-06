@@ -93,7 +93,9 @@ let browser;
     cardFacts: [...document.querySelectorAll("#node-n1 .node-fact")].map(node => node.textContent.trim()),
     hasNameField: Boolean(document.querySelector('[data-bind="nodes.n1.subject.name"]')),
     hasSortOrderField: Boolean(document.querySelector('[data-bind="nodes.n1.sortOrder"]')),
-    sortOrderHelp: [...document.querySelectorAll(".field-help")].some(node => node.textContent.includes("看板排序按升序展示流程卡片")),
+    sortOrderHelp: [...document.querySelectorAll(".field-help")].some(node => node.textContent.includes("所属看板列决定策略看板同列分组")),
+    hasColumnField: Boolean(document.querySelector('[data-bind="nodes.n1.columnId"]')),
+    columnListText: document.getElementById("columnList")?.innerText || "",
     cardSortLabel: document.querySelector("#node-n1 .node-id")?.textContent || "",
   }));
   assert.equal(nodeFieldHelp.objectHelp, true);
@@ -101,6 +103,9 @@ let browser;
   assert.equal(nodeFieldHelp.hasNameField, true);
   assert.equal(nodeFieldHelp.hasSortOrderField, true);
   assert.equal(nodeFieldHelp.sortOrderHelp, true);
+  assert.equal(nodeFieldHelp.hasColumnField, true);
+  assert.equal(nodeFieldHelp.columnListText.includes("c1"), true);
+  assert.equal(nodeFieldHelp.columnListText.includes("3 卡"), true);
   assert.equal(nodeFieldHelp.cardSortLabel.includes("排序 10"), true);
   assert.equal(
     true,
@@ -138,6 +143,21 @@ let browser;
     explicitlySaved.json.nodes.find(node => node.localId === "n1").subject.state
   );
   assert.equal(15, explicitlySaved.json.nodes.find(node => node.localId === "n1").sortOrder);
+  await page.click("#addColumnBtn");
+  assert.equal(
+    true,
+    (await page.locator("#inspector").innerText()).includes("看板列")
+  );
+  assert.equal(await page.locator("#columnList .column-item").count(), 2);
+  await page.click("#node-n1");
+  await page.selectOption('[data-bind="nodes.n1.columnId"]', "c2");
+  await page.waitForFunction(() => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    const node = design.nodes.find(item => item.localId === "n1");
+    return node.columnId === "c2" && node.sortOrder === 10;
+  });
+  await page.click('[data-select-column="c2"]');
+  assert.equal(await page.locator('#inspector [data-action="delete"]').isDisabled(), true);
   assert.equal(
     "测试执行动作",
     explicitlySaved.draft.edges.find(edge => edge.localId === "e1").actorBehavior.action
@@ -512,8 +532,12 @@ let browser;
   });
 
   const exported = await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value));
-  assert.equal(exported.schemaVersion, "strategy-flow-input/0.6");
+  assert.equal(exported.schemaVersion, "strategy-flow-input/0.7");
   assert.equal(exported.nodes.every(node => !("displayName" in node)), true);
+  assert.equal(exported.columns.length, 2);
+  assert.equal(new Set(exported.columns.map(column => column.sortOrder)).size, exported.columns.length);
+  assert.equal(exported.nodes.filter(node => node.columnId === "c1").length, 3);
+  assert.equal(exported.nodes.filter(node => node.columnId === "c2").length, 1);
   assert.equal(exported.nodes.every(node => Number.isInteger(node.sortOrder) && node.sortOrder >= 0), true);
   assert.equal(new Set(exported.nodes.map(node => node.sortOrder)).size, exported.nodes.length, true);
   assert.equal(exported.strategyActions.every(action => !("time" in action || "subjectState" in action)), true);
@@ -548,6 +572,10 @@ let browser;
     restored.nodes.map(node => node.sortOrder),
     exported.nodes.map(node => node.sortOrder)
   );
+  assert.deepEqual(
+    restored.nodes.map(node => node.columnId),
+    exported.nodes.map(node => node.columnId)
+  );
 
   await page.click('[data-node-type="classification"]');
   await page.waitForFunction(() => document.querySelectorAll(".node-card").length === 5);
@@ -579,6 +607,7 @@ let browser;
     const design = JSON.parse(document.getElementById("jsonOutput").value);
     return {
       schemaVersion: design.schemaVersion,
+      columnId: design.nodes.find(node => node.localId === "n5").columnId,
       sortOrder: design.nodes.find(node => node.localId === "n5").sortOrder,
       nodeType: design.nodes.find(node => node.localId === "n5").nodeType,
       subjectStatus: design.edges.find(edge => edge.localId === "e5").subjectBehavior.status,
@@ -587,7 +616,8 @@ let browser;
       errors: design.validation.errors,
     };
   });
-  assert.equal(classificationExport.schemaVersion, "strategy-flow-input/0.6");
+  assert.equal(classificationExport.schemaVersion, "strategy-flow-input/0.7");
+  assert.equal(classificationExport.columnId, "c1");
   assert.equal(classificationExport.sortOrder, 50);
   assert.equal(classificationExport.nodeType, "classification");
   assert.equal(classificationExport.subjectStatus, "no_requirement");

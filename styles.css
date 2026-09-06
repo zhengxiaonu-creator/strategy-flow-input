@@ -226,6 +226,15 @@ body.resizing-bottom { cursor:row-resize; }
 .node-buttons { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
 .node-buttons .wide { grid-column:1/-1; }
 .node-buttons .btn { min-height:36px; }
+.column-list { display:grid; gap:6px; margin-bottom:8px; }
+.column-item {
+  display:flex; align-items:center; justify-content:space-between; gap:7px; width:100%;
+  min-height:34px; padding:5px 8px; border:1px solid var(--line); border-radius:var(--radius);
+  background:rgba(255,255,255,.66); color:var(--muted); font-size:11.5px; text-align:left;
+}
+.column-item:hover,.column-item.selected { border-color:rgba(0,120,212,.42); background:var(--accent-bg); color:var(--accent); }
+.column-item > b { font-family:var(--font-mono); font-size:10.8px; }
+.column-item > small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mode-switch { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
 .mode-switch .btn { min-height:38px; }
 .mode-switch .on { border-color:rgba(0,120,212,.34); background:var(--accent-bg); color:var(--accent); box-shadow:inset 0 -1px 0 rgba(0,120,212,.08); }

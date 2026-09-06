@@ -64,6 +64,7 @@ function buildGraphFromTable(table, evidenceId) {
       nodeType: index === 0 ? "entry" : index === table.rows.length - 1 ? "outcome" : "process",
       time: columnValue(table.columns, row, /时间|阶段/),
       executor,
+      columnId: "c1",
       sortOrder: (index + 1) * 10,
       subject: {
         type: "customer",
@@ -88,16 +89,18 @@ function buildGraphFromTable(table, evidenceId) {
       });
     }
   });
-  return {nodes, edges, evidenceId};
+  return {columns: [{localId: "c1", sortOrder: 10}], nodes, edges, evidenceId};
 }
 
 function buildMinimalGraph() {
   return {
+    columns: [{localId: "c1", sortOrder: 10}],
     nodes: [{
       localId: "n1",
       nodeType: "entry",
       time: PENDING,
       executor: PENDING,
+      columnId: "c1",
       sortOrder: 10,
       subject: {type: "customer", name: PENDING, state: PENDING},
       layout: {x: 80, y: 160},
@@ -106,6 +109,7 @@ function buildMinimalGraph() {
       nodeType: "outcome",
       time: PENDING,
       executor: PENDING,
+      columnId: "c1",
       sortOrder: 20,
       subject: {type: "customer", name: PENDING, state: PENDING},
       layout: {x: 430, y: 160},
@@ -175,7 +179,7 @@ function generateDraft({corpus, corpusFingerprint, taxonomy, draftId, caseId, re
   }
 
   const candidate = {
-    schemaVersion: "strategy-flow-input/0.6",
+    schemaVersion: "strategy-flow-input/0.7",
     strategy: {
       strategyName,
       paradigm: "customer",
@@ -190,6 +194,7 @@ function generateDraft({corpus, corpusFingerprint, taxonomy, draftId, caseId, re
       freeTextTags: freeTextTag,
       customTagProposals: [],
     },
+    columns: graph.columns,
     nodes: graph.nodes,
     edges: graph.edges,
     strategyActions: [],

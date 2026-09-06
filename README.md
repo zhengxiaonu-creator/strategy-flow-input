@@ -1,6 +1,6 @@
 # EBSCN Strategy Flow Designer
 
-全项目通用的策略编排设计器，用于把“责任人 + 对象状态 + 双行为条件”画成可校验的 `strategy-flow-input/0.6` JSON，并导出 Mermaid 沟通图。0.6 为流程卡片增加显式看板排序；taxonomy 仍由独立契约承载，并配套导出 `strategy-flow-registration-metadata/2.0`。页面内置示例只演示结构，不承载额外业务口径。
+全项目通用的策略编排设计器，用于把“责任人 + 对象状态 + 双行为条件”画成可校验的 `strategy-flow-input/0.7` JSON，并导出 Mermaid 沟通图。0.7 为流程卡片增加显式看板列和列内排序；taxonomy 仍由独立契约承载，并配套导出 `strategy-flow-registration-metadata/2.0`。页面内置示例只演示结构，不承载额外业务口径。
 
 视觉层采用 Fluent Light：Acrylic 命令栏和流程卡片、Mica 侧栏、轻量光照画布、统一焦点环与动效曲线。业务交互色使用 Fluent Blue，EBSCN 红色仅保留品牌标识。
 
@@ -93,7 +93,7 @@ ebscn-strategy-flow-designer/index.html
 - 策略标签按“客群识别 / 业务场景与策略类型 / 触达配置 / 自定义标签提案”分组。
 - 底部校验提供“提交准备度”，并按契约、基础信息、策略标签、元数据、流程图分组。
 - 校验项可点击“定位”，自动跳到对应 Tab、分组或流程对象。
-- 代码区分 Design 0.6、Metadata 2.0、Mermaid 三个子 Tab，避免三列互相挤压。
+- 代码区分 Design 0.7、Metadata 2.0、Mermaid 三个子 Tab，避免三列互相挤压。
 - “导出”打开抽屉，同时展示双文件状态、复制 / 下载入口和 Workbench CLI 模板。
 - 新增卡片和业务、卡片信息、代码和校验面板支持拖拽和键盘拉伸，布局尺寸会保存在本机。
 - 校验面板提供进度、域级事实摘要、结果筛选、JSON Path、来源文件与修复建议。
@@ -142,7 +142,7 @@ ebscn-strategy-flow-designer/index.html
 
 ## 契约
 
-- Design Schema：`schema/strategy-flow-input.schema.json`（`strategy-flow-input/0.6`）
+- Design Schema：`schema/strategy-flow-input.schema.json`（`strategy-flow-input/0.7`）
 - Metadata Schema：`schema/strategy-flow-registration-metadata-2.0.schema.json`
 - Taxonomy Schema：`schema/strategy-taxonomy-2026-09.schema.json`
 - Taxonomy 字典：`schema/strategy-taxonomy-2026-09.json`
@@ -150,21 +150,24 @@ ebscn-strategy-flow-designer/index.html
 - 0.3 历史示例：`examples/contracts/strategy-flow-input-0.3.json`
 - 0.4 历史示例：`examples/contracts/strategy-flow-input-0.4.json`
 - 0.5 历史示例：`examples/contracts/strategy-flow-input-0.5.json`
-- 0.6 对象分类示例：`examples/contracts/strategy-flow-input-0.6.json`
+- 0.6 历史示例：`examples/contracts/strategy-flow-input-0.6.json`
+- 0.7 看板列示例：`examples/contracts/strategy-flow-input-0.7.json`
 - Metadata 示例：`examples/contracts/strategy-flow-registration-metadata-2.0.json`
 - 0.1 历史 Schema：`schema/strategy-flow-input-0.1.schema.json`
 - 0.2 历史 Schema：`schema/strategy-flow-input-0.2.schema.json`
 - 0.3 历史 Schema：`contracts/strategy-flow-input-0.3.schema.json`
 - 0.4 历史 Schema：`contracts/strategy-flow-input-0.4.schema.json`
 - 0.5 历史 Schema：`contracts/strategy-flow-input-0.5.schema.json`
-- 当前导出版本：`strategy-flow-input/0.6`
+- 0.6 历史 Schema：`contracts/strategy-flow-input-0.6.schema.json`
+- 当前导出版本：`strategy-flow-input/0.7`
 
 核心结构：
 
 ```text
 strategy           策略基础信息，不承载业务场景 / 策略类型 / 策略子类
 taxonomy           策略标签唯一事实源
-nodes              编排节点：责任执行人 + 对象类型 / 名称 / 对象状态 + 时间阶段 + 看板排序
+columns            看板列定义与列排序
+nodes              编排节点：责任执行人 + 对象类型 / 名称 / 对象状态 + 时间阶段 + 所属看板列 / 列内排序
 edges              流转边：执行人行为 + 对象行为
 strategyActions    策略动作气泡，挂接节点 / 流出边
 processActions     过程管理动作气泡，挂接节点 / 流出边
@@ -179,10 +182,18 @@ validation         导出时计算；导入时忽略并重算
 - `strategyActions[].judge` 仍是动作局部的进入条件，用于筛选触达内容，不表示流程入口。
 - 0.4 删除 `nodes[].displayName`。
 
+### 0.7 看板列与列内排序
+
+- `columns[].localId` 是看板列系统编号，全局唯一。
+- `columns[].sortOrder` 是看板列排序，必须是 `0` 到 `2147483647` 的整数且全局唯一。
+- `nodes[].columnId` 引用 `columns[].localId`；相同 `columnId` 的卡片在同一列展示。
+- 看板先按 `columns[].sortOrder` 排列，再按每列内部 `nodes[].sortOrder` 升序排列。
+- 0.1–0.6 导入时自动创建默认列 `c1`（列排序 10），所有旧节点进入 `c1`，并给 `MIGRATION_DEFAULT_COLUMN_GENERATED` warning。
+
 ### 0.6 流程卡片排序
 
-- `nodes[].sortOrder` 是看板展示排序，按升序解析。
-- 取值必须是 `0` 到 `2147483647` 的整数，全局唯一，不要求连续。
+- 0.6 引入 `nodes[].sortOrder`；0.7 起其唯一性范围是同一 `columnId` 内。
+- 取值必须是 `0` 到 `2147483647` 的整数，不要求连续。
 - 新增卡片默认追加 `当前最大值 + 10`，便于中间插卡。
 - `sortOrder` 不代表画布坐标，不参与流转方向、时间解释或策略优先级。
 - 拖拽卡片只改变 `layout.x / y`，不改变 `sortOrder`。
@@ -212,7 +223,7 @@ validation         导出时计算；导入时忽略并重算
 
 ### Metadata companion
 
-`strategy-flow-input/0.6` 需要单独导出：
+`strategy-flow-input/0.7` 需要单独导出：
 
 ```text
 strategy-flow-registration-metadata/2.0
@@ -239,7 +250,7 @@ Agent 通道协议见 `references/agent-protocol.md`，契约只新增、不改�
 - 接入外部 Agent 时，复制整个 `skills/strategy-flow-agent/` 目录到目标 Agent 约定的 skill 目录。
 - 该 skill 只是操作指引，不改变 `strategy-agent/0.1` 命令协议，也不改变 Design / Metadata 输出契约。
 
-硬规则：Agent 只产带证据引用的草稿；`missing` 字段保持“待确认”，不得编造。默认轻量 human-in-loop：`missing` / `conflict` / `openQuestions` 只作为待办，草稿可直接导入编辑器，人工修正后在导出边界校验 Design 0.2 / 0.3 / 0.4 / 0.5 / 0.6 与 Metadata 2.0。新草稿默认使用 Design 0.6。`request-approval` / `confirm-draft` 是可选审计路径，仍需要一次性 token。
+硬规则：Agent 只产带证据引用的草稿；`missing` 字段保持“待确认”，不得编造。默认轻量 human-in-loop：`missing` / `conflict` / `openQuestions` 只作为待办，草稿可直接导入编辑器，人工修正后在导出边界校验 Design 0.2 / 0.3 / 0.4 / 0.5 / 0.6 / 0.7 与 Metadata 2.0。新草稿默认使用 Design 0.7。`request-approval` / `confirm-draft` 是可选审计路径，仍需要一次性 token。
 
 ```bash
 # CLI 入口（状态默认落在 ./strategy-agent-store）
@@ -334,6 +345,9 @@ no_requirement   无行为要求
 | `TERMINAL_OUTGOING_EDGE` | 结果 / 终态存在出边 |
 | `EXECUTOR_HANDOFF_MISSING` | 执行人变化但未标记 handoff |
 | `NODE_ORPHAN` | 正式编排存在孤立节点 |
+| `COLUMN_SORT_ORDER_INVALID` | 看板列排序不是合法非负整数 |
+| `COLUMN_SORT_ORDER_DUPLICATE` | 看板列排序重复 |
+| `NODE_COLUMN_MISSING` | 流程卡片引用的看板列不存在 |
 | `NODE_SORT_ORDER_INVALID` | 流程卡片看板排序不是合法非负整数 |
 | `NODE_SORT_ORDER_DUPLICATE` | 流程卡片看板排序重复 |
 | `ACTOR_TIME_REQUIRED` / `ACTOR_ACTION_REQUIRED` / `ACTOR_STATUS_REQUIRED` | 执行人行为缺失 |
@@ -357,11 +371,12 @@ no_requirement   无行为要求
 | Code | 含义 |
 |---|---|
 | `EDGE_NOT_CONFIRMED` | 流转边尚未业务确认 |
-| `SCHEMA_MIGRATED` | 0.1 / 0.2 / 0.3 / 0.4 / 0.5 已迁移到 0.6，旧契约字段按当前规则归一 |
+| `SCHEMA_MIGRATED` | 0.1 / 0.2 / 0.3 / 0.4 / 0.5 / 0.6 已迁移到 0.7，旧契约字段按当前规则归一 |
 | `MIGRATION_DERIVED_FIELD_DISCARDED` | 旧动作派生字段与所属卡片不一致，0.4 以卡片值为准并丢弃动作值 |
 | `MIGRATION_DISPLAY_NAME_DISCARDED` | 0.4 删除卡片展示名，导入旧版本时丢弃非空值 |
 | `MIGRATION_TOUCH_FIELD_DISCARDED` | 旧触达自由文本无法按 taxonomy 展示名精确匹配，迁移时丢弃 |
 | `MIGRATION_SORT_ORDER_GENERATED` | 旧版本没有看板排序，导入 0.6 时按旧节点数组位置生成 |
+| `MIGRATION_DEFAULT_COLUMN_GENERATED` | 旧版本没有看板列，导入 0.7 时生成默认列 c1 |
 | `CUSTOM_TAG_APPROVAL_REQUIRED` | 自定义标签提案待审批 |
 | `STRATEGY_ACTION_MISSING` | 编排没有策略动作 |
 | `PROCESS_ACTION_MISSING` | 编排没有过程动作 |
@@ -371,16 +386,16 @@ no_requirement   无行为要求
 
 ## 导入规则
 
-1. 原生接受 `strategy-flow-input/0.6`。
-2. 兼容导入 `strategy-flow-input/0.1` / `0.2` / `0.3` / `0.4` / `0.5` 并导出 `0.6`；0.1 未承载的 taxonomy 与 metadata 字段必须补齐，0.2 的 `process` 不会被自动猜成 `classification`，0.3 起的重复动作派生字段按卡片值归一，旧触达自由文本只按 taxonomy 展示名精确匹配迁移，旧节点顺序会生成 `sortOrder`。
+1. 原生接受 `strategy-flow-input/0.7`。
+2. 兼容导入 `strategy-flow-input/0.1` / `0.2` / `0.3` / `0.4` / `0.5` / `0.6` 并导出 `0.7`；0.1 未承载的 taxonomy 与 metadata 字段必须补齐，0.2 的 `process` 不会被自动猜成 `classification`，0.3 起的重复动作派生字段按卡片值归一，旧触达自由文本只按 taxonomy 展示名精确匹配迁移，旧节点顺序会生成 `sortOrder`，旧节点会进入默认看板列 `c1`。
 3. `validation` 会被忽略并重新计算。
-4. 0.6 未知字段拒绝；0.1 / 0.2 / 0.3 / 0.4 / 0.5 兼容导入仍按各自 normalizer 处理。
+4. 0.7 未知字段拒绝；0.1 / 0.2 / 0.3 / 0.4 / 0.5 / 0.6 兼容导入仍按各自 normalizer 处理。
 5. 注册元数据通过“导入元数据”单独加载。
 6. 导入后必须处理校验错误，再作为正式输入使用。
 
 ## 下一步
 
-1. 为 0.6 增加独立 JSON Schema validator 执行器。
+1. 为 0.7 增加独立 JSON Schema validator 执行器。
 2. 增加 Mermaid 草稿导入（仅生成待确认草稿）。
 3. 增加 `JSON -> 策略提交表 v1.2` 转换器。
 4. 通过 `manage_case.py import-flow` 接入 Agent 工作台。

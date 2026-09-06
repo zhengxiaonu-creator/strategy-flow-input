@@ -1,9 +1,9 @@
-# strategy-flow-input/0.6 Protocol
+# strategy-flow-input/0.7 Protocol
 
 ## 版本策略
 
-- 当前导出版本：`strategy-flow-input/0.6`
-- 兼容导入版本：`strategy-flow-input/0.1`、`strategy-flow-input/0.2`、`strategy-flow-input/0.3`、`strategy-flow-input/0.4`、`strategy-flow-input/0.5`
+- 当前导出版本：`strategy-flow-input/0.7`
+- 兼容导入版本：`strategy-flow-input/0.1`、`strategy-flow-input/0.2`、`strategy-flow-input/0.3`、`strategy-flow-input/0.4`、`strategy-flow-input/0.5`、`strategy-flow-input/0.6`
 - 拒绝版本：未知版本、格式非法版本
 - 版本格式：`strategy-flow-input/<major>.<minor>`
 
@@ -13,9 +13,10 @@
 
 ```json
 {
-  "schemaVersion": "strategy-flow-input/0.6",
+  "schemaVersion": "strategy-flow-input/0.7",
   "strategy": {},
   "taxonomy": {},
+  "columns": [],
   "nodes": [],
   "edges": [],
   "strategyActions": [],
@@ -92,7 +93,7 @@ strategy-taxonomy/2026-09
 
 ## metadata companion
 
-`strategy-flow-input/0.6` 必须搭配：
+`strategy-flow-input/0.7` 必须搭配：
 
 ```text
 strategy-flow-registration-metadata/2.0
@@ -113,6 +114,50 @@ metadata 不承载任何 taxonomy 标签。设计器将两份文件分开导出�
 
 看板 importer 必须以 `requestId` 做导入幂等键：`registrationCaseId` 缺失表示创建提交注册，重放同一创建请求必须返回同一个 CaseID；`registrationCaseId` 存在表示继续对应提交。`strategyId` 缺失表示尚未正式注册，存在则更新对应正式策略，不得重新生成新编号。
 
+## 0.7 看板列与列内排序
+
+顶层 `columns` 定义看板列：
+
+```json
+{
+  "columns": [
+    { "localId": "c1", "sortOrder": 10 },
+    { "localId": "c2", "sortOrder": 20 }
+  ],
+  "nodes": [
+    { "localId": "n1", "columnId": "c1", "sortOrder": 10 },
+    { "localId": "n2", "columnId": "c1", "sortOrder": 20 },
+    { "localId": "n3", "columnId": "c2", "sortOrder": 10 }
+  ]
+}
+```
+
+规则：
+
+1. `columns[].localId` 必须存在且全局唯一。
+2. `columns[].sortOrder` 必须是 `0` 到 `2147483647` 的整数，且全局唯一。
+3. `nodes[].columnId` 必须引用存在的 `columns[].localId`。
+4. 相同 `columnId` 的节点属于同一列。
+5. 看板先按 `columns[].sortOrder` 排列，再按列内 `nodes[].sortOrder` 升序排列。
+6. 看板列和列内排序都不代表画布坐标，不参与流转方向、时间解释或策略优先级。
+7. 空看板列可以存在；编辑器删除非空列前要求先移动或删除卡片。
+
+阻断错误码：
+
+```text
+COLUMN_SORT_ORDER_INVALID
+COLUMN_SORT_ORDER_DUPLICATE
+NODE_COLUMN_MISSING
+```
+
+0.1–0.6 导入时自动创建默认列：
+
+```json
+{ "localId": "c1", "sortOrder": 10 }
+```
+
+所有旧节点设置 `columnId: "c1"`，并给非阻断 `MIGRATION_DEFAULT_COLUMN_GENERATED` warning。
+
 ## 0.6 流程卡片排序
 
 每个节点必须携带显式看板排序：
@@ -127,7 +172,7 @@ metadata 不承载任何 taxonomy 标签。设计器将两份文件分开导出�
 规则：
 
 1. `sortOrder` 是 `0` 到 `2147483647` 的整数。
-2. 全局唯一，按升序解析。
+2. 0.6 中全局唯一；0.7 起同一 `columnId` 内唯一，按列内升序解析。
 3. 不要求连续；推荐间隔 10，便于中间插卡。
 4. 不代表画布坐标，不参与流转方向、时间解释或策略优先级。
 5. 拖拽只改变 `layout.x / y`，不改变 `sortOrder`。
@@ -157,7 +202,7 @@ processActions[].recipient   <- nodes[].subject.name
 
 - 旧动作派生字段与所属卡片不一致时，以卡片值准，丢弃动作值，并给非阻断 `MIGRATION_DERIVED_FIELD_DISCARDED` warning。
 - 非空 `displayName` 会被丢弃，并给非阻断 `MIGRATION_DISPLAY_NAME_DISCARDED` warning。
-- 当前版本导出再导入必须保持策略、taxonomy、节点、边、动作、看板排序和布局的结构化 round-trip；`validation` 总是重算，Mermaid 不参与 round-trip。
+- 当前版本导出再导入必须保持策略、taxonomy、看板列、节点、边、动作、看板排序和布局的结构化 round-trip；`validation` 总是重算，Mermaid 不参与 round-trip。
 
 ## 0.5 动作局部触达选择
 
@@ -193,7 +238,7 @@ processActions[].recipient   <- nodes[].subject.name
 ^[A-Za-z][A-Za-z0-9_-]*$
 ```
 
-0.2 / 0.3 / 0.4 / 0.5 / 0.6 要求节点、边、动作 ID 显式存在。设计器新增对象时自动生成；导入缺失 ID 会按结构校验暴露。0.1 兼容导入沿用旧规则，可在迁移时补齐内部 ID。
+0.2 / 0.3 / 0.4 / 0.5 / 0.6 / 0.7 要求节点、边、动作 ID 显式存在。设计器新增对象时自动生成；导入缺失 ID 会按结构校验暴露。0.1 兼容导入沿用旧规则，可在迁移时补齐内部 ID。
 
 ## 语义规则
 
@@ -211,7 +256,7 @@ processActions[].recipient   <- nodes[].subject.name
 
 ## 0.1 / 0.2 迁移
 
-0.1 / 0.2 / 0.3 / 0.4 / 0.5 导入后会升级为 0.6 canonical model：
+0.1 / 0.2 / 0.3 / 0.4 / 0.5 / 0.6 导入后会升级为 0.7 canonical model：
 
 ```text
 strategy.businessScene -> taxonomy.businessScene
@@ -229,7 +274,7 @@ strategy.strategySubtype -> taxonomy.freeTextTags.strategySubtype
 
 ```text
 manage_case.py --json import-flow \
-  --design strategy-flow-0.6.json \
+  --design strategy-flow-0.7.json \
   --metadata strategy-flow-registration-metadata-2.0.json \
   --actor ... \
   --request-id ...

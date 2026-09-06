@@ -14,6 +14,7 @@ const required = [
   "contracts/strategy-flow-input-0.4.schema.json",
   "contracts/strategy-flow-input-0.5.schema.json",
   "contracts/strategy-flow-input-0.6.schema.json",
+  "contracts/strategy-flow-input-0.7.schema.json",
   "contracts/strategy-flow-registration-metadata-2.0.schema.json",
   "contracts/strategy-taxonomy-2026-09.json",
   "contracts/strategy-taxonomy-2026-09.js",
@@ -27,6 +28,7 @@ const required = [
   "examples/contracts/strategy-flow-input-0.4.json",
   "examples/contracts/strategy-flow-input-0.5.json",
   "examples/contracts/strategy-flow-input-0.6.json",
+  "examples/contracts/strategy-flow-input-0.7.json",
   "examples/contracts/strategy-flow-registration-metadata-2.0.json",
   "examples/contracts/agent/source-manifest.example.json",
   "examples/contracts/agent/evidence-corpus.example.json",
@@ -86,10 +88,10 @@ const skillDocumentation = {
   workbench: fs.readFileSync(path.join(root, "skills/strategy-flow-agent/references/workbench-protocol.md"), "utf8"),
 };
 for (const [text, phrase] of [
-  [skillDocumentation.entry, "对象分类使用 Design 0.6 的 `classification` 卡片表达"],
+  [skillDocumentation.entry, "对象分类使用 Design 0.7 的 `classification` 卡片表达"],
   [skillDocumentation.material, "显式信号"],
   [skillDocumentation.material, "弱信号"],
-  [skillDocumentation.material, "当前离线 stub 生成 Design 0.6，但不会自动生成 `classification`"],
+  [skillDocumentation.material, "当前离线 stub 生成 Design 0.7，但不会自动生成 `classification`"],
   [skillDocumentation.human, "对象分类确认"],
   [skillDocumentation.entry, "不向业务人员询问本地工作区 `caseId`"],
   [skillDocumentation.workbench, "CLASSIFICATION_PROCESS_ACTION_REQUIRED"],
@@ -124,6 +126,7 @@ for (const relativePath of [
   "contracts/strategy-flow-input-0.4.schema.json",
   "contracts/strategy-flow-input-0.5.schema.json",
   "contracts/strategy-flow-input-0.6.schema.json",
+  "contracts/strategy-flow-input-0.7.schema.json",
   "contracts/strategy-flow-registration-metadata-2.0.schema.json",
   "contracts/strategy-taxonomy-2026-09.schema.json",
   "contracts/strategy-taxonomy-2026-09.json",
@@ -132,6 +135,7 @@ for (const relativePath of [
   "examples/contracts/strategy-flow-input-0.4.json",
   "examples/contracts/strategy-flow-input-0.5.json",
   "examples/contracts/strategy-flow-input-0.6.json",
+  "examples/contracts/strategy-flow-input-0.7.json",
   "examples/contracts/strategy-flow-registration-metadata-2.0.json",
   "contracts/strategy-agent-response-0.1.schema.json",
   "contracts/strategy-agent-source-manifest-0.1.schema.json",
@@ -152,18 +156,19 @@ for (const relativePath of [
 assert(
   isDeepStrictEqual(
     readJson("schema/strategy-flow-input.schema.json"),
-    readJson("contracts/strategy-flow-input-0.6.schema.json"),
+    readJson("contracts/strategy-flow-input-0.7.schema.json"),
   ),
-  "Current schema and authority 0.6 contract must stay identical",
+  "Current schema and authority 0.7 contract must stay identical",
 );
 
 const designer = require(path.join(root, "app.js"));
-assert(designer.SUPPORTED_SCHEMA_VERSIONS.join(",") === "strategy-flow-input/0.1,strategy-flow-input/0.2,strategy-flow-input/0.3,strategy-flow-input/0.4,strategy-flow-input/0.5,strategy-flow-input/0.6", "Version registry contract failed");
+assert(designer.SUPPORTED_SCHEMA_VERSIONS.join(",") === "strategy-flow-input/0.1,strategy-flow-input/0.2,strategy-flow-input/0.3,strategy-flow-input/0.4,strategy-flow-input/0.5,strategy-flow-input/0.6,strategy-flow-input/0.7", "Version registry contract failed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.2").key === "0.2", "Valid version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.3").key === "0.3", "Valid 0.3 version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.4").key === "0.4", "Valid 0.4 version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.5").key === "0.5", "Valid 0.5 version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.6").key === "0.6", "Valid 0.6 version was not parsed");
+assert(designer.parseSchemaVersion("strategy-flow-input/0.7").key === "0.7", "Valid 0.7 version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/v0.2").valid === false, "Invalid version suffix must fail");
 assert(designer.parseSchemaVersion("other-flow/0.2").valid === false, "Invalid version namespace must fail");
 
@@ -175,37 +180,75 @@ const validResult = designer.validateDocument(canonical);
 assert(validResult.status === "ready_to_submit", `Authority example unexpectedly invalid: ${JSON.stringify(validResult)}`);
 
 const exported = designer.toExportDocument(canonical);
-assert(exported.schemaVersion === "strategy-flow-input/0.6", "Designer must export 0.6");
+assert(exported.schemaVersion === "strategy-flow-input/0.7", "Designer must export 0.7");
 assert(exported.validation.status === "ready_to_submit", "Exported authority example must remain valid");
 assert(!("registrationMetadata" in exported), "Companion metadata must not leak into design JSON");
 assert(designer.validateRegistrationMetadata(metadata).status === "ready_to_submit", "Metadata authority example unexpectedly invalid");
 assert(designer.toRegistrationMetadataDocument(canonical).schemaVersion === "strategy-flow-registration-metadata/2.0", "Metadata export version failed");
 
 const roundTripped = designer.normalizeDocument(exported);
-for (const key of ["strategy", "nodes", "edges", "strategyActions", "processActions"]) {
-  assert(JSON.stringify(roundTripped[key]) === JSON.stringify(canonical[key]), `0.2 -> 0.6 round-trip changed ${key}`);
+for (const key of ["strategy", "columns", "nodes", "edges", "strategyActions", "processActions"]) {
+  assert(JSON.stringify(roundTripped[key]) === JSON.stringify(canonical[key]), `0.2 -> 0.7 round-trip changed ${key}`);
 }
-assert(JSON.stringify(roundTripped.taxonomy.selections) === JSON.stringify(canonical.taxonomy.selections), "0.2 -> 0.6 taxonomy round-trip failed");
-assert(roundTripped.taxonomy.strategySubtype === canonical.taxonomy.strategySubtype, "0.2 -> 0.6 free-text round-trip failed");
+assert(JSON.stringify(roundTripped.taxonomy.selections) === JSON.stringify(canonical.taxonomy.selections), "0.2 -> 0.7 taxonomy round-trip failed");
+assert(roundTripped.taxonomy.strategySubtype === canonical.taxonomy.strategySubtype, "0.2 -> 0.7 free-text round-trip failed");
 
-const classificationDesign = readJson("examples/contracts/strategy-flow-input-0.6.json");
+const classificationDesign = readJson("examples/contracts/strategy-flow-input-0.7.json");
 const classificationCanonical = designer.normalizeDocument(classificationDesign);
 classificationCanonical.registrationMetadata = metadata;
 const classificationResult = designer.validateDocument(classificationCanonical);
 assert(classificationResult.status === "ready_to_submit", `Classification example unexpectedly invalid: ${JSON.stringify(classificationResult)}`);
-assert(classificationResult.errors.length === 0 && classificationResult.warnings.length === 0, "Classification example must be a clean 0.6 contract sample");
+assert(classificationResult.errors.length === 0 && classificationResult.warnings.length === 0, "Classification example must be a clean 0.7 contract sample");
 const classificationExport = designer.toExportDocument(classificationCanonical);
-assert(classificationExport.schemaVersion === "strategy-flow-input/0.6", "Classification example must export 0.6");
+assert(classificationExport.schemaVersion === "strategy-flow-input/0.7", "Classification example must export 0.7");
 assert(classificationExport.nodes[0].nodeType === "classification", "Classification example must use the classification node type");
-assert(!("strategyId" in classificationExport.strategy), "New 0.6 strategy must omit board-assigned strategyId");
-assert(!("registrationCaseId" in classificationExport.strategy), "New 0.6 strategy must omit board-assigned registration case id");
+assert(!("strategyId" in classificationExport.strategy), "New 0.7 strategy must omit board-assigned strategyId");
+assert(!("registrationCaseId" in classificationExport.strategy), "New 0.7 strategy must omit board-assigned registration case id");
 const classificationRoundTrip = designer.normalizeDocument(classificationExport);
-for (const key of ["strategy", "nodes", "edges", "strategyActions", "processActions"]) {
-  assert(JSON.stringify(classificationRoundTrip[key]) === JSON.stringify(classificationCanonical[key]), `0.6 classification round-trip changed ${key}`);
+for (const key of ["strategy", "columns", "nodes", "edges", "strategyActions", "processActions"]) {
+  assert(JSON.stringify(classificationRoundTrip[key]) === JSON.stringify(classificationCanonical[key]), `0.7 classification round-trip changed ${key}`);
 }
 assert(
   classificationCanonical.nodes.every((node, index) => node.sortOrder === (index + 1) * 10),
-  "0.6 example must explicitly order every node",
+  "0.7 example must explicitly order every node",
+);
+assert(
+  JSON.stringify(classificationCanonical.nodes.filter(node => node.columnId === "c1").map(node => node.localId)) === JSON.stringify(["n0", "n1"]),
+  "0.7 example must demonstrate nodes sharing a board column",
+);
+assert(
+  JSON.stringify(classificationCanonical.nodes.filter(node => node.columnId === "c2").map(node => node.localId)) === JSON.stringify(["n2", "n3"]),
+  "0.7 example must demonstrate a second board column",
+);
+const sameSortOrderInDifferentColumns = clone(classificationDesign);
+sameSortOrderInDifferentColumns.nodes[2].sortOrder = sameSortOrderInDifferentColumns.nodes[0].sortOrder;
+assert(
+  !designer.validateDocument(sameSortOrderInDifferentColumns).errors.some(error => error.code === "NODE_SORT_ORDER_DUPLICATE"),
+  "Node sort order uniqueness is scoped to a board column",
+);
+const missingColumn = clone(classificationDesign);
+delete missingColumn.nodes[0].columnId;
+assert(
+  designer.validateDocument(missingColumn).errors.some(error => error.code === "SCHEMA_FIELD_REQUIRED" && error.path === "nodes[0].columnId"),
+  "0.7 must require node columnId",
+);
+const unknownColumn = clone(classificationDesign);
+unknownColumn.nodes[0].columnId = "column-does-not-exist";
+assert(
+  designer.validateDocument(unknownColumn).errors.some(error => error.code === "NODE_COLUMN_MISSING" && error.path === "nodes[0].columnId"),
+  "Node references to missing columns must be blocked",
+);
+const duplicateColumnSortOrder = clone(classificationDesign);
+duplicateColumnSortOrder.columns[1].sortOrder = duplicateColumnSortOrder.columns[0].sortOrder;
+assert(
+  designer.validateDocument(duplicateColumnSortOrder).errors.some(error => error.code === "COLUMN_SORT_ORDER_DUPLICATE"),
+  "Duplicate column sort order must be blocked",
+);
+const invalidColumnSortOrder = clone(classificationDesign);
+invalidColumnSortOrder.columns[0].sortOrder = -1;
+assert(
+  designer.validateDocument(invalidColumnSortOrder).errors.some(error => error.code === "COLUMN_SORT_ORDER_INVALID" && error.path === "columns[0].sortOrder"),
+  "Negative column sort order must be blocked",
 );
 const duplicateSortOrder = clone(classificationDesign);
 duplicateSortOrder.nodes[1].sortOrder = duplicateSortOrder.nodes[0].sortOrder;
@@ -229,7 +272,7 @@ const missingSortOrder = clone(classificationDesign);
 delete missingSortOrder.nodes[0].sortOrder;
 assert(
   designer.validateDocument(missingSortOrder).errors.some(error => error.code === "SCHEMA_FIELD_REQUIRED" && error.path === "nodes[0].sortOrder"),
-  "0.6 must require node sort order",
+  "0.7 must require node sort order",
 );
 const legacy05SortOrder = readJson("examples/contracts/strategy-flow-input-0.5.json");
 const legacy05SortOrderCanonical = designer.normalizeDocument(legacy05SortOrder);
@@ -239,7 +282,21 @@ assert(
 );
 assert(
   designer.validateDocument(legacy05SortOrderCanonical).warnings.some(error => error.code === "MIGRATION_SORT_ORDER_GENERATED"),
-  "Generated 0.6 sort order must be visible during migration",
+  "Generated node sort order must be visible during migration",
+);
+const legacy06Column = readJson("examples/contracts/strategy-flow-input-0.6.json");
+const legacy06ColumnCanonical = designer.normalizeDocument(legacy06Column);
+assert(
+  JSON.stringify(legacy06ColumnCanonical.columns) === JSON.stringify([{localId: "c1", sortOrder: 10}]),
+  "0.6 nodes must migrate into a default board column",
+);
+assert(
+  legacy06ColumnCanonical.nodes.every(node => node.columnId === "c1"),
+  "Every 0.6 node must reference the default board column after migration",
+);
+assert(
+  designer.validateDocument(legacy06ColumnCanonical).warnings.some(error => error.code === "MIGRATION_DEFAULT_COLUMN_GENERATED"),
+  "Default board column generation must be visible during migration",
 );
 const assertTouchError = (variant, code) => {
   const result = designer.validateDocument(variant);
@@ -394,7 +451,7 @@ editable02NewStrategy.registrationMetadata = metadata;
 assert(designer.validateDocument(editable02NewStrategy).status === "ready_to_submit", "An imported 0.2 draft with an empty id must be editable as a new 0.4 strategy");
 assert(!("strategyId" in designer.toExportDocument(editable02NewStrategy).strategy), "An imported 0.2 draft with an empty id must export as a new 0.4 strategy");
 
-const unsupported = designer.validateDocument({...externalDesign, schemaVersion: "strategy-flow-input/0.7"});
+const unsupported = designer.validateDocument({...externalDesign, schemaVersion: "strategy-flow-input/0.8"});
 assert(unsupported.errors.some(error => error.code === "SCHEMA_VERSION_UNSUPPORTED"), "Unknown future version must be rejected explicitly");
 const malformed = designer.validateDocument({...externalDesign, schemaVersion: "strategy-flow-input/v0.2"});
 assert(malformed.errors.some(error => error.code === "SCHEMA_VERSION_INVALID"), "Malformed version must be rejected");
@@ -517,7 +574,7 @@ for (const error of agentErrors.errors) {
 }
 
 assert(agentDraft.schemaVersion === "strategy-agent-strategy-draft/0.1", "Agent draft version contract failed");
-assert(agentDraft.candidate.schemaVersion === "strategy-flow-input/0.6", "Draft candidate must use 0.6 create semantics");
+assert(agentDraft.candidate.schemaVersion === "strategy-flow-input/0.7", "Draft candidate must use 0.7 create semantics");
 assert(!("strategyId" in agentDraft.candidate.strategy), "New agent draft must omit strategyId");
 assert(!("registrationCaseId" in agentDraft.candidate.strategy), "New agent draft must omit registrationCaseId");
 assert(agentDraft.registrationMetadataCandidate.schemaVersion === "strategy-flow-registration-metadata/2.0", "Draft metadata candidate must stay on 2.0");
@@ -634,7 +691,7 @@ assert(unsupportedEnvelope.status === "ok" && unsupportedEnvelope.data.manifest.
 const draftEnvelope = executeCommand({command: "generate-draft", requestId: "req-test-draft", input: {caseId: agentCaseId}, store: agentStore});
 assert(draftEnvelope.status === "ok", `Agent draft generation failed: ${JSON.stringify(draftEnvelope.error ?? null)}`);
 const generatedDraft = draftEnvelope.data.draft;
-assert(generatedDraft.candidate.schemaVersion === "strategy-flow-input/0.6", "Offline stub must generate Design 0.6");
+assert(generatedDraft.candidate.schemaVersion === "strategy-flow-input/0.7", "Offline stub must generate Design 0.7");
 assert(generatedDraft.candidate.nodes.every(node => !("displayName" in node)), "Offline stub must omit removed displayName");
 const selectedTaxonomy = new Map(generatedDraft.candidate.taxonomy.tagSelections.map(selection => [selection.fieldCode, selection.values.map(value => value.code)]));
 for (const [fieldCode, codes] of [["lifecycle", "existing"], ["customerClass", "generic"], ["assetRange", "unlimited"], ["riskLevel", "unspecified"], ["businessScene", "user_activation"], ["strategyType", "tail_customer_operation"], ["touchScene", "app"], ["touchMethod", "in_app_message"]]) {
@@ -753,6 +810,7 @@ for (const id of [
   "copySelectionBtn", "pasteSelectionBtn", "undoBtn", "redoBtn", "selectionBox",
   "importMetadataBtn", "copyMetadataBtn", "downloadMetadataBtn", "metadataOutput",
   "moreActionsBtn", "openExportDrawerBtn", "exportDrawer", "exportCliTemplate",
+  "columnList", "addColumnBtn",
   "readinessSummary", "jsonCodePane", "metadataCodePane", "mermaidCodePane",
   "paradigmStatus", "registrationDrawer", "registrationDrawerContent", "openRegistrationDrawerBtn",
   "openAgentDrawerBtn", "agentDrawer", "agentLoadDraftBtn", "agentLoadCorpusBtn",

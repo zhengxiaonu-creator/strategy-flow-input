@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ebscn.local/strategy-flow-input/0.6/schema.json",
+  "$id": "https://ebscn.local/strategy-flow-input/0.7/schema.json",
   "title": "EBSCN Strategy Flow Input",
   "type": "object",
   "additionalProperties": false,
@@ -8,6 +8,7 @@
     "schemaVersion",
     "strategy",
     "taxonomy",
+    "columns",
     "nodes",
     "edges",
     "strategyActions",
@@ -15,13 +16,17 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": "strategy-flow-input/0.6"
+      "const": "strategy-flow-input/0.7"
     },
     "strategy": {
       "$ref": "#/$defs/strategy"
     },
     "taxonomy": {
       "$ref": "#/$defs/taxonomy"
+    },
+    "columns": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/column" }
     },
     "nodes": {
       "type": "array",
@@ -210,7 +215,7 @@
     "node": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["localId", "nodeType", "time", "executor", "subject", "sortOrder", "layout"],
+      "required": ["localId", "nodeType", "time", "executor", "subject", "columnId", "sortOrder", "layout"],
       "properties": {
         "localId": { "$ref": "#/$defs/localId" },
         "nodeType": {
@@ -219,11 +224,15 @@
         },
         "time": { "$ref": "#/$defs/strategyTime" },
         "executor": { "type": "string", "minLength": 1 },
+        "columnId": {
+          "$ref": "#/$defs/localId",
+          "description": "所属看板列。相同 columnId 的节点在同一列展示。"
+        },
         "sortOrder": {
           "type": "integer",
           "minimum": 0,
           "maximum": 2147483647,
-          "description": "看板展示排序，按升序解析；全局唯一。不要求连续，不表示画布坐标，不参与流程走向。"
+          "description": "看板列内展示排序，按升序解析；同一列内唯一。不要求连续，不表示画布坐标，不参与流程走向。"
         },
         "subject": {
           "type": "object",
@@ -294,6 +303,20 @@
         "time": { "$ref": "#/$defs/strategyTime" },
         "action": { "type": "string", "minLength": 1 },
         "status": { "enum": ["executed", "not_executed", "no_requirement"] }
+      }
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localId", "sortOrder"],
+      "properties": {
+        "localId": { "$ref": "#/$defs/localId" },
+        "sortOrder": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "description": "看板列展示排序，按升序解析；全局唯一。不表示画布坐标，不参与流程走向。"
+        }
       }
     },
     "subjectBehavior": {
