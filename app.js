@@ -515,14 +515,14 @@
       taxonomy: isV0_1
         ? taxonomyFromLegacyStrategy(source.strategy)
         : normalizeTaxonomy(source.taxonomy),
-      columns: sourceSchemaVersion === SCHEMA_VERSION_0_7
+      columns: (isCanonicalInput || sourceSchemaVersion === SCHEMA_VERSION_0_7)
         ? array(source.columns).map(normalizeColumn)
         : (array(source.nodes).length ? [normalizeColumn({localId: "c1", sortOrder: 10})] : []),
       nodes: array(source.nodes).map((node, index) => normalizeNode(
         node,
         index,
         allowedNodeTypes,
-        sourceSchemaVersion === SCHEMA_VERSION_0_7 ? "" : "c1",
+        isCanonicalInput || sourceSchemaVersion === SCHEMA_VERSION_0_7 ? "" : "c1",
       )),
       edges: array(source.edges).map(normalizeEdge),
       strategyActions: array(source.strategyActions).map(item => normalizeStrategyAction(
@@ -3414,9 +3414,13 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
       }[collectionName];
       const item = collection?.[index];
       if (!item) return null;
-      const kind = collectionName === "strategyActions" || collectionName === "processActions"
-        ? collectionName
-        : collectionName;
+      const kind = {
+        nodes: "node",
+        edges: "edge",
+        columns: "column",
+        strategyActions: "strategyAction",
+        processActions: "processAction",
+      }[collectionName];
       return { kind, id: item.localId };
     }
 

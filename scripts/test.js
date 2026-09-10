@@ -298,6 +298,17 @@ assert(
   designer.validateDocument(legacy06ColumnCanonical).warnings.some(error => error.code === "MIGRATION_DEFAULT_COLUMN_GENERATED"),
   "Default board column generation must be visible during migration",
 );
+legacy06ColumnCanonical.columns.push({localId: "c4", sortOrder: 40});
+legacy06ColumnCanonical.nodes[0].columnId = "c4";
+const canonicalRevalidation = designer.validateDocument(legacy06ColumnCanonical);
+assert(
+  designer.normalizeDocument(legacy06ColumnCanonical).columns.some(column => column.localId === "c4"),
+  "A canonical draft must keep columns added after legacy migration",
+);
+assert(
+  !canonicalRevalidation.errors.some(error => error.code === "NODE_COLUMN_MISSING" && error.path === "nodes[0].columnId"),
+  "Revalidating a migrated draft must not discard a newly added board column",
+);
 const assertTouchError = (variant, code) => {
   const result = designer.validateDocument(variant);
   assert(result.errors.some(error => error.code === code), `Expected touch validation error ${code}: ${JSON.stringify(result.errors)}`);

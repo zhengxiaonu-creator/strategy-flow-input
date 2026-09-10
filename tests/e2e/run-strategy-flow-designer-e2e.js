@@ -625,6 +625,36 @@ let browser;
   assert.equal(classificationExport.strategyActionCount, 0);
   assert.deepEqual(classificationExport.errors, []);
 
+  // Regression: a flow-issue locator must resolve collection names to the
+  // inspector's singular object kinds. Otherwise the node editor is cleared and
+  // the user cannot move the flagged card into a newly created board column.
+  const brokenColumnReference = await page.evaluate(() => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    design.nodes.find(node => node.localId === "n5").columnId = "missing-column";
+    return design;
+  });
+  await page.click('[data-panel="importView"]');
+  await page.fill("#importText", JSON.stringify(brokenColumnReference));
+  await page.click("#applyImportBtn");
+  await page.waitForFunction(() => JSON.parse(document.getElementById("jsonOutput").value)
+    .validation.errors.some(error => error.code === "NODE_COLUMN_MISSING" && error.path === "nodes[4].columnId"));
+  await page.click('[data-panel="validationView"]');
+  await page.click('#issueList .issue-actions [data-focus-path="nodes[4].columnId"]');
+  assert.equal(
+    (await page.locator("#inspector").innerText()).includes("流程卡片"),
+    true
+  );
+  await page.click("#addColumnBtn");
+  await page.waitForFunction(() => JSON.parse(document.getElementById("jsonOutput").value)
+    .columns.some(column => column.localId === "c3"));
+  await page.click("#node-n5");
+  await page.selectOption('[data-bind="nodes.n5.columnId"]', "c3");
+  await page.waitForFunction(() => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    return design.nodes.find(node => node.localId === "n5").columnId === "c3"
+      && !design.validation.errors.some(error => error.code === "NODE_COLUMN_MISSING");
+  });
+
   assert.deepEqual(issues, []);
   await browser.close();
   console.log(JSON.stringify({
