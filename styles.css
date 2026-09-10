@@ -227,6 +227,15 @@ body.resizing-bottom { cursor:row-resize; }
 .node-buttons .wide { grid-column:1/-1; }
 .node-buttons .btn { min-height:36px; }
 .column-list { display:grid; gap:6px; margin-bottom:8px; }
+.track-list { display:grid; gap:6px; margin-bottom:8px; }
+.track-item {
+  display:grid; gap:2px; width:100%; min-height:40px; padding:6px 8px;
+  border:1px solid var(--line); border-radius:var(--radius); background:rgba(255,255,255,.66);
+  color:var(--muted); font-size:11.5px; text-align:left;
+}
+.track-item:hover,.track-item.selected { border-color:rgba(0,120,212,.42); background:var(--accent-bg); color:var(--accent); }
+.track-item > small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.track-mode button.on { border-color:rgba(0,120,212,.42); background:var(--accent-bg); color:var(--accent); }
 .column-item {
   display:flex; align-items:center; justify-content:space-between; gap:7px; width:100%;
   min-height:34px; padding:5px 8px; border:1px solid var(--line); border-radius:var(--radius);

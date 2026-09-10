@@ -18,7 +18,7 @@
       },
       "taxonomyVersion": "strategy-taxonomy/2026-09",
       "candidate": {
-        "schemaVersion": "strategy-flow-input/0.7",
+        "schemaVersion": "strategy-flow-input/0.8",
         "strategy": {
           "strategyName": "通用客群激活策略",
           "paradigm": "customer",

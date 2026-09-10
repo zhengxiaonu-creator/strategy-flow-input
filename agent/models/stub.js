@@ -179,7 +179,7 @@ function generateDraft({corpus, corpusFingerprint, taxonomy, draftId, caseId, re
   }
 
   const candidate = {
-    schemaVersion: "strategy-flow-input/0.7",
+    schemaVersion: "strategy-flow-input/0.8",
     strategy: {
       strategyName,
       paradigm: "customer",

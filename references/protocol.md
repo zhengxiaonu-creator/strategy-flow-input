@@ -1,9 +1,9 @@
-# strategy-flow-input/0.7 Protocol
+# strategy-flow-input/0.8 Protocol
 
 ## 版本策略
 
-- 当前导出版本：`strategy-flow-input/0.7`
-- 兼容导入版本：`strategy-flow-input/0.1`、`strategy-flow-input/0.2`、`strategy-flow-input/0.3`、`strategy-flow-input/0.4`、`strategy-flow-input/0.5`、`strategy-flow-input/0.6`
+- 当前导出版本：`strategy-flow-input/0.8`
+- 兼容导入版本：`strategy-flow-input/0.1`、`strategy-flow-input/0.2`、`strategy-flow-input/0.3`、`strategy-flow-input/0.4`、`strategy-flow-input/0.5`、`strategy-flow-input/0.6`、`strategy-flow-input/0.7`
 - 拒绝版本：未知版本、格式非法版本
 - 版本格式：`strategy-flow-input/<major>.<minor>`
 
@@ -13,7 +13,7 @@
 
 ```json
 {
-  "schemaVersion": "strategy-flow-input/0.7",
+  "schemaVersion": "strategy-flow-input/0.8",
   "strategy": {},
   "taxonomy": {},
   "columns": [],
@@ -93,7 +93,7 @@ strategy-taxonomy/2026-09
 
 ## metadata companion
 
-`strategy-flow-input/0.7` 必须搭配：
+`strategy-flow-input/0.8` 必须搭配：
 
 ```text
 strategy-flow-registration-metadata/2.0
@@ -113,6 +113,65 @@ metadata 不承载任何 taxonomy 标签。设计器将两份文件分开导出�
 两个字段出现时必须是非空看板返回值，禁止导出空字符串、占位文本或 Agent 本地工作区 ID（`AG-...`），且二者不能相同。0.1 / 0.2 导入仍按旧契约校验 `strategyId`；0.2 不识别 `registrationCaseId`。
 
 看板 importer 必须以 `requestId` 做导入幂等键：`registrationCaseId` 缺失表示创建提交注册，重放同一创建请求必须返回同一个 CaseID；`registrationCaseId` 存在表示继续对应提交。`strategyId` 缺失表示尚未正式注册，存在则更新对应正式策略，不得重新生成新编号。
+
+## 0.8 业务主线 Track
+
+`tracks` 是文档级可选能力。整体省略 `tracks` 且节点省略 `trackId` 时，就是完整合法的 no-track 0.8 文档；这不是待补全状态，也不产生质量 warning。
+
+```json
+{
+  "tracks": [
+    {
+      "localId": "acquisition",
+      "name": "获客预约",
+      "description": "从模型分层到预约添加企微",
+      "sortOrder": 10
+    }
+  ],
+  "nodes": [
+    { "localId": "nA1", "trackId": "acquisition", "columnId": "c2" }
+  ]
+}
+```
+
+规则：
+
+1. `tracks` 可以整体省略；一旦出现必须至少包含一条 Track，不允许空数组。
+2. `tracks[].localId` 必填且在 Track 范围内全局唯一；`name` 必填且不得为空；`description` 可选。
+3. `tracks[].sortOrder` 必须是 `0` 到 `2147483647` 的整数，并在 Track 范围内唯一；它与 `columns[].sortOrder` 是两个独立排序空间。
+4. 启用 Track 后，每个节点必须携带一个合法 `trackId`；节点只能有一个 primary Track，不支持多主线归属。
+5. `tracks` 省略时，节点不得携带 `trackId`，也不允许空字符串占位。
+6. 边可以跨 Track；跨 Track 状态由两端节点 `trackId` 推导，不得在 edge 上持久化 `crossTrack`。
+7. Track 不改变 Column、节点排序、边语义或 action link 校验，也不替代 Column。
+8. `layout.x / y` 不得推导 Column、Track 或任何业务顺序。
+9. Track 不携带颜色、宽度、图标、折叠状态等视觉属性；这些由渲染器决定。
+10. 迁移或导入时不得根据节点 ID 前缀、节点名称、连通分量、layout 坐标、executor、touch method 或 strategy name 猜测 Track。
+
+阻断错误码：
+
+```text
+TRACK_EMPTY
+TRACK_MODE_INVALID
+TRACK_ID_INVALID
+TRACK_ID_DUPLICATE
+TRACK_NAME_REQUIRED
+TRACK_SORT_ORDER_INVALID
+TRACK_SORT_ORDER_DUPLICATE
+NODE_TRACK_MISSING
+NODE_TRACK_NOT_FOUND
+NODE_TRACK_NOT_ENABLED
+```
+
+0.7 升级 0.8 可以完全不启用 Track：只改 `schemaVersion`，不添加 `tracks` 和 `node.trackId`，并记录 `MIGRATION_TRACK_NOT_ENABLED` 审计。只有调用方显式提供全量 `tracks + nodeTrackIds` 分配时，才允许输出 track-enabled 0.8；缺少任一节点即迁移失败。
+
+显式 Track 分配迁移的失败码：
+
+```text
+MIGRATION_TRACK_ASSIGNMENT_INVALID
+MIGRATION_TRACK_ASSIGNMENT_INCOMPLETE
+MIGRATION_TRACK_ASSIGNMENT_UNKNOWN_NODE
+MIGRATION_TRACK_ASSIGNMENT_UNKNOWN_TRACK
+```
 
 ## 0.7 看板列与列内排序
 
@@ -238,7 +297,7 @@ processActions[].recipient   <- nodes[].subject.name
 ^[A-Za-z][A-Za-z0-9_-]*$
 ```
 
-0.2 / 0.3 / 0.4 / 0.5 / 0.6 / 0.7 要求节点、边、动作 ID 显式存在。设计器新增对象时自动生成；导入缺失 ID 会按结构校验暴露。0.1 兼容导入沿用旧规则，可在迁移时补齐内部 ID。
+0.2 / 0.3 / 0.4 / 0.5 / 0.6 / 0.7 / 0.8 要求节点、边、动作 ID 显式存在。设计器新增对象时自动生成；导入缺失 ID 会按结构校验暴露。0.1 兼容导入沿用旧规则，可在迁移时补齐内部 ID。
 
 ## 语义规则
 
@@ -256,7 +315,7 @@ processActions[].recipient   <- nodes[].subject.name
 
 ## 0.1 / 0.2 迁移
 
-0.1 / 0.2 / 0.3 / 0.4 / 0.5 / 0.6 导入后会升级为 0.7 canonical model：
+0.1 / 0.2 / 0.3 / 0.4 / 0.5 / 0.6 / 0.7 导入后会升级为 0.8 canonical model：
 
 ```text
 strategy.businessScene -> taxonomy.businessScene
@@ -274,10 +333,18 @@ strategy.strategySubtype -> taxonomy.freeTextTags.strategySubtype
 
 ```text
 manage_case.py --json import-flow \
-  --design strategy-flow-0.7.json \
+  --design strategy-flow-0.8.json \
   --metadata strategy-flow-registration-metadata-2.0.json \
   --actor ... \
   --request-id ...
 ```
 
 稳定错误码见 `../README.md`。0.3 起的看板 ID 语义由 `STRATEGY_ID_INVALID` 与 `REGISTRATION_CASE_ID_INVALID` 阻断：字段存在时必须是看板返回值，不能是空值、占位文本或 `AG-...` 本地工作区 ID，且两个看板 ID 不能相同。
+
+### Workbench 与 Page Builder 的 Track 边界
+
+1. Workbench contract registry 必须显式注册 `strategy-flow-input/0.8`；no-track 与 track-enabled 使用同一导入、加工、预览和注册通道。
+2. 0.8 no-track 与 0.7 走同等处理，不得因缺少 Track 阻断或给出质量警告。
+3. track-enabled 的 `tracks` 与 `nodes[].trackId` 必须进入 canonical model 和 orchestration artifact；若现有 `strategy-orchestration/1.0` 不接受新增字段，必须先升级 artifact 契约（例如 `strategy-orchestration/1.1`）并保持旧 artifact 可读。
+4. Page Builder 对无 Track artifact 继续使用既有全局列图 A 布局；对完整 Track artifact 使用阶段 × 业务主线 B 布局。渲染器不得猜测 Track，也不得使用 `layout.x / y` 推导泳道。
+5. 已注册旧策略不自动改版、不自动重发布；需要泳道化时必须走新的策略定义更新流程，由业务确认 Track 后发布新版本。

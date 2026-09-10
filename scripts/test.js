@@ -15,6 +15,8 @@ const required = [
   "contracts/strategy-flow-input-0.5.schema.json",
   "contracts/strategy-flow-input-0.6.schema.json",
   "contracts/strategy-flow-input-0.7.schema.json",
+  "contracts/strategy-flow-input-0.8.schema.json",
+  "contracts/strategy-flow-input-0.8.schema.json",
   "contracts/strategy-flow-registration-metadata-2.0.schema.json",
   "contracts/strategy-taxonomy-2026-09.json",
   "contracts/strategy-taxonomy-2026-09.js",
@@ -29,6 +31,10 @@ const required = [
   "examples/contracts/strategy-flow-input-0.5.json",
   "examples/contracts/strategy-flow-input-0.6.json",
   "examples/contracts/strategy-flow-input-0.7.json",
+  "examples/contracts/strategy-flow-input-0.8-no-track.json",
+  "examples/contracts/strategy-flow-input-0.8-track-enabled.json",
+  "examples/contracts/strategy-flow-input-0.8-no-track.json",
+  "examples/contracts/strategy-flow-input-0.8-track-enabled.json",
   "examples/contracts/strategy-flow-registration-metadata-2.0.json",
   "examples/contracts/agent/source-manifest.example.json",
   "examples/contracts/agent/evidence-corpus.example.json",
@@ -63,7 +69,7 @@ for (const relativePath of required) {
 
 const packageJson = readJson("package.json");
 assert(packageJson.name === "strategy-flow-input", "Unexpected package name");
-assert(packageJson.version === "1.8.0", "Package version must be 1.8.0");
+assert(packageJson.version === "1.9.0", "Package version must be 1.9.0");
 assert(packageJson.files.includes("contracts"), "Package must include authority contracts");
 assert(packageJson.bin?.["strategy-flow-input"] === "./bin/strategy-flow-input.js", "Missing CLI bin entry");
 
@@ -88,10 +94,10 @@ const skillDocumentation = {
   workbench: fs.readFileSync(path.join(root, "skills/strategy-flow-agent/references/workbench-protocol.md"), "utf8"),
 };
 for (const [text, phrase] of [
-  [skillDocumentation.entry, "对象分类使用 Design 0.7 的 `classification` 卡片表达"],
+  [skillDocumentation.entry, "对象分类使用 Design 0.8 的 `classification` 卡片表达"],
   [skillDocumentation.material, "显式信号"],
   [skillDocumentation.material, "弱信号"],
-  [skillDocumentation.material, "当前离线 stub 生成 Design 0.7，但不会自动生成 `classification`"],
+  [skillDocumentation.material, "当前离线 stub 生成 Design 0.8，但不会自动生成 `classification`"],
   [skillDocumentation.human, "对象分类确认"],
   [skillDocumentation.entry, "不向业务人员询问本地工作区 `caseId`"],
   [skillDocumentation.workbench, "CLASSIFICATION_PROCESS_ACTION_REQUIRED"],
@@ -156,19 +162,20 @@ for (const relativePath of [
 assert(
   isDeepStrictEqual(
     readJson("schema/strategy-flow-input.schema.json"),
-    readJson("contracts/strategy-flow-input-0.7.schema.json"),
+    readJson("contracts/strategy-flow-input-0.8.schema.json"),
   ),
-  "Current schema and authority 0.7 contract must stay identical",
+  "Current schema and authority 0.8 contract must stay identical",
 );
 
 const designer = require(path.join(root, "app.js"));
-assert(designer.SUPPORTED_SCHEMA_VERSIONS.join(",") === "strategy-flow-input/0.1,strategy-flow-input/0.2,strategy-flow-input/0.3,strategy-flow-input/0.4,strategy-flow-input/0.5,strategy-flow-input/0.6,strategy-flow-input/0.7", "Version registry contract failed");
+assert(designer.SUPPORTED_SCHEMA_VERSIONS.join(",") === "strategy-flow-input/0.1,strategy-flow-input/0.2,strategy-flow-input/0.3,strategy-flow-input/0.4,strategy-flow-input/0.5,strategy-flow-input/0.6,strategy-flow-input/0.7,strategy-flow-input/0.8", "Version registry contract failed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.2").key === "0.2", "Valid version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.3").key === "0.3", "Valid 0.3 version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.4").key === "0.4", "Valid 0.4 version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.5").key === "0.5", "Valid 0.5 version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.6").key === "0.6", "Valid 0.6 version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/0.7").key === "0.7", "Valid 0.7 version was not parsed");
+assert(designer.parseSchemaVersion("strategy-flow-input/0.8").key === "0.8", "Valid 0.8 version was not parsed");
 assert(designer.parseSchemaVersion("strategy-flow-input/v0.2").valid === false, "Invalid version suffix must fail");
 assert(designer.parseSchemaVersion("other-flow/0.2").valid === false, "Invalid version namespace must fail");
 
@@ -180,7 +187,7 @@ const validResult = designer.validateDocument(canonical);
 assert(validResult.status === "ready_to_submit", `Authority example unexpectedly invalid: ${JSON.stringify(validResult)}`);
 
 const exported = designer.toExportDocument(canonical);
-assert(exported.schemaVersion === "strategy-flow-input/0.7", "Designer must export 0.7");
+assert(exported.schemaVersion === "strategy-flow-input/0.8", "Designer must export 0.8");
 assert(exported.validation.status === "ready_to_submit", "Exported authority example must remain valid");
 assert(!("registrationMetadata" in exported), "Companion metadata must not leak into design JSON");
 assert(designer.validateRegistrationMetadata(metadata).status === "ready_to_submit", "Metadata authority example unexpectedly invalid");
@@ -198,16 +205,115 @@ const classificationCanonical = designer.normalizeDocument(classificationDesign)
 classificationCanonical.registrationMetadata = metadata;
 const classificationResult = designer.validateDocument(classificationCanonical);
 assert(classificationResult.status === "ready_to_submit", `Classification example unexpectedly invalid: ${JSON.stringify(classificationResult)}`);
-assert(classificationResult.errors.length === 0 && classificationResult.warnings.length === 0, "Classification example must be a clean 0.7 contract sample");
+assert(classificationResult.errors.length === 0 && classificationResult.warnings.every(error => error.code === "SCHEMA_MIGRATED"), "Classification example must remain semantically clean after 0.7 import");
 const classificationExport = designer.toExportDocument(classificationCanonical);
-assert(classificationExport.schemaVersion === "strategy-flow-input/0.7", "Classification example must export 0.7");
+assert(classificationExport.schemaVersion === "strategy-flow-input/0.8", "Classification example must upgrade to current export 0.8");
 assert(classificationExport.nodes[0].nodeType === "classification", "Classification example must use the classification node type");
-assert(!("strategyId" in classificationExport.strategy), "New 0.7 strategy must omit board-assigned strategyId");
-assert(!("registrationCaseId" in classificationExport.strategy), "New 0.7 strategy must omit board-assigned registration case id");
+assert(!("strategyId" in classificationExport.strategy), "New imported strategy must omit board-assigned strategyId");
+assert(!("registrationCaseId" in classificationExport.strategy), "New imported strategy must omit board-assigned registration case id");
 const classificationRoundTrip = designer.normalizeDocument(classificationExport);
 for (const key of ["strategy", "columns", "nodes", "edges", "strategyActions", "processActions"]) {
   assert(JSON.stringify(classificationRoundTrip[key]) === JSON.stringify(classificationCanonical[key]), `0.7 classification round-trip changed ${key}`);
 }
+
+const noTrackDesign = readJson("examples/contracts/strategy-flow-input-0.8-no-track.json");
+const noTrackCanonical = designer.normalizeDocument(noTrackDesign);
+noTrackCanonical.registrationMetadata = metadata;
+const noTrackResult = designer.validateDocument(noTrackCanonical);
+assert(noTrackResult.status === "ready_to_submit", `0.8 no-track example unexpectedly invalid: ${JSON.stringify(noTrackResult)}`);
+assert(!noTrackResult.warnings.some(error => error.path === "tracks"), "0.8 no-track must not emit a Track quality warning");
+const noTrackExport = designer.toExportDocument(noTrackCanonical);
+assert(!("tracks" in noTrackExport) && noTrackExport.nodes.every(node => !("trackId" in node)), "0.8 no-track export must omit tracks and trackId");
+const noTrackRoundTrip = designer.toExportDocument(designer.normalizeDocument(noTrackExport));
+assert(!("tracks" in noTrackRoundTrip) && noTrackRoundTrip.nodes.every(node => !("trackId" in node)), "0.8 no-track round-trip must not drift into track-enabled");
+
+const trackDesign = readJson("examples/contracts/strategy-flow-input-0.8-track-enabled.json");
+const trackCanonical = designer.normalizeDocument(trackDesign);
+trackCanonical.registrationMetadata = metadata;
+const trackResult = designer.validateDocument(trackCanonical);
+assert(trackResult.status === "ready_to_submit", `0.8 track-enabled example unexpectedly invalid: ${JSON.stringify(trackResult)}`);
+const trackExport = designer.toExportDocument(trackCanonical);
+assert(trackExport.tracks.length === 2 && trackExport.nodes.length === 5, "0.8 track example must demonstrate two tracks and complete ownership");
+assert(trackExport.nodes.every(node => trackExport.tracks.some(track => track.localId === node.trackId)), "Every track-enabled node needs one valid primary Track");
+const crossTrackEdge = trackExport.edges.find(edge =>
+  trackExport.nodes.find(node => node.localId === edge.from).trackId
+  !== trackExport.nodes.find(node => node.localId === edge.to).trackId);
+assert(crossTrackEdge, "0.8 track example must demonstrate a legal cross-track handoff");
+assert(trackExport.edges.every(edge => !("crossTrack" in edge)), "Cross-track state must be derived, not persisted on edges");
+assert(trackExport.columns.some(column => !trackExport.nodes.some(node => node.columnId === column.localId)), "0.8 track example must demonstrate an empty board column");
+assert(trackExport.nodes.filter(node => node.columnId === "c1").length > 1 && trackExport.nodes.filter(node => node.columnId === "c2").length > 1, "0.8 track example must demonstrate shared columns");
+assert(trackExport.strategyActions.length > 0 && trackExport.processActions.length > 0, "0.8 track example must keep explicit action links");
+const trackRoundTrip = designer.toExportDocument(designer.normalizeDocument(trackExport));
+assert(isDeepStrictEqual(trackRoundTrip.tracks, trackExport.tracks), "0.8 track metadata and ordering must round-trip");
+assert(isDeepStrictEqual(trackRoundTrip.nodes.map(node => [node.localId, node.trackId]), trackExport.nodes.map(node => [node.localId, node.trackId])), "0.8 node Track ownership must round-trip");
+assert(isDeepStrictEqual(trackRoundTrip.columns, trackExport.columns) && isDeepStrictEqual(trackRoundTrip.nodes.map(node => [node.localId, node.sortOrder]), trackExport.nodes.map(node => [node.localId, node.sortOrder])), "Track must not change Column or node ordering");
+const movedLayout = clone(trackExport);
+movedLayout.nodes.forEach(node => { node.layout = {x: node.layout.x + 12345, y: node.layout.y + 999}; });
+const movedLayoutRoundTrip = designer.toExportDocument(designer.normalizeDocument(movedLayout));
+assert(isDeepStrictEqual(movedLayoutRoundTrip.tracks, trackExport.tracks) && isDeepStrictEqual(movedLayoutRoundTrip.columns, trackExport.columns), "Layout coordinates must not derive Track or Column facts");
+assert(isDeepStrictEqual(movedLayoutRoundTrip.nodes.map(node => [node.localId, node.trackId, node.columnId, node.sortOrder]), trackExport.nodes.map(node => [node.localId, node.trackId, node.columnId, node.sortOrder])), "Layout coordinates must not change business ordering or ownership");
+
+const authoritySchema = readJson("contracts/strategy-flow-input-0.8.schema.json");
+assert(authoritySchema.properties.schemaVersion.const === "strategy-flow-input/0.8", "0.8 schema must pin its version");
+assert(authoritySchema.properties.tracks.minItems === 1 && authoritySchema.properties.tracks.items.$ref === "#/$defs/track", "0.8 schema must define non-empty optional tracks");
+assert(authoritySchema.$defs.track.required.join(",") === "localId,name,sortOrder", "0.8 track required fields failed");
+assert(authoritySchema.$defs.node.properties.trackId.$ref === "#/$defs/localId", "0.8 node trackId must be a localId reference");
+assert(authoritySchema.allOf.some(branch => branch.if.required.includes("tracks") && branch.then.properties.nodes.items.required.includes("trackId")), "0.8 schema must make node trackId conditional on tracks");
+assert(authoritySchema.allOf.some(branch => branch.if?.not?.required?.includes("tracks") && branch.then.properties.nodes.items.not.required.includes("trackId")), "0.8 schema must forbid node trackId when tracks are absent");
+
+const trackFailure = (variant, code, path) => {
+  const result = designer.validateDocument(variant);
+  assert(result.errors.some(error => error.code === code && (!path || error.path === path)), `Expected Track error ${code}: ${JSON.stringify(result.errors)}`);
+};
+trackFailure({...trackDesign, tracks: []}, "TRACK_EMPTY", "tracks");
+const duplicateTrackId = clone(trackDesign); duplicateTrackId.tracks[1].localId = duplicateTrackId.tracks[0].localId;
+trackFailure(duplicateTrackId, "TRACK_ID_DUPLICATE", "tracks[1].localId");
+const duplicateTrackOrder = clone(trackDesign); duplicateTrackOrder.tracks[1].sortOrder = duplicateTrackOrder.tracks[0].sortOrder;
+trackFailure(duplicateTrackOrder, "TRACK_SORT_ORDER_DUPLICATE", "tracks[1].sortOrder");
+const emptyTrackName = clone(trackDesign); emptyTrackName.tracks[0].name = "";
+trackFailure(emptyTrackName, "TRACK_NAME_REQUIRED", "tracks[0].name");
+const missingNodeTrack = clone(trackDesign); delete missingNodeTrack.nodes[0].trackId;
+trackFailure(missingNodeTrack, "NODE_TRACK_MISSING", "nodes[0].trackId");
+const unknownNodeTrack = clone(trackDesign); unknownNodeTrack.nodes[0].trackId = "track-does-not-exist";
+trackFailure(unknownNodeTrack, "NODE_TRACK_NOT_FOUND", "nodes[0].trackId");
+const trackWithoutMode = clone(noTrackDesign); trackWithoutMode.nodes[0].trackId = "activation";
+trackFailure(trackWithoutMode, "NODE_TRACK_NOT_ENABLED", "nodes[0].trackId");
+const unknownTrackField = clone(trackDesign); unknownTrackField.tracks[0].color = "#ff0000";
+trackFailure(unknownTrackField, "SCHEMA_UNKNOWN_FIELD", "tracks[0].color");
+const emptyTrackExportGate = designer.outputContractGate({...clone(trackDesign), tracks: [], registrationMetadata: metadata});
+assert(emptyTrackExportGate.blocking.some(error => error.code === "TRACK_EMPTY"), "Empty tracks must remain an export-contract blocker after normalization");
+const trackWithoutModeExportGate = designer.outputContractGate({...clone(trackWithoutMode), registrationMetadata: metadata});
+assert(trackWithoutModeExportGate.blocking.some(error => error.code === "NODE_TRACK_NOT_ENABLED"), "A no-track node trackId must remain an export-contract blocker after normalization");
+const incompleteTrackCanonical = clone(trackCanonical);
+incompleteTrackCanonical.nodes[0].trackId = "";
+assert(
+  designer.outputContractGate(incompleteTrackCanonical).blocking.some(error => error.code === "NODE_TRACK_MISSING"),
+  "Track-mode ownership gaps must block export",
+);
+
+const migrationSource = {...classificationDesign, registrationMetadata: metadata};
+const noTrackMigration = designer.migrateDocument(migrationSource);
+assert(noTrackMigration.ok, `0.7 no-track migration failed: ${JSON.stringify(noTrackMigration.errors)}`);
+assert(noTrackMigration.document.schemaVersion === "strategy-flow-input/0.8" && !noTrackMigration.document.trackMode, "0.7 no-track migration must not enable Track");
+assert(noTrackMigration.document.migrationAudit.some(error => error.code === "MIGRATION_TRACK_NOT_ENABLED"), "0.7 no-track migration must record Track audit");
+const explicitAssignment = {
+  tracks: [
+    {localId: "activation", name: "触达转化", sortOrder: 10},
+    {localId: "service", name: "服务承接", sortOrder: 20},
+  ],
+  nodeTrackIds: Object.fromEntries(classificationDesign.nodes.map((node, index) => [node.localId, index < 2 ? "activation" : "service"])),
+};
+const explicitMigration = designer.migrateDocument(migrationSource, explicitAssignment);
+assert(explicitMigration.ok, `Explicit Track migration failed: ${JSON.stringify(explicitMigration.validation?.errors ?? explicitMigration.errors)}`);
+assert(explicitMigration.document.trackMode && explicitMigration.document.nodes.every(node => node.trackId), "Explicit Track migration must assign every node");
+const incompleteAssignment = clone(explicitAssignment); delete incompleteAssignment.nodeTrackIds[classificationDesign.nodes.at(-1).localId];
+assert(!designer.migrateDocument(migrationSource, incompleteAssignment).ok, "Incomplete explicit Track assignment must fail");
+const unknownAssignmentField = clone(explicitAssignment); unknownAssignmentField.inferFromComponent = true;
+assert(
+  !designer.migrateDocument(migrationSource, unknownAssignmentField).ok,
+  "Explicit Track assignment must reject inference hints and unknown fields",
+);
+assert(!noTrackMigration.document.trackMode && noTrackMigration.document.tracks.length === 0 && noTrackMigration.document.nodes.every(node => !node.trackId), "Migration must not infer Tracks from graph structure or names");
 assert(
   classificationCanonical.nodes.every((node, index) => node.sortOrder === (index + 1) * 10),
   "0.7 example must explicitly order every node",
@@ -462,7 +568,7 @@ editable02NewStrategy.registrationMetadata = metadata;
 assert(designer.validateDocument(editable02NewStrategy).status === "ready_to_submit", "An imported 0.2 draft with an empty id must be editable as a new 0.4 strategy");
 assert(!("strategyId" in designer.toExportDocument(editable02NewStrategy).strategy), "An imported 0.2 draft with an empty id must export as a new 0.4 strategy");
 
-const unsupported = designer.validateDocument({...externalDesign, schemaVersion: "strategy-flow-input/0.8"});
+const unsupported = designer.validateDocument({...externalDesign, schemaVersion: "strategy-flow-input/0.9"});
 assert(unsupported.errors.some(error => error.code === "SCHEMA_VERSION_UNSUPPORTED"), "Unknown future version must be rejected explicitly");
 const malformed = designer.validateDocument({...externalDesign, schemaVersion: "strategy-flow-input/v0.2"});
 assert(malformed.errors.some(error => error.code === "SCHEMA_VERSION_INVALID"), "Malformed version must be rejected");
@@ -585,7 +691,7 @@ for (const error of agentErrors.errors) {
 }
 
 assert(agentDraft.schemaVersion === "strategy-agent-strategy-draft/0.1", "Agent draft version contract failed");
-assert(agentDraft.candidate.schemaVersion === "strategy-flow-input/0.7", "Draft candidate must use 0.7 create semantics");
+assert(agentDraft.candidate.schemaVersion === "strategy-flow-input/0.8", "Draft candidate must use 0.8 create semantics");
 assert(!("strategyId" in agentDraft.candidate.strategy), "New agent draft must omit strategyId");
 assert(!("registrationCaseId" in agentDraft.candidate.strategy), "New agent draft must omit registrationCaseId");
 assert(agentDraft.registrationMetadataCandidate.schemaVersion === "strategy-flow-registration-metadata/2.0", "Draft metadata candidate must stay on 2.0");
@@ -702,8 +808,9 @@ assert(unsupportedEnvelope.status === "ok" && unsupportedEnvelope.data.manifest.
 const draftEnvelope = executeCommand({command: "generate-draft", requestId: "req-test-draft", input: {caseId: agentCaseId}, store: agentStore});
 assert(draftEnvelope.status === "ok", `Agent draft generation failed: ${JSON.stringify(draftEnvelope.error ?? null)}`);
 const generatedDraft = draftEnvelope.data.draft;
-assert(generatedDraft.candidate.schemaVersion === "strategy-flow-input/0.7", "Offline stub must generate Design 0.7");
+assert(generatedDraft.candidate.schemaVersion === "strategy-flow-input/0.8", "Offline stub must generate Design 0.8");
 assert(generatedDraft.candidate.nodes.every(node => !("displayName" in node)), "Offline stub must omit removed displayName");
+assert(!("tracks" in generatedDraft.candidate) && generatedDraft.candidate.nodes.every(node => !("trackId" in node)), "Offline stub must generate no-track 0.8 without inferring Tracks");
 const selectedTaxonomy = new Map(generatedDraft.candidate.taxonomy.tagSelections.map(selection => [selection.fieldCode, selection.values.map(value => value.code)]));
 for (const [fieldCode, codes] of [["lifecycle", "existing"], ["customerClass", "generic"], ["assetRange", "unlimited"], ["riskLevel", "unspecified"], ["businessScene", "user_activation"], ["strategyType", "tail_customer_operation"], ["touchScene", "app"], ["touchMethod", "in_app_message"]]) {
   assert(selectedTaxonomy.get(fieldCode)?.[0] === codes, `Stub taxonomy match failed: ${fieldCode}`);
@@ -821,7 +928,7 @@ for (const id of [
   "copySelectionBtn", "pasteSelectionBtn", "undoBtn", "redoBtn", "selectionBox",
   "importMetadataBtn", "copyMetadataBtn", "downloadMetadataBtn", "metadataOutput",
   "moreActionsBtn", "openExportDrawerBtn", "exportDrawer", "exportCliTemplate",
-  "columnList", "addColumnBtn",
+  "columnList", "addColumnBtn", "trackModeBtn", "trackList", "addTrackBtn",
   "readinessSummary", "jsonCodePane", "metadataCodePane", "mermaidCodePane",
   "paradigmStatus", "registrationDrawer", "registrationDrawerContent", "openRegistrationDrawerBtn",
   "openAgentDrawerBtn", "agentDrawer", "agentLoadDraftBtn", "agentLoadCorpusBtn",
