@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ebscn.local/strategy-agent/strategy-draft/0.1/schema.json",
   "title": "Strategy Agent Strategy Draft",
-  "description": "Agent-produced draft with field-level provenance. The candidate is a standard strategy-flow-input/0.2, 0.3, 0.4, 0.5, 0.6, or 0.7 document plus its metadata companion, wrapped - never extended - by this envelope. Draft shape, pointers, and evidence references are validated immediately; output contract and reference integrity are enforced at the export boundary. A draft is never a fact source; humans refine it in the canonical editor.",
+  "description": "Agent-produced draft with field-level provenance. The candidate is a standard strategy-flow-input/0.2, 0.3, 0.4, 0.5, 0.6, 0.7, or 0.8 document plus its metadata companion, wrapped - never extended - by this envelope. Draft shape, pointers, and evidence references are validated immediately; output contract and reference integrity are enforced at the export boundary. A draft is never a fact source; humans refine it in the canonical editor.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -41,7 +41,11 @@
     "evidenceCorpus": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["corpusId", "sha256", "parserVersion"],
+      "required": [
+        "corpusId",
+        "sha256",
+        "parserVersion"
+      ],
       "properties": {
         "corpusId": {
           "type": "string",
@@ -63,17 +67,29 @@
     },
     "candidate": {
       "type": "object",
-      "required": ["schemaVersion"],
+      "required": [
+        "schemaVersion"
+      ],
       "properties": {
         "schemaVersion": {
-          "enum": ["strategy-flow-input/0.2", "strategy-flow-input/0.3", "strategy-flow-input/0.4", "strategy-flow-input/0.5", "strategy-flow-input/0.6", "strategy-flow-input/0.7"]
+          "enum": [
+            "strategy-flow-input/0.2",
+            "strategy-flow-input/0.3",
+            "strategy-flow-input/0.4",
+            "strategy-flow-input/0.5",
+            "strategy-flow-input/0.6",
+            "strategy-flow-input/0.7",
+            "strategy-flow-input/0.8"
+          ]
         }
       },
       "description": "Guard only. The draft layer may remain human-reviewable; final output must pass the selected strategy-flow-input contract and reference-integrity checks."
     },
     "registrationMetadataCandidate": {
       "type": "object",
-      "required": ["schemaVersion"],
+      "required": [
+        "schemaVersion"
+      ],
       "properties": {
         "schemaVersion": {
           "const": "strategy-flow-registration-metadata/2.0"
@@ -87,10 +103,17 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["pointer", "status", "evidenceRefs"],
+        "required": [
+          "pointer",
+          "status",
+          "evidenceRefs"
+        ],
         "properties": {
           "target": {
-            "enum": ["design", "metadata"],
+            "enum": [
+              "design",
+              "metadata"
+            ],
             "description": "Which wrapped document the pointer resolves against. Defaults to design when absent."
           },
           "pointer": {
@@ -99,7 +122,11 @@
             "description": "RFC 6901 JSON Pointer into candidate. Pointing at an object covers that subtree."
           },
           "status": {
-            "enum": ["supported", "missing", "conflict"],
+            "enum": [
+              "supported",
+              "missing",
+              "conflict"
+            ],
             "description": "supported: value is backed by cited evidence. missing: no evidence; candidate value must be 待确认 or empty. conflict: cited evidence disagrees; human must resolve."
           },
           "evidenceRefs": {
@@ -129,7 +156,10 @@
               }
             },
             "then": {
-              "required": ["evidenceRefs", "confidence"],
+              "required": [
+                "evidenceRefs",
+                "confidence"
+              ],
               "properties": {
                 "evidenceRefs": {
                   "minItems": 1
@@ -146,7 +176,9 @@
               }
             },
             "then": {
-              "required": ["evidenceRefs"],
+              "required": [
+                "evidenceRefs"
+              ],
               "properties": {
                 "evidenceRefs": {
                   "maxItems": 0
@@ -163,7 +195,11 @@
               }
             },
             "then": {
-              "required": ["evidenceRefs", "confidence", "note"],
+              "required": [
+                "evidenceRefs",
+                "confidence",
+                "note"
+              ],
               "properties": {
                 "evidenceRefs": {
                   "minItems": 2
@@ -179,10 +215,18 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["questionId", "pointer", "question", "evidenceRefs"],
+        "required": [
+          "questionId",
+          "pointer",
+          "question",
+          "evidenceRefs"
+        ],
         "properties": {
           "target": {
-            "enum": ["design", "metadata"]
+            "enum": [
+              "design",
+              "metadata"
+            ]
           },
           "questionId": {
             "type": "string",
@@ -209,10 +253,17 @@
     "reviewState": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status"],
+      "required": [
+        "status"
+      ],
       "properties": {
         "status": {
-          "enum": ["draft", "in_review", "confirmed", "discarded"]
+          "enum": [
+            "draft",
+            "in_review",
+            "confirmed",
+            "discarded"
+          ]
         },
         "confirmedBy": {
           "type": "string",
@@ -237,7 +288,11 @@
             }
           },
           "then": {
-            "required": ["confirmedBy", "confirmedAt", "approvalTokenId"]
+            "required": [
+              "confirmedBy",
+              "confirmedAt",
+              "approvalTokenId"
+            ]
           }
         }
       ]

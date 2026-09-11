@@ -532,7 +532,9 @@ let browser;
   });
 
   const exported = await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value));
-  assert.equal(exported.schemaVersion, "strategy-flow-input/0.7");
+  assert.equal(exported.schemaVersion, "strategy-flow-input/0.8");
+  assert.equal("tracks" in exported, false);
+  assert.equal(exported.nodes.every(node => !("trackId" in node)), true);
   assert.equal(exported.nodes.every(node => !("displayName" in node)), true);
   assert.equal(exported.columns.length, 2);
   assert.equal(new Set(exported.columns.map(column => column.sortOrder)).size, exported.columns.length);
@@ -551,6 +553,29 @@ let browser;
   assert.equal(exported.edges.length, 4);
   assert.equal(exported.strategyActions.length, 2);
   assert.equal(exported.processActions.length, 2);
+
+  await page.click("#trackModeBtn");
+  await page.waitForSelector("#trackList:not([hidden])");
+  await page.waitForFunction(() => JSON.parse(document.getElementById("jsonOutput").value)
+    .validation.errors.every(error => error.code === "NODE_TRACK_MISSING"));
+  for (const nodeId of ["n1", "n2", "n3", "n4"]) {
+    await page.dblclick(`#node-${nodeId}`);
+    await page.selectOption(`[data-bind="nodes.${nodeId}.trackId"]`, "t1");
+  }
+  await page.click("#addTrackBtn");
+  await page.dblclick("#node-n4");
+  await page.selectOption('[data-bind="nodes.n4.trackId"]', "t2");
+  await page.waitForFunction(() => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    return design.tracks.length === 2
+      && design.nodes.every(node => node.trackId)
+      && !design.validation.errors.some(error => error.code.startsWith("NODE_TRACK") || error.code.startsWith("TRACK_"));
+  });
+  const trackEnabledExport = await page.evaluate(() => JSON.parse(document.getElementById("jsonOutput").value));
+  assert.deepEqual(trackEnabledExport.tracks.map(track => [track.localId, track.sortOrder]), [["t1", 10], ["t2", 20]]);
+  assert.equal(trackEnabledExport.nodes.filter(node => node.trackId === "t1").length, 3);
+  assert.equal(trackEnabledExport.nodes.filter(node => node.trackId === "t2").length, 1);
+  assert.equal(await page.locator("#trackList .track-item").count(), 2);
 
   const mermaid = await page.inputValue("#mermaidOutput");
   assert.match(mermaid, /^flowchart TD/);
@@ -576,6 +601,11 @@ let browser;
     restored.nodes.map(node => node.columnId),
     exported.nodes.map(node => node.columnId)
   );
+  assert.deepEqual(restored.tracks, trackEnabledExport.tracks);
+  assert.deepEqual(
+    restored.nodes.map(node => node.trackId),
+    trackEnabledExport.nodes.map(node => node.trackId)
+  );
 
   await page.click('[data-node-type="classification"]');
   await page.waitForFunction(() => document.querySelectorAll(".node-card").length === 5);
@@ -584,6 +614,7 @@ let browser;
     true,
     (await page.locator("#inspector").innerText()).includes("对象分类")
   );
+  await page.selectOption('[data-bind="nodes.n5.trackId"]', "t1");
   await page.click('[data-action="add-process"]');
   await page.waitForFunction(() => JSON.parse(document.getElementById("jsonOutput").value).processActions.length === 3);
   const classificationPort = await page.locator("#node-n5 .node-port.output").boundingBox();
@@ -616,7 +647,7 @@ let browser;
       errors: design.validation.errors,
     };
   });
-  assert.equal(classificationExport.schemaVersion, "strategy-flow-input/0.7");
+  assert.equal(classificationExport.schemaVersion, "strategy-flow-input/0.8");
   assert.equal(classificationExport.columnId, "c1");
   assert.equal(classificationExport.sortOrder, 50);
   assert.equal(classificationExport.nodeType, "classification");
@@ -624,6 +655,36 @@ let browser;
   assert.equal(classificationExport.processActionCount, 1);
   assert.equal(classificationExport.strategyActionCount, 0);
   assert.deepEqual(classificationExport.errors, []);
+
+  // Regression: a flow-issue locator must resolve collection names to the
+  // inspector's singular object kinds. Otherwise the node editor is cleared and
+  // the user cannot move the flagged card into a newly created board column.
+  const brokenColumnReference = await page.evaluate(() => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    design.nodes.find(node => node.localId === "n5").columnId = "missing-column";
+    return design;
+  });
+  await page.click('[data-panel="importView"]');
+  await page.fill("#importText", JSON.stringify(brokenColumnReference));
+  await page.click("#applyImportBtn");
+  await page.waitForFunction(() => JSON.parse(document.getElementById("jsonOutput").value)
+    .validation.errors.some(error => error.code === "NODE_COLUMN_MISSING" && error.path === "nodes[4].columnId"));
+  await page.click('[data-panel="validationView"]');
+  await page.click('#issueList .issue-actions [data-focus-path="nodes[4].columnId"]');
+  assert.equal(
+    (await page.locator("#inspector").innerText()).includes("流程卡片"),
+    true
+  );
+  await page.click("#addColumnBtn");
+  await page.waitForFunction(() => JSON.parse(document.getElementById("jsonOutput").value)
+    .columns.some(column => column.localId === "c3"));
+  await page.click("#node-n5");
+  await page.selectOption('[data-bind="nodes.n5.columnId"]', "c3");
+  await page.waitForFunction(() => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    return design.nodes.find(node => node.localId === "n5").columnId === "c3"
+      && !design.validation.errors.some(error => error.code === "NODE_COLUMN_MISSING");
+  });
 
   assert.deepEqual(issues, []);
   await browser.close();

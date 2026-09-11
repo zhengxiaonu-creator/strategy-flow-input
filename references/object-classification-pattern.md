@@ -1,4 +1,4 @@
-# 对象分类卡片模式（strategy-flow-input/0.7）
+# 对象分类卡片模式（strategy-flow-input/0.8）
 
 ## 定位
 
@@ -66,6 +66,6 @@ CLASSIFICATION_SUBJECT_BEHAVIOR_INVALID
 
 0.2 没有 `classification`。如需在 0.2 中表达类似业务，只能用 `process + processActions + no_requirement` 的业务模式，并在 `displayName` 中说明；该写法不会被机器识别为对象分类，也不会获得上述硬校验。
 
-0.2 / 0.3 / 0.4 / 0.5 / 0.6 导入 0.7 编辑器后仍保持 `process`。业务人员显式把卡片类型改为“对象分类”后，导出才使用 `classification`。
+0.2 / 0.3 / 0.4 / 0.5 / 0.6 / 0.7 导入 0.8 编辑器后仍保持 `process`。业务人员显式把卡片类型改为“对象分类”后，导出才使用 `classification`。
 
-通用完整示例见 [`../examples/contracts/strategy-flow-input-0.7.json`](../examples/contracts/strategy-flow-input-0.7.json)。
+通用完整示例见 [`../examples/contracts/strategy-flow-input-0.8-no-track.json`](../examples/contracts/strategy-flow-input-0.8-no-track.json)。

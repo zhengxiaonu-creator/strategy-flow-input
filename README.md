@@ -1,6 +1,6 @@
 # EBSCN Strategy Flow Designer
 
-全项目通用的策略编排设计器，用于把“责任人 + 对象状态 + 双行为条件”画成可校验的 `strategy-flow-input/0.7` JSON，并导出 Mermaid 沟通图。0.7 为流程卡片增加显式看板列和列内排序；taxonomy 仍由独立契约承载，并配套导出 `strategy-flow-registration-metadata/2.0`。页面内置示例只演示结构，不承载额外业务口径。
+全项目通用的策略编排设计器，用于把“责任人 + 对象状态 + 双行为条件”画成可校验的 `strategy-flow-input/0.8` JSON，并导出 Mermaid 沟通图。0.7 为流程卡片增加显式看板列和列内排序；0.8 增加可选业务主线 Track；taxonomy 仍由独立契约承载，并配套导出 `strategy-flow-registration-metadata/2.0`。页面内置示例只演示结构，不承载额外业务口径。
 
 视觉层采用 Fluent Light：Acrylic 命令栏和流程卡片、Mica 侧栏、轻量光照画布、统一焦点环与动效曲线。业务交互色使用 Fluent Blue，EBSCN 红色仅保留品牌标识。
 
@@ -9,26 +9,26 @@
 项目版本：
 
 ```text
-1.8.0
+1.9.0
 ```
 
 一次性运行：
 
 ```bash
-npx github:zhengxiaonu-creator/strategy-flow-input#v1.8.0 --open
+npx github:zhengxiaonu-creator/strategy-flow-input#v1.9.0 --open
 ```
 
 全局安装：
 
 ```bash
-npm install -g github:zhengxiaonu-creator/strategy-flow-input#v1.8.0
+npm install -g github:zhengxiaonu-creator/strategy-flow-input#v1.9.0
 strategy-flow-input --open
 ```
 
 安装到当前项目：
 
 ```bash
-npm install --save-dev github:zhengxiaonu-creator/strategy-flow-input#v1.8.0
+npm install --save-dev github:zhengxiaonu-creator/strategy-flow-input#v1.9.0
 npx strategy-flow-input --open
 ```
 
@@ -78,12 +78,13 @@ ebscn-strategy-flow-designer/index.html
 3. 从节点右侧红色锚点拖到目标节点，创建流转边。
 4. 点击节点 / 边，在右侧编辑结构化属性。
 5. 为节点挂接策略动作和过程动作。
-6. 底部“校验”实时显示阻断错误和警告。
-7. “导出 JSON”得到正式输入；“导出 Mermaid”得到业务沟通图。
-8. 顶部“新增卡片和业务 / 卡片信息 / 代码和校验”按钮可收起或展开对应面板；该布局偏好会保存在本地。
-9. 初始逻辑画布为 4800 × 3200；画布支持 25% ~ 150% 缩放、1:1 重置，以及 Ctrl/⌘ + 滚轮以鼠标位置为中心缩放；缩放状态保存在本地。
-10. 同源出边和同目标入边共用卡片锚点；拖拽流转规则标签可沿曲线法线方向调整平行线间距，布局偏移保存在 `edges[].layout.normalOffset`，范围为 -4800 ~ 4800。
-11. 双击流程卡片、流转规则标签或卡片内的动作气泡会自动展开右侧属性栏并聚焦首个可编辑字段。
+6. 复杂策略可在左侧显式启用“业务主线 Track”；启用后为每张卡片选择 primary Track，简单策略保持关闭。
+7. 底部“校验”实时显示阻断错误和警告。
+8. “导出 JSON”得到正式输入；“导出 Mermaid”得到业务沟通图。
+9. 顶部“新增卡片和业务 / 卡片信息 / 代码和校验”按钮可收起或展开对应面板；该布局偏好会保存在本地。
+10. 初始逻辑画布为 4800 × 3200；画布支持 25% ~ 150% 缩放、1:1 重置，以及 Ctrl/⌘ + 滚轮以鼠标位置为中心缩放；缩放状态保存在本地。
+11. 同源出边和同目标入边共用卡片锚点；拖拽流转规则标签可沿曲线法线方向调整平行线间距，布局偏移保存在 `edges[].layout.normalOffset`，范围为 -4800 ~ 4800。
+12. 双击流程卡片、流转规则标签或卡片内的动作气泡会自动展开右侧属性栏并聚焦首个可编辑字段。
 
 ### 编辑器信息架构
 
@@ -93,7 +94,7 @@ ebscn-strategy-flow-designer/index.html
 - 策略标签按“客群识别 / 业务场景与策略类型 / 触达配置 / 自定义标签提案”分组。
 - 底部校验提供“提交准备度”，并按契约、基础信息、策略标签、元数据、流程图分组。
 - 校验项可点击“定位”，自动跳到对应 Tab、分组或流程对象。
-- 代码区分 Design 0.7、Metadata 2.0、Mermaid 三个子 Tab，避免三列互相挤压。
+- 代码区分 Design 0.8、Metadata 2.0、Mermaid 三个子 Tab，避免三列互相挤压。
 - “导出”打开抽屉，同时展示双文件状态、复制 / 下载入口和 Workbench CLI 模板。
 - 新增卡片和业务、卡片信息、代码和校验面板支持拖拽和键盘拉伸，布局尺寸会保存在本机。
 - 校验面板提供进度、域级事实摘要、结果筛选、JSON Path、来源文件与修复建议。
@@ -142,7 +143,7 @@ ebscn-strategy-flow-designer/index.html
 
 ## 契约
 
-- Design Schema：`schema/strategy-flow-input.schema.json`（`strategy-flow-input/0.7`）
+- Design Schema：`schema/strategy-flow-input.schema.json`（`strategy-flow-input/0.8`）
 - Metadata Schema：`schema/strategy-flow-registration-metadata-2.0.schema.json`
 - Taxonomy Schema：`schema/strategy-taxonomy-2026-09.schema.json`
 - Taxonomy 字典：`schema/strategy-taxonomy-2026-09.json`
@@ -151,7 +152,9 @@ ebscn-strategy-flow-designer/index.html
 - 0.4 历史示例：`examples/contracts/strategy-flow-input-0.4.json`
 - 0.5 历史示例：`examples/contracts/strategy-flow-input-0.5.json`
 - 0.6 历史示例：`examples/contracts/strategy-flow-input-0.6.json`
-- 0.7 看板列示例：`examples/contracts/strategy-flow-input-0.7.json`
+- 0.7 历史示例：`examples/contracts/strategy-flow-input-0.7.json`
+- 0.8 no-track 示例：`examples/contracts/strategy-flow-input-0.8-no-track.json`
+- 0.8 track-enabled 示例：`examples/contracts/strategy-flow-input-0.8-track-enabled.json`
 - Metadata 示例：`examples/contracts/strategy-flow-registration-metadata-2.0.json`
 - 0.1 历史 Schema：`schema/strategy-flow-input-0.1.schema.json`
 - 0.2 历史 Schema：`schema/strategy-flow-input-0.2.schema.json`
@@ -159,7 +162,7 @@ ebscn-strategy-flow-designer/index.html
 - 0.4 历史 Schema：`contracts/strategy-flow-input-0.4.schema.json`
 - 0.5 历史 Schema：`contracts/strategy-flow-input-0.5.schema.json`
 - 0.6 历史 Schema：`contracts/strategy-flow-input-0.6.schema.json`
-- 当前导出版本：`strategy-flow-input/0.7`
+- 当前导出版本：`strategy-flow-input/0.8`
 
 核心结构：
 
@@ -167,6 +170,7 @@ ebscn-strategy-flow-designer/index.html
 strategy           策略基础信息，不承载业务场景 / 策略类型 / 策略子类
 taxonomy           策略标签唯一事实源
 columns            看板列定义与列排序
+tracks             可选业务主线 / 领域泳道；整体省略表示 no-track
 nodes              编排节点：责任执行人 + 对象类型 / 名称 / 对象状态 + 时间阶段 + 所属看板列 / 列内排序
 edges              流转边：执行人行为 + 对象行为
 strategyActions    策略动作气泡，挂接节点 / 流出边
@@ -181,6 +185,18 @@ validation         导出时计算；导入时忽略并重算
 - 这些继承值不写入 action JSON，页面按 `nodeId` 实时派生。
 - `strategyActions[].judge` 仍是动作局部的进入条件，用于筛选触达内容，不表示流程入口。
 - 0.4 删除 `nodes[].displayName`。
+
+### 0.8 业务主线 Track
+
+- Track 是复杂策略的可选增强，用于阶段 × 业务主线（泳道）展现；`tracks` 可以整体省略。
+- no-track 0.8 是一等合法形态，不是过渡态，不产生质量 warning，也不阻断 `ready_to_submit`。
+- 启用 Track 时必须至少定义一条 Track；每张节点必须且只能归属一个 `trackId` primary Track。
+- `tracks[].localId` 全局唯一，`name` 非空，`sortOrder` 是 Track 范围内唯一的非负整数；它与 `columns[].sortOrder` 是独立排序空间。
+- 边可以跨 Track；跨 Track 状态由两端节点 `trackId` 推导，不持久化 `crossTrack`。
+- 不得从节点 ID、名称、连通分量、layout 坐标、executor、触达方式或策略名推断 Track。
+- Track 不替代 Column，不改变节点排序、边语义或动作挂接校验。
+- 颜色、宽度、图标、折叠状态由渲染器决定，不进入业务契约。
+- Track 模式开关从 `tracks` 字段推导并随 JSON round-trip；关闭时导出必须完全省略 `tracks` 和 `nodes[].trackId`。
 
 ### 0.7 看板列与列内排序
 
@@ -223,7 +239,7 @@ validation         导出时计算；导入时忽略并重算
 
 ### Metadata companion
 
-`strategy-flow-input/0.7` 需要单独导出：
+`strategy-flow-input/0.8` 需要单独导出：
 
 ```text
 strategy-flow-registration-metadata/2.0
@@ -250,7 +266,7 @@ Agent 通道协议见 `references/agent-protocol.md`，契约只新增、不改�
 - 接入外部 Agent 时，复制整个 `skills/strategy-flow-agent/` 目录到目标 Agent 约定的 skill 目录。
 - 该 skill 只是操作指引，不改变 `strategy-agent/0.1` 命令协议，也不改变 Design / Metadata 输出契约。
 
-硬规则：Agent 只产带证据引用的草稿；`missing` 字段保持“待确认”，不得编造。默认轻量 human-in-loop：`missing` / `conflict` / `openQuestions` 只作为待办，草稿可直接导入编辑器，人工修正后在导出边界校验 Design 0.2 / 0.3 / 0.4 / 0.5 / 0.6 / 0.7 与 Metadata 2.0。新草稿默认使用 Design 0.7。`request-approval` / `confirm-draft` 是可选审计路径，仍需要一次性 token。
+硬规则：Agent 只产带证据引用的草稿；`missing` 字段保持“待确认”，不得编造。默认轻量 human-in-loop：`missing` / `conflict` / `openQuestions` 只作为待办，草稿可直接导入编辑器，人工修正后在导出边界校验 Design 0.2 / 0.3 / 0.4 / 0.5 / 0.6 / 0.7 / 0.8 与 Metadata 2.0。新草稿默认使用 no-track Design 0.8。`request-approval` / `confirm-draft` 是可选审计路径，仍需要一次性 token。
 
 ```bash
 # CLI 入口（状态默认落在 ./strategy-agent-store）
@@ -350,6 +366,13 @@ no_requirement   无行为要求
 | `NODE_COLUMN_MISSING` | 流程卡片引用的看板列不存在 |
 | `NODE_SORT_ORDER_INVALID` | 流程卡片看板排序不是合法非负整数 |
 | `NODE_SORT_ORDER_DUPLICATE` | 流程卡片看板排序重复 |
+| `TRACK_ID_INVALID` / `TRACK_ID_DUPLICATE` | 业务主线 ID 非法或重复 |
+| `TRACK_EMPTY` | 启用 Track 后 `tracks` 为空数组 |
+| `TRACK_MODE_INVALID` | `tracks` 不是合法数组 |
+| `TRACK_NAME_REQUIRED` | 业务主线名称缺失或为空 |
+| `TRACK_SORT_ORDER_INVALID` / `TRACK_SORT_ORDER_DUPLICATE` | 业务主线排序非法或在 Track 范围内重复 |
+| `NODE_TRACK_MISSING` / `NODE_TRACK_NOT_FOUND` | 启用 Track 后节点缺归属或引用不存在主线 |
+| `NODE_TRACK_NOT_ENABLED` | no-track 文档的节点携带 `trackId` |
 | `ACTOR_TIME_REQUIRED` / `ACTOR_ACTION_REQUIRED` / `ACTOR_STATUS_REQUIRED` | 执行人行为缺失 |
 | `SUBJECT_TIME_REQUIRED` / `SUBJECT_ACTION_REQUIRED` / `SUBJECT_STATUS_REQUIRED` | 对象行为缺失 |
 | `STRATEGY_ACTION_NODE_MISSING` / `STRATEGY_ACTION_EDGE_MISSING` / `STRATEGY_ACTION_EDGE_SOURCE_MISMATCH` | 策略动作挂接无效 |
@@ -371,7 +394,7 @@ no_requirement   无行为要求
 | Code | 含义 |
 |---|---|
 | `EDGE_NOT_CONFIRMED` | 流转边尚未业务确认 |
-| `SCHEMA_MIGRATED` | 0.1 / 0.2 / 0.3 / 0.4 / 0.5 / 0.6 已迁移到 0.7，旧契约字段按当前规则归一 |
+| `SCHEMA_MIGRATED` | 0.1 / 0.2 / 0.3 / 0.4 / 0.5 / 0.6 / 0.7 已迁移到 0.8，旧契约字段按当前规则归一 |
 | `MIGRATION_DERIVED_FIELD_DISCARDED` | 旧动作派生字段与所属卡片不一致，0.4 以卡片值为准并丢弃动作值 |
 | `MIGRATION_DISPLAY_NAME_DISCARDED` | 0.4 删除卡片展示名，导入旧版本时丢弃非空值 |
 | `MIGRATION_TOUCH_FIELD_DISCARDED` | 旧触达自由文本无法按 taxonomy 展示名精确匹配，迁移时丢弃 |
@@ -386,16 +409,18 @@ no_requirement   无行为要求
 
 ## 导入规则
 
-1. 原生接受 `strategy-flow-input/0.7`。
-2. 兼容导入 `strategy-flow-input/0.1` / `0.2` / `0.3` / `0.4` / `0.5` / `0.6` 并导出 `0.7`；0.1 未承载的 taxonomy 与 metadata 字段必须补齐，0.2 的 `process` 不会被自动猜成 `classification`，0.3 起的重复动作派生字段按卡片值归一，旧触达自由文本只按 taxonomy 展示名精确匹配迁移，旧节点顺序会生成 `sortOrder`，旧节点会进入默认看板列 `c1`。
+1. 原生接受 `strategy-flow-input/0.8`；0.8 no-track 与 track-enabled 都是合法输入。
+2. 兼容导入 `strategy-flow-input/0.1` / `0.2` / `0.3` / `0.4` / `0.5` / `0.6` / `0.7` 并导出 `0.8`；0.1 未承载的 taxonomy 与 metadata 字段必须补齐，0.2 的 `process` 不会被自动猜成 `classification`，0.3 起的重复动作派生字段按卡片值归一，旧触达自由文本只按 taxonomy 展示名精确匹配迁移，旧节点顺序会生成 `sortOrder`，旧节点会进入默认看板列 `c1`。
 3. `validation` 会被忽略并重新计算。
-4. 0.7 未知字段拒绝；0.1 / 0.2 / 0.3 / 0.4 / 0.5 / 0.6 兼容导入仍按各自 normalizer 处理。
+4. 0.8 未知字段拒绝；0.1 / 0.2 / 0.3 / 0.4 / 0.5 / 0.6 / 0.7 兼容导入仍按各自 normalizer 处理。
+   - 0.7 升级 0.8 可完全不启用 Track，并记录 `MIGRATION_TRACK_NOT_ENABLED` 迁移审计。
+   - 只有显式 `tracks + nodeTrackIds` 全量分配才迁移为 track-enabled；缺少任一节点即失败。
 5. 注册元数据通过“导入元数据”单独加载。
 6. 导入后必须处理校验错误，再作为正式输入使用。
 
 ## 下一步
 
-1. 为 0.7 增加独立 JSON Schema validator 执行器。
+1. 为 0.8 增加独立 JSON Schema validator 执行器。
 2. 增加 Mermaid 草稿导入（仅生成待确认草稿）。
 3. 增加 `JSON -> 策略提交表 v1.2` 转换器。
 4. 通过 `manage_case.py import-flow` 接入 Agent 工作台。

@@ -1,3 +1,14 @@
+# Version 1.9.0 — 2026-09-10
+
+Release tag: `v1.9.0`
+
+- Upgrade the design contract to `strategy-flow-input/0.8`.
+- Add optional document-level business Tracks for stage × swimlane presentation.
+- Keep no-track 0.8 as a first-class, ready-to-submit form without quality warnings.
+- Require complete primary Track ownership and valid references when Tracks are enabled.
+- Add explicit Track migration assignments, audit no-track migration, and never infer Tracks from graph structure or layout.
+- Update editor Track mode, examples, validation, round-trip tests, E2E coverage, and protocol documentation.
+
 # Version 1.8.0 — 2026-09-07
 
 Release tag: `v1.8.0`
