@@ -1,4 +1,4 @@
-# Version 1.9.0 — 2026-09-10
+# Version 1.9.0 — 2026-09-11
 
 Release tag: `v1.9.0`
 
