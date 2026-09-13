@@ -1998,6 +1998,35 @@
         .filter(id => documentState.nodes.some(node => node.localId === id));
     }
 
+    function applyBulkNodeAssignment(field, targetId) {
+      if (!["columnId", "trackId"].includes(field)) return;
+      const nodes = selectedNodeIds()
+        .map(id => documentState.nodes.find(node => node.localId === id))
+        .filter(Boolean);
+      if (nodes.length < 2 || clean(targetId) === "") return;
+      if (field === "columnId" && !documentState.columns.some(column => column.localId === targetId)) {
+        toast("批量归属的目标看板列不存在", true);
+        renderInspector();
+        return;
+      }
+      if (field === "trackId" && (!documentState.trackMode || !documentState.tracks.some(track => track.localId === targetId))) {
+        toast("批量归属的目标业务主线不存在", true);
+        renderInspector();
+        return;
+      }
+      if (!nodes.some(node => node[field] !== targetId)) {
+        toast("所选卡片已全部归属该目标");
+        return;
+      }
+
+      pushHistory(`bulk-assign-${field}.${targetId}`);
+      nodes.forEach(node => {
+        node[field] = targetId;
+      });
+      renderAll();
+      toast(`已批量修改 ${nodes.length} 张卡片的所属${field === "columnId" ? "看板列" : "业务主线"}`);
+    }
+
     function snapshotState() {
       return {
         document: JSON.parse(JSON.stringify(documentState)),
@@ -3222,6 +3251,43 @@
       </div>`;
     }
 
+    function bulkAssignmentSelect(label, field, value, options, disabled = false) {
+      const currentValue = clean(value) || "__MIXED__";
+      const hasCurrentValue = options.some(([optionValue]) => optionValue === currentValue);
+      const renderedOptions = [
+        ...(hasCurrentValue ? [] : [[currentValue, value === undefined || clean(value) === "" ? "请选择归属" : "所选卡片归属不一致", true]]),
+        ...options,
+      ];
+      return `<label class="field"><span>${escapeHtml(label)}</span><select data-bulk-assignment="${escapeHtml(field)}"${disabled ? " disabled" : ""}>${renderedOptions
+        .map(([optionValue, optionLabel, optionDisabled = false]) => `<option value="${escapeHtml(optionValue)}"${optionValue === currentValue ? " selected" : ""}${optionDisabled ? " disabled" : ""}>${escapeHtml(optionLabel)}</option>`)
+        .join("")}</select></label>`;
+    }
+
+    function renderMultiNodeInspector(nodes) {
+      const sharedValue = field => nodes.reduce((result, node) => (
+        result === undefined ? node[field] : (result === node[field] ? result : null)
+      ), undefined);
+      const columnValue = sharedValue("columnId");
+      const trackValue = sharedValue("trackId");
+      const columnOptions = [...documentState.columns]
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map(column => [column.localId, `列 ${column.localId} · 排序 ${column.sortOrder}`]);
+      const trackOptions = [...documentState.tracks]
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map(track => [track.localId, `${track.name || track.localId} · 排序 ${track.sortOrder}`]);
+
+      inspectorContent.innerHTML = `<div class="side-block primary">
+        <div class="inspector-head">
+          <div><b>多选卡片</b><small>${nodes.length} 张流程卡片</small></div>
+        </div>
+        <div class="inspector-form">
+          ${bulkAssignmentSelect("批量设置所属看板列", "columnId", columnValue, columnOptions, !columnOptions.length)}
+          ${documentState.trackMode ? bulkAssignmentSelect("批量设置所属业务主线", "trackId", trackValue, trackOptions, !trackOptions.length) : ""}
+          <p class="field-help wide">批量修改只写入归属，不改变卡片排序，也不推断业务主线。目标必须已存在。</p>
+        </div>
+      </div>`;
+    }
+
     function renderNodeInspector(node) {
       const columnOptions = [...documentState.columns]
         .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -3379,6 +3445,15 @@
     }
 
     function renderInspector() {
+      const multiSelectedNodes = selectedNodeIds()
+        .map(id => documentState.nodes.find(node => node.localId === id))
+        .filter(Boolean);
+      if (multiSelectedNodes.length > 1) {
+        inspector.innerHTML = "";
+        inspectorContent = inspector;
+        renderMultiNodeInspector(multiSelectedNodes);
+        return;
+      }
       const current = selectedObject();
       if (!current?.value) {
         selected = null;
@@ -3798,6 +3873,11 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
       surface.addEventListener("input", event => {
         const target = event.target;
         const path = target.dataset?.bind;
+        const bulkAssignmentField = target.dataset?.bulkAssignment;
+        if (bulkAssignmentField) {
+          applyBulkNodeAssignment(bulkAssignmentField, target.value);
+          return;
+        }
         if (target.dataset.touchField) {
           pushHistory(`touch.${target.dataset.touchField}.${target.dataset.touchCode}`);
           updateActionTouchSelection(target, target.checked);

@@ -156,6 +156,31 @@ let browser;
     const node = design.nodes.find(item => item.localId === "n1");
     return node.columnId === "c2" && node.sortOrder === 10;
   });
+  await page.click("#node-n1");
+  await page.click("#node-n2", {modifiers: ["Meta"]});
+  await page.click("#node-n3", {modifiers: ["Meta"]});
+  assert.equal(
+    true,
+    (await page.locator("#inspector").innerText()).includes("多选卡片")
+  );
+  assert.equal(await page.locator('[data-bulk-assignment="trackId"]').count(), 0);
+  await page.selectOption('[data-bulk-assignment="columnId"]', "c1");
+  await page.waitForFunction(() => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    const nodes = ["n1", "n2", "n3"].map(id => design.nodes.find(node => node.localId === id));
+    return nodes.every(node => node.columnId === "c1")
+      && JSON.stringify(nodes.map(node => node.sortOrder)) === JSON.stringify([10, 20, 30]);
+  });
+  await page.click("#moreActionsBtn");
+  await page.click("#undoBtn");
+  await page.waitForFunction(() => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    const byId = id => design.nodes.find(node => node.localId === id);
+    return byId("n1").columnId === "c2"
+      && byId("n2").columnId === "c1"
+      && byId("n3").columnId === "c1";
+  });
+  await page.keyboard.press("Escape");
   await page.click('[data-select-column="c2"]');
   assert.equal(await page.locator('#inspector [data-action="delete"]').isDisabled(), true);
   assert.equal(
@@ -434,6 +459,8 @@ let browser;
     return n1.x === before.n1.x && n1.y === before.n1.y
       && n4.x === before.n4.x && n4.y === before.n4.y;
   }, beforeGroupDrag);
+  await page.keyboard.press("Escape");
+  await page.click("#node-n4");
   await page.fill('[data-bind="nodes.n4.executor"]', "系统");
   await page.fill('[data-bind="nodes.n4.subject.state"]', "持续跟进");
   const sourcePort = await page.locator("#node-n1 .node-port.output").boundingBox();
@@ -558,11 +585,18 @@ let browser;
   await page.waitForSelector("#trackList:not([hidden])");
   await page.waitForFunction(() => JSON.parse(document.getElementById("jsonOutput").value)
     .validation.errors.every(error => error.code === "NODE_TRACK_MISSING"));
-  for (const nodeId of ["n1", "n2", "n3", "n4"]) {
-    await page.dblclick(`#node-${nodeId}`);
-    await page.selectOption(`[data-bind="nodes.${nodeId}.trackId"]`, "t1");
-  }
+  await page.click("#node-n1");
+  await page.click("#node-n2", {modifiers: ["Meta"]});
+  await page.click("#node-n3", {modifiers: ["Meta"]});
+  await page.click("#node-n4", {modifiers: ["Meta"]});
+  await page.selectOption('[data-bulk-assignment="trackId"]', "t1");
+  await page.waitForFunction(() => {
+    const design = JSON.parse(document.getElementById("jsonOutput").value);
+    return ["n1", "n2", "n3", "n4"].every(id =>
+      design.nodes.find(node => node.localId === id).trackId === "t1");
+  });
   await page.click("#addTrackBtn");
+  await page.keyboard.press("Escape");
   await page.dblclick("#node-n4");
   await page.selectOption('[data-bind="nodes.n4.trackId"]', "t2");
   await page.waitForFunction(() => {
