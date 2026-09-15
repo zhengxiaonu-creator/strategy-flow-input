@@ -12,6 +12,8 @@
 1.9.0
 ```
 
+当前 `main` 包含两个未发布功能：多选卡片批量归属、流转规则起点 / 终点重绑。包版本在下一次发布前仍显示 `1.9.0`；要试用这两个功能，请使用 `#main` 安装或直接克隆当前主干。追求稳定口径时使用下方 `#v1.9.0` 示例。
+
 一次性运行：
 
 ```bash
@@ -40,6 +42,8 @@ cd strategy-flow-input
 npm start
 ```
 
+使用当前主干时，把安装示例中的 `#v1.9.0` 替换为 `#main`，或直接克隆后运行 `npm start`。
+
 CLI 选项：
 
 ```text
@@ -62,13 +66,13 @@ CLI 选项：
 ## 打开方式
 
 ```bash
-open ebscn-strategy-flow-designer/index.html
+open index.html
 ```
 
 或在 IDE / 浏览器中直接打开：
 
 ```text
-ebscn-strategy-flow-designer/index.html
+index.html
 ```
 
 ## 基本操作
@@ -90,7 +94,7 @@ ebscn-strategy-flow-designer/index.html
 ### 编辑器信息架构
 
 - 顶栏常驻“导入（下拉含 Design / 元数据）/ 本策略注册信息 / Agent 草稿 / 导出”；撤销、清空、自动布局等低频操作在“更多”菜单。
-- 右侧属性栏专用于高频“当前对象”编辑：流程卡片、流转规则、客户触达内容和执行跟进动作。
+- 右侧属性栏专用于高频“当前对象”编辑：流程卡片、多选卡片、流转规则、客户触达内容和执行跟进动作。
 - “基础信息 / 策略标签 / 元数据”属于低频全局配置，统一收进顶部“本策略注册信息”抽屉。
 - 策略标签按“客群识别 / 业务场景与策略类型 / 触达配置 / 自定义标签提案”分组。
 - 底部校验提供“提交准备度”，并按契约、基础信息、策略标签、元数据、流程图分组。
@@ -280,7 +284,17 @@ npx strategy-agent request-approval --case <local-workspace-id> --draft <sd-id> 
 npx strategy-agent confirm-draft --case <local-workspace-id> --draft <sd-id> --token at-... --confirmed-by Terry
 ```
 
-页面顶栏「Agent 草稿」导入 draft JSON 与 corpus JSON 后逐项核对证据；证据待办不阻断编辑器导入，人工修正后由导出边界保证双 JSON 契约。Chrome E2E：`NODE_PATH=<playwright node_modules> CHROME_PATH=<chrome> npm run test:e2e`。
+页面顶栏「Agent 草稿」导入 draft JSON 与 corpus JSON 后逐项核对证据；证据待办不阻断编辑器导入，人工修正后由导出边界保证双 JSON 契约。
+
+本地验证：
+
+```bash
+npm test
+NODE_PATH=<playwright node_modules> CHROME_PATH=<chrome> npm run test:e2e
+NODE_PATH=<playwright node_modules> CHROME_PATH=<chrome> node tests/e2e/run-strategy-flow-designer-e2e.js
+```
+
+第一条是包与契约检查；第二条覆盖 Agent 草稿抽屉；第三条覆盖设计器画布、属性栏、导入导出和 round-trip。
 
 ## 时间与状态
 
@@ -313,8 +327,10 @@ no_requirement   无行为要求
 - `Shift + 空白拖拽`：框选流程卡片和流转规则。
 - `Ctrl/⌘ + 点击`：追加选择；`Ctrl/⌘ + A` 全选；`Esc` 清空选择。
 - 多选后拖动任一已选卡片：所有已选卡片保持相对布局整体移动；边与动作气泡跟随，整体最小 X/Y 不小于 0，一次拖动生成一条撤销记录。
+- 多选两张以上流程卡片后，右侧属性栏可批量设置所属看板列 / 业务主线；目标必须已存在，批量操作不改变 `sortOrder`，也不推断 Track。
 - `Ctrl/⌘ + C / V`：批量复制、粘贴；复制卡片会同步复制挂接动作。
 - `Ctrl/⌘ + Z / Shift + Z`：撤销、重做。
+- 选中流转规则后可拖拽起点 / 终点圆点重绑卡片；操作只改写 `from` / `to`，label、行为、确认状态和布局偏移保持不变。
 - 同一对卡片存在双向规则时，画布显示双向引导标识；两条规则仍独立保存。
 
 ## 校验错误码
@@ -424,4 +440,3 @@ no_requirement   无行为要求
 1. 为 0.8 增加独立 JSON Schema validator 执行器。
 2. 增加 Mermaid 草稿导入（仅生成待确认草稿）。
 3. 增加 `JSON -> 策略提交表 v1.2` 转换器。
-4. 通过 `manage_case.py import-flow` 接入 Agent 工作台。

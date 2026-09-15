@@ -14,6 +14,7 @@ description: 使用 strategy-flow-input 工作台解析非结构化策略材料�
 3. 把证据充分、证据冲突、信息缺失分清楚，交给业务人员裁决。
 4. 协助人工在编辑器中完成 Design 0.8 与 Metadata 2.0，而不是绕过工作台提交。
 5. 识别材料中的对象分类 / 分层意图，并把证据、缺口和人工确认动作摊开，不替业务人员猜分类口径。
+6. 交接时说明当前编辑器能力边界，避免把布局便利操作误解为业务口径变化。
 
 ## 硬规则
 
@@ -21,6 +22,7 @@ description: 使用 strategy-flow-input 工作台解析非结构化策略材料�
 - JSON 是事实源；Mermaid 只是沟通投影，不做 round-trip 事实源。
 - 无证据不得冒充事实：`supported` / `conflict` 必须引用 corpus 中存在的 `evidenceId`；无证据字段保持 `missing` / “待确认”。
 - 对象分类使用 Design 0.8 的 `classification` 卡片表达；显式分类 / 分层证据只能形成候选意图，弱信号只能作为 openQuestion，不得直接编造节点。
+- 新草稿默认是 no-track Design 0.8。业务主线 Track 必须来自业务人员显式确认；不得从材料主题、节点名称、布局或执行人推断。
 - 不要为让导出通过而编造看板 `registrationCaseId` / `strategyId`、taxonomy code、对象状态、时间、指标或业务口径；新建策略省略这两个看板 ID，只有看板返回后才使用。
 - 会话记忆不是状态源；恢复执行只依赖本地工作区 `caseId`、status、nextAction、持久化 draft/corpus 和审计记录。
 - 审批只能来自显式动作和一次性 token，不得从自由对话推断授权。
@@ -74,6 +76,14 @@ strategy-agent get-case \
 ```
 
 再按返回的 status / nextAction / draftIds 继续；缺 draftId 时用 `get-draft` 读取用户指定的草稿。
+
+### 5. 编辑器交接
+
+- 页面顶栏「Agent 草稿」需要同时导入 draft JSON 与 corpus JSON；先核对 provenance / openQuestions / evidence，再导入候选。
+- 新候选默认 no-track。业务人员确认需要泳道归属后，先显式启用 Track 并创建 Track，再为卡片选择或批量归属；批量归属只能选择已存在的 Track / 看板列，不改变排序，也不代表 Agent 可以推断归属。
+- 业务人员拖拽流转规则起点 / 终点时，编辑器只改写 `edges[].from` / `edges[].to`；`label`、双行为、确认状态和 `layout.normalOffset` 保持不变。Agent 不得把这次布局操作描述成业务话术或行为变化。
+- 对象分类卡片必须在人工确认后创建或修改；导出前需满足过程动作、出边和无客户触达内容的约束。
+- 人工修正完成后，以编辑器导出的 Design 0.8 与 Metadata 2.0 双 JSON 为交付事实源；Mermaid 仅用于沟通。
 
 ## Reference routing
 
