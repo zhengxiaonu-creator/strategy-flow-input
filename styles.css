@@ -299,6 +299,7 @@ body.resizing-bottom { cursor:row-resize; }
   stroke:var(--accent); stroke-width:2.7; stroke-opacity:1; filter:drop-shadow(0 2px 6px rgba(0,120,212,.2));
 }
 .edge-svg path.temp { fill:none; stroke:var(--accent); stroke-dasharray:6 6; stroke-width:2.5; stroke-linecap:round; }
+.edge-svg path.temp.invalid { stroke:var(--danger); }
 .edge-svg .handoff { stroke:var(--accent); }
 .edge-svg .outcome { stroke:var(--success); }
 .edge-svg .recycle,.edge-svg .reentry { stroke:var(--warning); stroke-dasharray:7 6; }
@@ -352,6 +353,21 @@ body.resizing-bottom { cursor:row-resize; }
 .edge-behavior .status.pending { background:rgba(255,185,0,.12); color:var(--warning-ink); }
 .edge-behavior .status.none { background:rgba(161,159,157,.12); color:var(--muted); }
 
+.edge-endpoint {
+  position:absolute; z-index:5; display:block; width:18px; height:18px; padding:0;
+  border:3px solid #fff; border-radius:50%; background:var(--accent);
+  box-shadow:0 0 0 1px rgba(210,208,206,.8),var(--shadow-sm); cursor:grab;
+  transform:translate(-50%,-50%); touch-action:none;
+  transition:transform var(--speed) var(--motion),box-shadow var(--speed) var(--motion);
+}
+.edge-endpoint.target { background:var(--success); }
+.edge-endpoint:hover,.edge-endpoint:focus-visible {
+  box-shadow:0 0 0 4px var(--accent-ring),var(--shadow-md);
+  outline:none; transform:translate(-50%,-50%) scale(1.12);
+}
+.edge-endpoint:active { transform:translate(-50%,-50%) scale(1.05); }
+#edgeLabelLayer.dragging .edge-endpoint { cursor:grabbing; }
+
 .node-card {
   position:absolute; z-index:4; width:262px; min-height:188px; padding:13px 14px 12px 17px;
   border:1px solid rgba(255,255,255,.82); border-radius:var(--radius-lg); background:rgba(255,255,255,.79);
@@ -362,6 +378,10 @@ body.resizing-bottom { cursor:row-resize; }
 .node-card:hover { border-color:rgba(255,255,255,.95); box-shadow:var(--shadow-lg); }
 .node-card.dragging { cursor:grabbing; border-color:rgba(0,120,212,.4); box-shadow:var(--shadow-accent),var(--shadow-md); }
 .node-card.selected { border-color:rgba(0,120,212,.48); box-shadow:0 0 0 1px rgba(0,120,212,.25),var(--shadow-accent),var(--shadow-md); }
+.node-card.endpoint-target {
+  border-color:rgba(0,120,212,.72);
+  box-shadow:0 0 0 3px var(--accent-ring),var(--shadow-accent),var(--shadow-md);
+}
 .node-card[data-type=entry]::before { background:var(--accent); }
 .node-card[data-type=classification]::before { background:#6f6bd9; }
 .node-card[data-type=process]::before { background:var(--muted); }

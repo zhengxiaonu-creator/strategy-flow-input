@@ -86,6 +86,49 @@ let browser;
     true,
     normalizedEdgeLabelText.includes("对象已发生启动日点击链接")
   );
+
+  // Rebinding an endpoint must not become "delete and recreate": all business
+  // fields, including the human label, stay on the same edge record.
+  const edgeBeforeEndpointDrag = await page.evaluate(() => {
+    const edge = JSON.parse(document.getElementById("jsonOutput").value)
+      .edges.find(item => item.localId === "e2");
+    const {from, to, ...stableContent} = edge;
+    return {from, to, stableContent};
+  });
+  await page.locator('.edge-label[data-edge-id="e2"]').click();
+  assert.equal(await page.locator(".edge-endpoint").count(), 2);
+  const targetEndpoint = await page.locator('.edge-endpoint[data-edge-id="e2"][data-endpoint="to"]').boundingBox();
+  const endpointTarget = await page.locator("#node-n1").boundingBox();
+  assert.ok(targetEndpoint && endpointTarget);
+  await page.mouse.move(
+    targetEndpoint.x + targetEndpoint.width / 2,
+    targetEndpoint.y + targetEndpoint.height / 2
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    endpointTarget.x + endpointTarget.width / 2,
+    endpointTarget.y + endpointTarget.height / 2,
+    { steps: 10 }
+  );
+  await page.mouse.up();
+  const edgeAfterEndpointDrag = await page.evaluate(() => {
+    const edge = JSON.parse(document.getElementById("jsonOutput").value)
+      .edges.find(item => item.localId === "e2");
+    const {from, to, ...stableContent} = edge;
+    return {from, to, stableContent};
+  });
+  assert.equal(edgeAfterEndpointDrag.from, "n2");
+  assert.equal(edgeAfterEndpointDrag.to, "n1");
+  assert.deepEqual(edgeAfterEndpointDrag.stableContent, edgeBeforeEndpointDrag.stableContent);
+  assert.equal(edgeAfterEndpointDrag.stableContent.label, "跟进并完成转化");
+  await page.click("#moreActionsBtn");
+  await page.click("#undoBtn");
+  await page.waitForFunction(before => {
+    const edge = JSON.parse(document.getElementById("jsonOutput").value)
+      .edges.find(item => item.localId === "e2");
+    return edge.from === before.from && edge.to === before.to;
+  }, edgeBeforeEndpointDrag);
+
   await page.locator("#node-n1").click();
   const nodeFieldHelp = await page.evaluate(() => ({
     objectHelp: [...document.querySelectorAll(".field-help")].some(node => node.textContent.includes("先选择对象类型，再填写该类型下的具体对象名称")),

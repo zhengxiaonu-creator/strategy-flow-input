@@ -1750,6 +1750,7 @@
     let canvasPan = null;
     let connecting = null;
     let edgeLabelDrag = null;
+    let edgeEndpointDrag = null;
     let panelResize = null;
     let lastCanvasClick = null;
     let toastTimer = null;
@@ -2707,6 +2708,50 @@
       };
     }
 
+    function pointerPointBox(point) {
+      return {x: point.x, y: point.y, w: 0, h: 0, cx: point.x, cy: point.y};
+    }
+
+    function nodeIdAtPointer(event) {
+      return document.elementsFromPoint(event.clientX, event.clientY)
+        .map(element => element.closest?.(".node-card"))
+        .find(Boolean)?.dataset?.id || "";
+    }
+
+    function setEdgeEndpointHover(drag, targetId) {
+      if (drag.hoverId === targetId) return;
+      if (drag.hoverId) document.getElementById(`node-${drag.hoverId}`)?.classList.remove("endpoint-target");
+      drag.hoverId = targetId;
+      if (targetId) document.getElementById(`node-${targetId}`)?.classList.add("endpoint-target");
+    }
+
+    function previewEdgeEndpointDrag(event) {
+      const edge = documentState.edges.find(item => item.localId === edgeEndpointDrag?.id);
+      if (!edge) return;
+      const point = canvasPoint(event);
+      const targetId = nodeIdAtPointer(event);
+      setEdgeEndpointHover(edgeEndpointDrag, targetId);
+
+      const draggingSource = edgeEndpointDrag.endpoint === "from";
+      const targetBox = targetId ? nodeBox(targetId) : pointerPointBox(point);
+      const fromBox = draggingSource ? targetBox : nodeBox(edge.from);
+      const toBox = draggingSource ? nodeBox(edge.to) : targetBox;
+      if (!fromBox || !toBox) return;
+
+      let path = edgeSvg.querySelector("path.temp");
+      if (!path) {
+        path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("class", "temp");
+        edgeSvg.appendChild(path);
+      }
+      const oppositeId = draggingSource ? edge.to : edge.from;
+      path.classList.toggle("invalid", !targetId || targetId === oppositeId);
+      path.setAttribute(
+        "d",
+        edgeGeometry(fromBox, toBox, {normalOffset: edge.layout.normalOffset}).d,
+      );
+    }
+
     function buildEdgeSlots() {
       const outgoing = new Map();
       const incoming = new Map();
@@ -2754,6 +2799,7 @@
       const paths = [];
       const slots = buildEdgeSlots();
       const labelEntries = [];
+      const endpointEntries = [];
       const directedPairs = new Map();
       documentState.edges.forEach(edge => {
         const key = [edge.from, edge.to].sort().join("=>");
@@ -2781,6 +2827,7 @@
           ? 'marker-start="url(#arrowhead)" marker-end="url(#arrowhead)"'
           : 'marker-end="url(#arrowhead)"';
         paths.push(`<path class="hit" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" stroke="transparent" stroke-width="14" fill="none"><title>${escapeHtml(edge.label || edge.localId)}</title></path><path class="visible edge ${escapeHtml(edge.edgeType)}${bidirectional ? " bidirectional" : ""}${edgeSelected ? " selected" : ""}" data-edge-id="${escapeHtml(edge.localId)}" d="${geometry.d}" ${markers}></path>`);
+        if (edgeSelected) endpointEntries.push({edge, geometry});
       });
       edgeSvg.innerHTML = marker + paths.join("");
 
@@ -2886,6 +2933,23 @@
           right: selectedPosition.x + width / 2,
           top: selectedPosition.y - height / 2,
           bottom: selectedPosition.y + height / 2,
+        });
+      });
+
+      // Handles sit above cards because endpoints touch card borders. They only
+      // rebind from/to; the edge's label and behavior content remain attached.
+      endpointEntries.forEach(({edge, geometry}) => {
+        [["from", geometry.x1, geometry.y1, "起点"], ["to", geometry.x2, geometry.y2, "终点"]].forEach(([role, x, y, name]) => {
+          const handle = document.createElement("button");
+          handle.type = "button";
+          handle.className = `edge-endpoint ${role === "from" ? "source" : "target"}`;
+          handle.dataset.edgeId = edge.localId;
+          handle.dataset.endpoint = role;
+          handle.style.left = `${x}px`;
+          handle.style.top = `${y}px`;
+          handle.title = `拖拽调整${name}，标签与行为内容保持不变`;
+          handle.setAttribute("aria-label", `调整流转规则 ${edge.localId} 的${name}`);
+          edgeLabelLayer.appendChild(handle);
         });
       });
     }
@@ -4107,6 +4171,21 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
     });
 
     edgeLabelLayer.addEventListener("pointerdown", event => {
+      const endpoint = event.target.closest(".edge-endpoint");
+      if (endpoint) {
+        const edge = documentState.edges.find(item => item.localId === endpoint.dataset.edgeId);
+        if (!edge) return;
+        edgeEndpointDrag = {
+          id: edge.localId,
+          endpoint: endpoint.dataset.endpoint,
+          hoverId: "",
+        };
+        edgeLabelLayer.classList.add("dragging");
+        try { edgeLabelLayer.setPointerCapture?.(event.pointerId); } catch (_) { /* pointer capture is best-effort */ }
+        event.preventDefault();
+        return;
+      }
+
       const label = event.target.closest(".edge-label");
       if (!label) return;
       const edgeId = label.dataset.edgeId;
@@ -4152,7 +4231,12 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
 
     canvasShell.addEventListener("pointerdown", event => {
       if (event.button !== 0) return;
-      if (event.target.closest(".node-card") || event.target.closest(".edge-label") || event.target.closest("path.hit")) return;
+      if (
+        event.target.closest(".node-card")
+        || event.target.closest(".edge-label")
+        || event.target.closest(".edge-endpoint")
+        || event.target.closest("path.hit")
+      ) return;
       if (event.shiftKey) {
         const point = canvasPoint(event);
         selectionDrag = { startX: point.x, startY: point.y, x: point.x, y: point.y };
@@ -4188,7 +4272,10 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
       ) {
         clickOrigin.moved = true;
       }
-      if (edgeLabelDrag) {
+      if (edgeEndpointDrag) {
+        previewEdgeEndpointDrag(event);
+        event.preventDefault();
+      } else if (edgeLabelDrag) {
         const edge = documentState.edges.find(item => item.localId === edgeLabelDrag.id);
         if (edge) {
           if (!edgeLabelDrag.pushed) {
@@ -4273,6 +4360,26 @@ ${importCaseArgument}  --design ./${clean(documentState.strategy.strategyName) |
         renderLayout();
         saveLayout();
         return;
+      }
+      if (edgeEndpointDrag) {
+        const drag = edgeEndpointDrag;
+        edgeEndpointDrag = null;
+        setEdgeEndpointHover(drag, "");
+        edgeLabelLayer.classList.remove("dragging");
+        edgeSvg.querySelector("path.temp")?.remove();
+
+        const edge = documentState.edges.find(item => item.localId === drag.id);
+        const targetId = nodeIdAtPointer(event);
+        if (edge && targetId) {
+          const oppositeId = drag.endpoint === "from" ? edge.to : edge.from;
+          if (targetId === oppositeId) {
+            toast("起点和终点不能指向同一张卡片", true);
+          } else if (targetId !== edge[drag.endpoint]) {
+            pushHistory(`edge-endpoint:${edge.localId}`);
+            edge[drag.endpoint] = targetId;
+            renderAll();
+          }
+        }
       }
       if (edgeLabelDrag) {
         edgeLabelDrag = null;
